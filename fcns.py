@@ -1,7 +1,30 @@
 import numpy as np
 import math
 
-def addSecs(tm, secs):
+def collect_sig_2side(data,nulls,p):
+    """
+        Collect values that are significant on a two tail test for a two dimensional array.
+    2014-06-17
+    """
+    _data = np.reshape( data,data.shape+(1,) )
+    _nulls = nulls - np.reshape( np.mean(nulls,2),data.shape+(1,) )
+    
+    plo = np.sum( _data>=_nulls,2 )/float(nulls.shape[2]) < p
+    phi = np.sum( _data<=_nulls,2 )/float(nulls.shape[2]) < p
+    return data[np.logical_or(plo,phi)]
+
+def sub_times(tm1,tm0):
+    """
+        Subtract two datetime.time objects. Return difference in seconds.
+    2014-05-23
+    """
+    import datetime
+    t1 = datetime.datetime(100, 1, 1, tm1.hour, tm1.minute, tm1.second)
+    t0 = datetime.datetime(100, 1, 1, tm0.hour, tm0.minute, tm0.second)
+    return (t1-t0).total_seconds()
+
+def add_secs(tm, secs):
+    import datetime
     fulldate = datetime.datetime(100, 1, 1, tm.hour, tm.minute, tm.second)
     fulldate = fulldate + datetime.timedelta(seconds=secs)
     return fulldate.time()
@@ -102,15 +125,17 @@ def acf_breaks(x,y=None, length=20,iters=0):
     """
     2013-10-28
         Calculate autocorrelation while accounting for breaks in data represented by
-        nan's. For the macaque data.
-        Input:
-        length : value of time lags -1 to consider. Can also input vector of
-            values over which to iterate
-        iters : number of iterations for bootstrap sampling.
+        nan's. Account for nan's by ignoring data points whose corresponding lag is a nan.
+        Originally for the macaque data. 
+
+        Args:
+            length : value of time lags -1 to consider. Can also input vector of
+                values over which to iterate
+            iters : number of iterations for bootstrap sampling.
 
         Value:
-        samp : iters x length matrix of results of ACF calculated from bootstrap sampling
-            while maintaining fixed nan (break) locations
+            samp : iters x length matrix of results of ACF calculated from bootstrap sampling
+                while maintaining fixed nan (break) locations
     """
     x = x.copy()
 
@@ -158,6 +183,7 @@ def acf_breaks(x,y=None, length=20,iters=0):
 
 def acf(x, length=20,iters=0):
     """
+        Autocorrelation coefficient.
     2013-10-28
     """
     if iters==0:
