@@ -1,6 +1,14 @@
 import numpy as np
 import math
 
+def zero_crossing(m):
+    """
+        Number of times a function crosses zero.
+        2014-12-19
+    """
+    return np.sum( np.logical_or( np.logical_and(m[:-1]<0,m[1:]>0),
+               np.logical_and( m[:-1]>0,m[1:]<0) ) )
+
 def collect_sig_2side(data,nulls,p):
     """
         Collect values that are significant on a two tail test for a two dimensional array.
@@ -181,22 +189,39 @@ def acf_breaks(x,y=None, length=20,iters=0):
         return acf, samp
     return acf
 
-def acf(x, length=20,iters=0):
+def acf(x, length=20,iters=0,nonan=True):
     """
-        Autocorrelation coefficient.
-    2013-10-28
+        Autocorrelation coefficient including for masked arrays.
+        Args:
+            length{20,int}: time lags to do
+            iters{0,int}: number of bootstrap samplestime lags to go up to
+            nonan{True,bool}: ignore nans
+    2014-09-30
     """
-    if iters==0:
-        return np.array([1]+[np.corrcoef(x[:-i], x[i:])[0,1] \
-            for i in range(1, length)])
+    if type(x) is not np.ma.core.MaskedArray:
+        if iters==0:
+            return np.array([1]+[np.corrcoef(x[:-i], x[i:])[0,1] \
+                for i in range(1, length)])
+        else:
+            samp = np.zeros((iters,length))
+            for i in np.arange(iters):
+                ix = np.random.randint(0,x.size,size=x.size)
+                samp[i,:] = np.array([1]+[np.corrcoef(x[ix][:-j], x[ix][j:])[0,1] \
+                    for j in range(1, length)])
+            return np.array([1]+[np.corrcoef(x[:-i], x[i:])[0,1] \
+                for i in range(1, length)]), samp
     else:
-        samp = np.zeros((iters,length))
-        for i in np.arange(iters):
-            ix = np.random.randint(0,x.size,size=x.size)
-            samp[i,:] = np.array([1]+[np.corrcoef(x[ix][:-j], x[ix][j:])[0,1] \
-                for j in range(1, length)])
-        return np.array([1]+[np.corrcoef(x[:-i], x[i:])[0,1] \
-            for i in range(1, length)]), samp
+        if iters==0:
+            return np.array([1]+[np.ma.corrcoef(x[:-i], x[i:])[0,1] \
+                for i in range(1, length)])
+        else:
+            samp = np.zeros((iters,length))
+            for i in np.arange(iters):
+                ix = np.random.randint(0,x.size,size=x.size)
+                samp[i,:] = np.array([1]+[np.ma.corrcoef(x[ix][:-j], x[ix][j:])[0,1] \
+                    for j in range(1, length)])
+            return np.array([1]+[np.ma.corrcoef(x[:-i], x[i:])[0,1] \
+                for i in range(1, length)]), samp
 
 def fix_err_bars(y,yerr,ymn,ymx, dy=1e-10):
     """
