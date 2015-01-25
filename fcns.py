@@ -1,6 +1,38 @@
 import numpy as np
 import math
 
+def find_blocks(v,val=np.nan):
+    """
+    Find consecutive sequences of the same value.
+    2015-01-25
+    """
+    
+    if np.isnan(val):
+        ix = np.argwhere(np.isnan(v)).flatten()
+    else:
+        ix = np.argwhere(v==val).flatten()
+    ix = np.append(ix,ix[-1]+2)
+    step = np.diff(ix)
+
+    if ix.size==0:
+        return
+    
+    l = [[ix[0]]]
+    j = 0
+    for i in step:
+        if i>1:
+            l[-1].append(ix[j])
+            l.append([ix[j+1]])
+        j += 1
+    # Don't include last element that was inserted to ensure the last sequential block was counted.
+    return np.array(l[:-1])
+
+def find_nearest(m,val):
+    """
+    2014-12-19
+    """
+    return np.abs(m-val).argmin()
+
 def zero_crossing(m):
     """
         Number of times a function crosses zero.
