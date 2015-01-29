@@ -1,6 +1,18 @@
 import numpy as np
 import math
 
+def finite_diff(mat,dx):
+    """
+    Compute derivative using three-stencil with first order approximation to endpoints. This only currently works going down the 0 axis.
+    2015-01-29
+    """
+    grad = np.diff(mat,axis=0,n=2)/(2.*dx)
+    
+    # Extrapolate endpoints linearly.
+    return np.concatenate([ (-3*mat[[0],:] +4*mat[[1],:] -mat[[2],:])/(2.*dx), 
+                            grad, 
+                            (-3*mat[[-1],:] +4*mat[[-2],:] -mat[[-3],:])/(2.*dx)])
+
 def find_blocks(v,val=np.nan):
     """
     Find consecutive sequences of the same value.
