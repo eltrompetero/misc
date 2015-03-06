@@ -1,17 +1,44 @@
 import numpy as np
 import math
 
-def finite_diff(mat,dx):
+def tail(f, n):
     """
-    Compute derivative using three-stencil with first order approximation to endpoints. This only currently works going down the 0 axis.
+    Get last n lines of the files using an exponential search. Copied from stackexchange.
+    2015-03-06
+    """
+    assert n >= 0
+    pos, lines = n+1, []
+    while len(lines) <= n:
+        try:
+            f.seek(-pos, 2)
+        except IOError:
+            f.seek(0)
+            break
+        finally:
+            lines = list(f)
+        pos *= 2
+    return lines[-n:]
+
+def finite_diff(mat,dx,axis=0):
+    """
+    Compute derivative using three-stencil with second order approximation to endpoints. This only currently works going down the 0 axis.
     2015-01-29
     """
-    grad = np.diff(mat,axis=0,n=2)/(2.*dx)
+    if axis==0:
+        grad = ( mat[:-2,:]-mat[2:,:] )/(2.*dx)
+        
+        # Extrapolate endpoints to second order.
+        return np.concatenate([ (-3*mat[[0],:] +4*mat[[1],:] -mat[[2],:])/(2.*dx), 
+                                grad, 
+                                (-3*mat[[-1],:] +4*mat[[-2],:] -mat[[-3],:])/(2.*dx)])
+    else:
+        grad = ( mat[:,:-2]-mat[:,2:] )/(2.*dx)
     
-    # Extrapolate endpoints linearly.
-    return np.concatenate([ (-3*mat[[0],:] +4*mat[[1],:] -mat[[2],:])/(2.*dx), 
-                            grad, 
-                            (-3*mat[[-1],:] +4*mat[[-2],:] -mat[[-3],:])/(2.*dx)])
+        # Extrapolate endpoints linearly.
+        return np.concatenate([ (-3*mat[:,[0]] +4*mat[:,[1]] -mat[:,[2]])/(2.*dx), 
+                                grad, 
+                                (-3*mat[:,[-1]] +4*mat[:,[-2]] -mat[:,[-3]])/(2.*dx)],
+                                axis=1)
 
 def find_blocks(v,val=np.nan):
     """
