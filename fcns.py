@@ -1,6 +1,26 @@
 import numpy as np
 import math
 
+def fit_quad(x,y,x0,params0=[-1,-1e4],eps=1e-3):
+    """
+    Fit quadratic given mean and no linear component.
+    Args:
+        x : 
+        y : f(x)
+        x0 (float) : location at which to center quadratic
+        params0 (opt,list) : parameter start values
+        eps (1e-3,opt,float) : step size for least square minimization
+    2015-03-12
+    """
+    from scipy.optimize import leastsq
+
+    g = lambda params: y - (params[1] + params[0] * (x-x0)**2)
+    soln = leastsq( g,[-1,-1e4],epsfcn=eps )
+    if soln[1] not in [1,2,3,4]:
+        import warnings
+        warnings.warn("Least squares did not converge (%d)." %soln[1])
+    return soln[0]
+
 def tail(f, n):
     """
     Get last n lines of the files using an exponential search. Copied from stackexchange.
@@ -19,26 +39,46 @@ def tail(f, n):
         pos *= 2
     return lines[-n:]
 
-def finite_diff(mat,dx,axis=0):
+def finite_diff(mat,dx,axis=0,test=None):
     """
-    Compute derivative using three-stencil with second order approximation to endpoints. This only currently works going down the 0 axis.
-    2015-01-29
+    Compute derivative using three-stencil with third order approximation to endpoints. 
+    https://en.wikipedia.org/wiki/Finite_difference_coefficient
+    2015-03-17
     """
-    if axis==0:
-        grad = ( mat[:-2,:]-mat[2:,:] )/(2.*dx)
+    if len(mat.shape)==1:
+        grad = ( mat[2:] - mat[:-2] )/(2.*dx)
         
         # Extrapolate endpoints to second order.
-        return np.concatenate([ (-3*mat[[0],:] +4*mat[[1],:] -mat[[2],:])/(2.*dx), 
-                                grad, 
-                                (-3*mat[[-1],:] +4*mat[[-2],:] -mat[[-3],:])/(2.*dx)])
-    else:
-        grad = ( mat[:,:-2]-mat[:,2:] )/(2.*dx)
+        return np.array([ (-11./6*mat[0] +3*mat[1] -3./2*mat[2] +1./3*mat[3]) / dx ] +
+                                grad +
+                        [(11./6*mat[-1] -3*mat[-2] +3./2*mat[-3] -1./3*mat[-4]) / dx ])
     
+    if axis==0:
+        grad = ( mat[2:,:]-mat[:-2,:] )/(2.*dx)
+        
+        # Extrapolate endpoints to second order.
+        return np.concatenate(( (-11./6*mat[[0],:] +3*mat[[1],:] -3./2*mat[[2],:] +1./3*mat[[3],:]) / dx,
+                        grad,
+                        (11./6*mat[[-1],:] -3*mat[[-2],:] +3./2*mat[[-3],:] -1./3*mat[[-4],:]) / dx ))
+    else:
+        grad = ( mat[:,2:]-mat[:,:-2] )/(2.*dx)
+          
         # Extrapolate endpoints linearly.
-        return np.concatenate([ (-3*mat[:,[0]] +4*mat[:,[1]] -mat[:,[2]])/(2.*dx), 
-                                grad, 
-                                (-3*mat[:,[-1]] +4*mat[:,[-2]] -mat[:,[-3]])/(2.*dx)],
-                                axis=1)
+        print grad.shape,mat[:,[0]].shape
+        return np.concatenate(( (-11./6*mat[:,[0]] +3*mat[:,[1]] -3./2*mat[:,[2]] +1./3*mat[:,[3]]) / dx, 
+                        grad, 
+                        (11./6*mat[:,[-1]] -3*mat[:,[-2]] +3./2*mat[:,[-3]] -1./3*mat[:,[-4]])/ dx ),
+                        axis=1)
+
+def _finite_diff(ax):
+    """
+    2015-03-17
+    """
+    # Testing code:
+    phi = np.sin(np.linspace(0,3*np.pi,1000))
+    ax.plot( finite_diff(np.tile(phi,(3,1)).T,1,axis=0) )
+    ax.plot( finite_diff(np.tile(phi,(3,1)),1,axis=1).T )
+
 
 def find_blocks(v,val=np.nan):
     """
