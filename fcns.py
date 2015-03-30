@@ -1,6 +1,98 @@
 import numpy as np
 import math
 
+def sort_mat(m,refIx=0,invert=False,returnindex=False):
+    """
+        Sort entries in a matrix such that for a selected row/col, all entries are ordered
+        sequentially. Diagonal elements are not counted.
+    
+        invert : Sort ascending by default. From high to low if True.
+        refIx : index of row with which to order
+    2014-01-23
+    """
+    if m.shape[0]!=m.shape[1]:
+        raise Exception("Matrix must be square")
+    n = m.shape[0]
+    sortIx = np.expand_dims(range(m.shape[0]),0)
+    
+    # Put refIx row and col in front to use below algorithm.
+    swap_row(m,refIx,0)
+    swap_col(m,refIx,0)
+    swap_col(sortIx,refIx,0)
+    
+    # Select a row and swap to put max in front, and then perform same operation for the
+    # corresponding col. Must switch between row and col to maintain symmetry. Think of
+    # where the diagonal elements end up.
+    for i in range(1,n-1):
+        if invert:
+            ix = np.argmax(m[i:,0])+i # ix of max ignoring diagonal
+        else:
+            ix = np.argmin(m[i:,0])+i # ix of min ignoring diagonal
+        # Swap matrix row and col.
+        swap_row(m,i,ix)
+        swap_col(m,i,ix)
+        # Swap elements of index.
+        swap_col(sortIx,i,ix)
+    # Put refIx row back into original location. I don't think it makes sense to put refIx back
+    # into it's original location. The entire matrix has been swapped so putting it back won't
+    # make it fit in. Keep it in the 0 location to show where the references are.
+    #if not invert:
+    #    swap_row(m,refIx,0)
+    #    swap_col(m,refIx,0)
+    #    swap_col(sortIx,refIx,0)
+
+    if returnindex:
+        return m, sortIx.flatten()
+    else:
+        return m
+
+def swap_row(m,ix1,ix2):
+   """
+   2014-01-23
+   """
+   _row = m[ix1,:].copy()
+   m[ix1,:] = m[ix2,:].copy()
+   m[ix2,:] = _row.copy()
+   return
+
+def swap_col(m,ix1,ix2):
+   """
+   2014-01-23
+   """
+   _col = m[:,ix1].copy()
+   m[:,ix1] = m[:,ix2].copy()
+   m[:,ix2] = _col.copy()
+   return
+
+def local_max(x,ix0):
+    """
+    Start at ix0 and simple gradient ascent.
+    2015-03-17
+
+    Params:
+    ----------
+    x (ndarray)
+    ix0 (int)
+        starting index
+    """
+    from warnings import warn
+    
+    atmax = False
+    ix = ix0
+    while not atmax:
+        nx = x[ix]-x[ix-1]
+        mx = x[ix]-x[ix+1]
+        if nx>0 and mx<0:
+            ix += 1
+        elif nx<0 and mx>0:
+            ix -= 1
+        elif nx>0 and mx>0:
+            atmax = True
+        else:
+            warn("Undefined max.")
+            atmax = True
+    return ix
+
 def fit_quad(x,y,x0,params0=[-1,-1e4],eps=1e-3):
     """
     Fit quadratic given mean and no linear component.
@@ -45,13 +137,16 @@ def finite_diff(mat,dx,axis=0,test=None):
     https://en.wikipedia.org/wiki/Finite_difference_coefficient
     2015-03-17
     """
+    def stencil(x):
+        return (-11./6*x[0] +3*x[1] -3./2*x[2] +1./3*x[3]) / dx
+
     if len(mat.shape)==1:
         grad = ( mat[2:] - mat[:-2] )/(2.*dx)
         
         # Extrapolate endpoints to second order.
-        return np.array([ (-11./6*mat[0] +3*mat[1] -3./2*mat[2] +1./3*mat[3]) / dx ] +
-                                grad +
-                        [(11./6*mat[-1] -3*mat[-2] +3./2*mat[-3] -1./3*mat[-4]) / dx ])
+        return np.concatenate(( [ (-11./6*mat[0] +3*mat[1] -3./2*mat[2] +1./3*mat[3]) / dx ],
+                                grad,
+                        [(11./6*mat[-1] -3*mat[-2] +3./2*mat[-3] -1./3*mat[-4]) / dx ] ))
     
     if axis==0:
         grad = ( mat[2:,:]-mat[:-2,:] )/(2.*dx)
