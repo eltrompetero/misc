@@ -1,6 +1,23 @@
 import numpy as np
 import math
 
+def nan_helper(y):
+    """Helper to handle indices and logical indices of NaNs.
+
+    Input:
+        - y, 1d numpy array with possible NaNs
+    Output:
+        - nans, logical indices of NaNs
+        - index, a function, with signature indices= index(logical_indices),
+          to convert logical indices of NaNs to 'equivalent' indices
+    Example:
+        >>> # linear interpolation of NaNs
+        >>> nans, x= nan_helper(y)
+        >>> y[nans]= np.interp(x(nans), x(~nans), y[~nans])
+    """
+
+    return np.isnan(y), lambda z: z.nonzero()[0]
+
 def sort_mat(m,refIx=0,invert=False,returnindex=False):
     """
         Sort entries in a matrix such that for a selected row/col, all entries are ordered
@@ -74,6 +91,10 @@ def local_max(x,ix0):
     x (ndarray)
     ix0 (int)
         starting index
+
+    Values:
+    ix (int)
+        index where max is located
     """
     from warnings import warn
     
