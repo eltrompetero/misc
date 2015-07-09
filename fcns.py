@@ -1,6 +1,38 @@
 import numpy as np
 import math
 
+def histogram_int( data, bins=10, xAsGeoMean=False ):
+    """
+    Discrete histogram normalized by the number of integers in each bin.
+    2015-07-08
+    
+    Params:
+    -------
+    data (ndarray)
+    bins (int or ndarray)
+        fed directly into np.histogram
+    xAsGeoMean (bool,False)
+        return either arithmetic means or geometric means for x values
+    
+    Values:
+    -------
+    n (ndarray)
+    x (ndarray)
+        locations for plotting bins (not what np.histogram returns)
+    """
+    from scipy.stats import gmean
+    
+    n,x = np.histogram( data, bins=bins )
+    nInts,_ = np.histogram( np.arange(x[-1]+1),bins=x )
+    
+    if xAsGeoMean:
+        x = np.array([gmean(np.arange( np.ceil(x[i]),np.ceil(x[i+1]) )) if (np.ceil(x[i])-np.ceil(x[i+1]))!=0 else np.ceil(x[i])
+                      for i in range(len(x)-1)])
+    else:
+        x = (x[:-1]+x[1:]) / 2.
+    
+    return n/nInts, x
+
 def nan_helper(y):
     """Helper to handle indices and logical indices of NaNs.
 
