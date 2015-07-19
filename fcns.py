@@ -1,3 +1,4 @@
+from __future__ import division
 import numpy as np
 import math
 
@@ -184,39 +185,47 @@ def tail(f, n):
         pos *= 2
     return lines[-n:]
 
-def finite_diff(mat,dx,axis=0,test=None):
+def finite_diff( mat,dx,order,**kwargs ):
+    """
+    Front end for calling different finite differencing methods.
+    2015-07-18
+
+    Params:
+    -------
+    mat (ndarray)
+    dx (float)
+    order (int)
+    """
+    if order==1:
+        return finite_diff_1(mat,dx,**kwargs)
+    elif order==2:
+        return finite_diff_2(mat,dx,**kwargs)
+    else:
+        raise Exception("Invalid order option.")
+
+def finite_diff_1(mat,dx,axis=0,test=None):
     """
     Compute derivative using three-stencil with third order approximation to endpoints. 
     https://en.wikipedia.org/wiki/Finite_difference_coefficient
-    2015-03-17
+    2015-07-18
     """
-    def stencil(x):
-        return (-11./6*x[0] +3*x[1] -3./2*x[2] +1./3*x[3]) / dx
+    def center_stencil(x,i):
+        return ( 1/12*x[i-2] -2/3*x[i-1] + 2/3*x[i+1] -1/12*x[i+2] ) / dx
 
-    if len(mat.shape)==1:
-        grad = ( mat[2:] - mat[:-2] )/(2.*dx)
-        
-        # Extrapolate endpoints to second order.
-        return np.concatenate(( [ (-11./6*mat[0] +3*mat[1] -3./2*mat[2] +1./3*mat[3]) / dx ],
-                                grad,
-                        [(11./6*mat[-1] -3*mat[-2] +3./2*mat[-3] -1./3*mat[-4]) / dx ] ))
+    def forward_stencil(x,i):
+        return ( 3/2*x[i] -2*x[i-1] +1/2*x[i-2] ) / dx
+        return ( 11/16*x[i] -3*x[i-1] +3/2*x[i-2] -1/3*x[i-3] ) / dx
+
+    def backward_stencil(x,i):
+        return ( -3/2*x[i] +2*x[i+1] -1/2*x[i+2] ) / dx
+        return ( -11/16*x[i] +3*x[i+1] -3/2*x[i+2] +1/3*x[i+3] ) / dx
+
+    grad = np.array([ center_stencil(mat,i) for i in range(2,len(mat)-2) ])
     
-    if axis==0:
-        grad = ( mat[2:,:]-mat[:-2,:] )/(2.*dx)
-        
-        # Extrapolate endpoints to second order.
-        return np.concatenate(( (-11./6*mat[[0],:] +3*mat[[1],:] -3./2*mat[[2],:] +1./3*mat[[3],:]) / dx,
-                        grad,
-                        (11./6*mat[[-1],:] -3*mat[[-2],:] +3./2*mat[[-3],:] -1./3*mat[[-4],:]) / dx ))
-    else:
-        grad = ( mat[:,2:]-mat[:,:-2] )/(2.*dx)
-          
-        # Extrapolate endpoints linearly.
-        print grad.shape,mat[:,[0]].shape
-        return np.concatenate(( (-11./6*mat[:,[0]] +3*mat[:,[1]] -3./2*mat[:,[2]] +1./3*mat[:,[3]]) / dx, 
-                        grad, 
-                        (11./6*mat[:,[-1]] -3*mat[:,[-2]] +3./2*mat[:,[-3]] -1./3*mat[:,[-4]])/ dx ),
-                        axis=1)
+    # Extrapolate endpoints to third order.
+    return np.concatenate(( [ backward_stencil(mat,0), backward_stencil(mat,1) ],
+                              grad,
+                            [ forward_stencil(mat,len(mat)-2), forward_stencil(mat,len(mat)-1) ] ))
 
 def _finite_diff(ax):
     """
@@ -227,6 +236,27 @@ def _finite_diff(ax):
     ax.plot( finite_diff(np.tile(phi,(3,1)).T,1,axis=0) )
     ax.plot( finite_diff(np.tile(phi,(3,1)),1,axis=1).T )
 
+def finite_diff_2(mat,dx,axis=0,test=None):
+    """
+    Compute second derivative using fourth order approximation with third order approximation to endpoints. 
+    https://en.wikipedia.org/wiki/Finite_difference_coefficient
+    2015-07-18
+    """
+    def center_stencil(x,i):
+        return (-1/12*x[i-2] + 4/3*x[i-1] -5/2*x[i] + 4/3*x[i+1] -1/12*x[i+2]) / dx**2
+
+    def forward_stencil(x,i):
+        return (35/12*x[i] -26/3*x[i-1] +19/2*x[i-2] -14/3*x[i-3] +11/12*x[i-4]) / dx**2
+
+    def backward_stencil(x,i):
+        return (35/12*x[i] -26/3*x[i+1] +19/2*x[i+2] -14/3*x[i+3] +11/12*x[i+4]) / dx**2
+
+    laplacian = np.array([center_stencil(mat,i) for i in xrange(2,mat.size-2)])
+    
+    # Extrapolate endpoints.
+    return np.concatenate(( [backward_stencil(mat,0), backward_stencil(mat,1)],
+                    laplacian,
+                    [forward_stencil(mat,mat.size-2), forward_stencil(mat,mat.size-1)] ))
 
 def find_blocks(v,val=np.nan):
     """
