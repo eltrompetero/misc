@@ -185,11 +185,11 @@ def tail(f, n):
         pos *= 2
     return lines[-n:]
 
-def finite_diff( mat,dx,order,**kwargs ):
+def finite_diff( mat,order,dx=1,**kwargs ):
     """
     Front end for calling different finite differencing methods.
 
-    5x speed up by using Cython.
+    >5x speed up by using Cython.
     2015-07-20
 
     Params:
