@@ -12,7 +12,7 @@ def finite_diff_1( np.ndarray[dtype=np.float_t,ndim=1] mat,
     2015-07-18
     """
     def center_stencil( np.ndarray[dtype=np.float_t,ndim=1] x, int i):
-        return ( 1/12*x[i-2] -2/3*x[i-1] + 2/3*x[i+1] -1/12*x[i+2] ) / dx
+        return ( 2/4*x[i-2] -2*x[i-1] + 2*x[i+1] -1/4*x[i+2] ) / (3 * dx)
 
     def forward_stencil( np.ndarray[dtype=np.float_t,ndim=1] x, int i):
         return ( 3/2*x[i] -2*x[i-1] +1/2*x[i-2] ) / dx

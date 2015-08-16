@@ -2,6 +2,16 @@ from __future__ import division
 import numpy as np
 import math
 
+def add_colorbar(fig,dimensions,cmap):
+    import matplotlib as mpl
+    cbax = fig.add_axes(dimensions)
+    norm = mpl.colors.Normalize(vmin=0, vmax=1)
+    cb1 = mpl.colorbar.ColorbarBase(cbax, cmap=cmap,
+                                    norm=norm,
+                                    orientation='vertical')
+    #cb1.set_ticklabels(range(106,114))
+    #cb1.set_label('Congressional sessions')
+
 def histogram_int( data, bins=10, xAsGeoMean=False ):
     """
     Discrete histogram normalized by the number of integers in each bin.
@@ -198,7 +208,7 @@ def finite_diff( mat,order,dx=1,**kwargs ):
     dx (float)
     order (int)
     """
-    from calculus import finite_diff_1, finite_diff_2
+    #from calculus import finite_diff_1, finite_diff_2
     
     if order==1:
         return finite_diff_1(mat,dx,**kwargs)
@@ -214,13 +224,15 @@ def finite_diff_1(mat,dx,axis=0,test=None):
     2015-07-18
     """
     def center_stencil(x,i):
-        return ( 1/12*x[i-2] -2/3*x[i-1] + 2/3*x[i+1] -1/12*x[i+2] ) / dx
+        return ( 1/4*x[i-2] -2*x[i-1] + 2*x[i+1] -1/4*x[i+2] ) / (3 * dx)
 
     def forward_stencil(x,i):
+        #return ( x[i] -x[i-1] ) / dx
         return ( 3/2*x[i] -2*x[i-1] +1/2*x[i-2] ) / dx
         return ( 11/16*x[i] -3*x[i-1] +3/2*x[i-2] -1/3*x[i-3] ) / dx
 
     def backward_stencil(x,i):
+        #return ( -x[i] + x[i+1] ) / dx
         return ( -3/2*x[i] +2*x[i+1] -1/2*x[i+2] ) / dx
         return ( -11/16*x[i] +3*x[i+1] -3/2*x[i+2] +1/3*x[i+3] ) / dx
 
