@@ -11,14 +11,16 @@ def finite_diff_1( np.ndarray[dtype=np.float_t,ndim=1] mat,
     https://en.wikipedia.org/wiki/Finite_difference_coefficient
     2015-07-18
     """
-    def center_stencil( np.ndarray[dtype=np.float_t,ndim=1] x, int i):
-        return ( 2/4*x[i-2] -2*x[i-1] + 2*x[i+1] -1/4*x[i+2] ) / (3 * dx)
+    def center_stencil(x,i):
+        return ( 1/4*x[i-2] -2*x[i-1] + 2*x[i+1] -1/4*x[i+2] ) / (3 * dx)
 
-    def forward_stencil( np.ndarray[dtype=np.float_t,ndim=1] x, int i):
+    def forward_stencil(x,i):
+        #return ( x[i] -x[i-1] ) / dx
         return ( 3/2*x[i] -2*x[i-1] +1/2*x[i-2] ) / dx
         return ( 11/16*x[i] -3*x[i-1] +3/2*x[i-2] -1/3*x[i-3] ) / dx
 
-    def backward_stencil( np.ndarray[dtype=np.float_t,ndim=1] x, int i):
+    def backward_stencil(x,i):
+        #return ( -x[i] + x[i+1] ) / dx
         return ( -3/2*x[i] +2*x[i+1] -1/2*x[i+2] ) / dx
         return ( -11/16*x[i] +3*x[i+1] -3/2*x[i+2] +1/3*x[i+3] ) / dx
 

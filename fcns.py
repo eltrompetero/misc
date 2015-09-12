@@ -199,8 +199,8 @@ def finite_diff( mat,order,dx=1,**kwargs ):
     """
     Front end for calling different finite differencing methods.
 
-    >5x speed up by using Cython.
-    2015-07-20
+    >5x speed up by using Cython
+    2015-09-12
 
     Params:
     -------
@@ -208,7 +208,7 @@ def finite_diff( mat,order,dx=1,**kwargs ):
     dx (float)
     order (int)
     """
-    #from calculus import finite_diff_1, finite_diff_2
+    from calculus import finite_diff_1, finite_diff_2
     
     if order==1:
         return finite_diff_1(mat,dx,**kwargs)
