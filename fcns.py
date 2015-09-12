@@ -209,7 +209,9 @@ def finite_diff( mat,order,dx=1,**kwargs ):
     order (int)
     """
     from calculus import finite_diff_1, finite_diff_2
-    
+    if mat.ndim==1:
+        mat = mat[:,None]
+
     if order==1:
         return finite_diff_1(mat,dx,**kwargs)
     elif order==2:
