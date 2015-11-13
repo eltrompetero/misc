@@ -197,7 +197,7 @@ def tail(f, n):
 
 def finite_diff( mat,order,dx=1,**kwargs ):
     """
-    Front end for calling different finite differencing methods.
+    Front end for calling different finite differencing methods. Will calculate down the first dimension.
 
     >5x speed up by using Cython
     2015-09-12
@@ -597,8 +597,25 @@ def hist_log(data,bins,
              density=False,
              x0=None,x1=None,base=10.):
     """
-        Return log histogram of data.
-        2013-06-27
+    Return log histogram of data. Usage just like regular histogram.
+    2013-06-27
+
+    Params:
+    -------
+    data (ndarray)
+    bins (ndarray or int)
+    x0,x1 (float)
+        min and max x's
+    base (float)
+        base of histogram binning
+
+    Values:
+    -------
+    n (ndarray)
+        frequency count or probability density per bin
+    x (ndarray)
+        centered bins for plotting with n
+    xedges (ndarray)
     """
     if x0==None:
         x0 = np.min(data)
