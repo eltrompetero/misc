@@ -2,6 +2,33 @@ from __future__ import division
 import numpy as np
 import math
 
+def bootstrap_f(data,f,nIters,nSamples=-1):
+    """
+    Take given data nad compute function f on bootstrapped data.
+    2016-01-18
+
+    Params:
+    -------
+    data (list or ndarray)
+        List of data to sample from
+    f (function)
+    nIters (int)   
+        Number of times to bootstrap
+    nSamples (int=-1)
+        Number of samples of data to take per bootstrap. Default is to take the same size as the data
+
+    Value:
+    ------
+    results (list)
+        List of f used on bootstrapped data.
+    """
+    if nSamples==-1:
+        nSamples = len(data)
+    results = []
+    for i in xrange(nIters):
+        results.append( f(np.random.choice(data,size=nSamples)) )
+    return results
+
 def add_colorbar(fig,dimensions,cmap):
     import matplotlib as mpl
     cbax = fig.add_axes(dimensions)
