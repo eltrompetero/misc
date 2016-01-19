@@ -25,8 +25,14 @@ def bootstrap_f(data,f,nIters,nSamples=-1):
     if nSamples==-1:
         nSamples = len(data)
     results = []
-    for i in xrange(nIters):
-        results.append( f(np.random.choice(data,size=nSamples)) )
+
+    if type(data) is list or data.ndim==1:
+        for i in xrange(nIters):
+            results.append( f(np.random.choice(data,size=nSamples)) )
+    else:
+        for i in xrange(nIters):
+            randIx = np.random.randint(len(data),size=nSamples)
+            results.append( f(data[randIx]) )
     return results
 
 def add_colorbar(fig,dimensions,cmap):
