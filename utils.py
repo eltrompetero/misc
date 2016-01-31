@@ -661,10 +661,9 @@ def hist_log(data,bins,
                                  bins=bins,
                                  density=density )
     else:
-        n,xedges = np.histogram( data,
-                        bins=np.logspace(np.log(x0)/np.log(base),
-                        np.log(x1)/np.log(base),bins+1 ),
-                        density=density )
+        bins = np.logspace(np.log(x0)/np.log(base), np.log(x1)/np.log(base), bins+1 )
+        bins[-1] = np.ceil(bins[-1])
+        n,xedges = np.histogram( data, bins=bins, density=density )
 
     # take difference in log space to center bins
     dx = base**(np.diff(np.log(xedges)/np.log(base))/2.0)
