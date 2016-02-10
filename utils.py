@@ -2,6 +2,28 @@ from __future__ import division
 import numpy as np
 import math
 
+
+def zip_args(*args):
+    """
+    Given a mixed set of list and int/float args, turn them into a set up tuples. This can be used to faciliate pipeline operations.
+    2016-02-08
+    """
+    listOfTuples = []
+    try:
+        L = max([len(i) for i in args if type(i) is list])
+    except ValueError:
+        L = 1
+    
+    for i in xrange(L):
+        listOfTuples.append([])
+        for j in args:
+            if type(j) is list:
+                listOfTuples[-1].append(j[i])
+            else:
+                listOfTuples[-1].append(j)
+    return [tuple(i) for i in listOfTuples]
+
+
 def bootstrap_f(data,f,nIters,nSamples=-1):
     """
     Take given data nad compute function f on bootstrapped data.
