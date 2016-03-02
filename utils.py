@@ -1,7 +1,47 @@
 from __future__ import division
 import numpy as np
 import math
+from pathos.multiprocessing import Pool,cpu_count
 
+def parallelize( f ):
+    """
+    Decorator for duplicating function over several cores and return concatenated outputs.
+    2016-03-01
+    
+    Params:
+    -------
+    f (lambda)
+        Function that takes in a list of arguments can be duplicated.
+    """
+    from copy import deepcopy
+    from itertools import chain
+    instances = []
+    nJobs = cpu_count()
+    if nJobs<=1:
+        raise Exception("Not enough cores to parallelize.")
+        
+    def parallelized(*args):
+        # Make copies of args.
+        instances = [args]
+        for i in xrange(nJobs-1):
+            instances.append( deepcopy(args) )
+        
+        # Wrap f so that the args can be properly expanded and handed over as an expanded list.
+        def g(args):
+            return f(*args)
+    
+        p = Pool(nJobs)
+        output = zip( *p.map(g,instances) )
+        p.close()
+        
+        combinedOutput = []
+        for o in output:
+            try:
+                combinedOutput.append( list(chain(*o)) )
+            except TypeError:
+                combinedOutput.append( list(o) )
+        return tuple(combinedOutput)
+    return parallelized
 
 def zip_args(*args):
     """
