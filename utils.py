@@ -2,6 +2,7 @@ from __future__ import division
 import numpy as np
 import math
 from pathos.multiprocessing import Pool,cpu_count
+from numba import jit
 
 def parallelize( f ):
     """
@@ -511,7 +512,7 @@ def stack_dict(list,name,axis=0):
     else:
         return np.vstack(_l)
 
-
+@jit(nopython=True)
 def unique_rows(mat,return_inverse=False):
     """
         Return unique rows indices of a numpy array.
