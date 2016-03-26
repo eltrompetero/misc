@@ -1,5 +1,6 @@
 from __future__ import division
 import numpy as np
+import numpy
 import math
 from pathos.multiprocessing import Pool,cpu_count
 from numba import jit
@@ -512,7 +513,7 @@ def stack_dict(list,name,axis=0):
     else:
         return np.vstack(_l)
 
-@jit(nopython=True)
+@jit(cache=True)
 def unique_rows(mat,return_inverse=False):
     """
         Return unique rows indices of a numpy array.
@@ -525,11 +526,11 @@ def unique_rows(mat,return_inverse=False):
             idx : row indices of given mat that will give unique array
     2014-01-30
     """
-    b = np.ascontiguousarray(mat).view(np.dtype((np.void, mat.dtype.itemsize * mat.shape[1])))
+    b = numpy.ascontiguousarray(mat).view(numpy.dtype((numpy.void, mat.dtype.itemsize * mat.shape[1])))
     if not return_inverse:
-        _, idx = np.unique(b, return_index=True)
+        _, idx = numpy.unique(b, return_index=True)
     else:
-        _, idx = np.unique(b, return_inverse=True)
+        _, idx = numpy.unique(b, return_inverse=True)
 
     return idx
 
