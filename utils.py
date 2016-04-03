@@ -5,6 +5,12 @@ import math
 from pathos.multiprocessing import Pool,cpu_count
 from numba import jit
 
+def round_nearest( x, prec ):
+    """
+    Round x to nearest mulitples of prec.
+    """
+    return np.around(x/prec)*prec
+
 def parallelize( f ):
     """
     Decorator for duplicating function over several cores and return concatenated outputs.
