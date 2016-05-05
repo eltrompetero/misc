@@ -5,6 +5,14 @@ import math
 from pathos.multiprocessing import Pool,cpu_count
 from numba import jit
 
+
+def trapz(y,dx=1):
+    """
+    Integration using Simpson's 2nd order (?) rule.
+    2016-05-05
+    """
+    return ( y[0] + 4*y[1:-1:2].sum() + 2*y[2:-1:2].sum() + y[-1] ) *dx/3
+
 def round_nearest( x, prec ):
     """
     Round x to nearest mulitples of prec.
