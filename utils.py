@@ -5,6 +5,47 @@ import math
 from pathos.multiprocessing import Pool,cpu_count
 from numba import jit
 
+def join_connected_one_pass(ix):
+    """
+    Take in list of components that overlap. Make one pass through list and combine connected components. You must iterate this function til no components are joined.
+    2016-05-29
+    """
+    connected = [list(ix[0])]
+    for i in ix[1:]:
+        notFound = True
+        j = 0
+        while notFound and j<len(connected):
+            if (i[0] in connected[j]) or (i[1] in connected[j]):
+                connected[j] += i
+                notFound = False
+            j +=1
+        if notFound:
+            connected.append(tuple(i))
+
+        connected = [np.unique(c).tolist() for c in connected]
+    return connected
+
+def join_connected(ix):
+    """
+    Take in list of lists of components and find the connected components (one's that share at least one element with another component in the list).
+    2016-05-29
+    
+    Params:
+    -------
+    ix (list of lists)
+        Each list is a set of element labels.
+    """
+    thisComponents = [i[:] for i in ix]
+    ix = join_connected_one_pass(ix)
+    noChange=False
+    
+    while not noChange:
+        thatComponents = join_connected_one_pass(thisComponents)
+        if len(thatComponents)==len(thisComponents):
+            noChange=True
+        else:
+            thisComponents = [i[:] for i in thatComponents]
+    return thisComponents
 
 def trapz(y,dx=1):
     """
