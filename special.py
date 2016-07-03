@@ -51,3 +51,11 @@ def jacobi_lobatto(n,a,b):
                           gammaln(n+a+1) - gammaln(n+a+b+2) )
     return coX,weights
 
+def jacobi_d(n,k,a=1,b=1):
+    """
+    kth derivative of Jacobi polynomial.
+    2016-07-02
+    """
+    from scipy.special import gamma,jacobi
+    return lambda x: gamma(a+b+n+1+k)/2**k/gamma(a+b+n+1) * jacobi(n-k,a+k,b+k)(x)
+
