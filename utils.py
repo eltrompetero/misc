@@ -2,7 +2,7 @@ from __future__ import division
 import numpy as np
 import numpy
 import math
-from pathos.multiprocessing import Pool,cpu_count
+from multiprocess import Pool,cpu_count
 from numba import jit
 
 def join_connected_one_pass(ix):
