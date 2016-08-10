@@ -29,6 +29,10 @@ class QuadGauss(object):
             self.coX,self.weights = chebgauss(self.N+1)
         self.basisCox = [b(self.coX) for b in self.basis]
         self.W = 1/np.sqrt(1-self.coX**2)  # weighting function we must remove
+        
+        # Map bounds to given bounds or from given bounds to [-1,1].
+        self.map_to_bounds = lambda x,x0,x1: (x+1)/2*(x1-x0) + x0
+        self.map_from_bounds = lambda x,x0,x1: (x-x0)/(x1-x0)*2. - 1.
 
     def quad(self,f,x0,x1):
         """
@@ -37,11 +41,7 @@ class QuadGauss(object):
         f (lambda function)
             One dimensional function
         """
-        # Map bounds to given bounds or from given bounds to [-1,1].
-        map_to_bounds = lambda x: (x+1)/2*(x1-x0) + x0
-        map_from_bounds = lambda x: (x-x0)/(x1-x0)*2 - 1
-        
-        return ( f(map_to_bounds(self.coX))/self.W ).dot(self.weights) * (x1-x0)/2
+        return ( f(self.map_to_bounds(self.coX,x0,x1))/self.W ).dot(self.weights) * (x1-x0)/2
         
 def finite_diff( mat,order,dx=1,**kwargs ):
     """
