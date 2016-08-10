@@ -43,7 +43,24 @@ class QuadGauss(object):
             One dimensional function
         """
         return ( f(self.map_to_bounds(self.coX,x0,x1))/self.W ).dot(self.weights) * (x1-x0)/2
+      
+    def dblquad(self,f,x0,x1,y0,y1):
+        """
+        Params:
+        -------
+        f (lambda function)
+            Two dimensional function (x,y) where integral over y is done first
+        x0,x1 (float)
+            Bounds for outer integral
+        y0,y1 (floats)
+            Bounds for inner integral
+        """
+        xgrid,ygrid = (np.meshgrid(self.map_to_bounds(self.coX,x0,x1), 
+                       self.map_to_bounds(self.coX,y0,y1)) )
         
+        return ( ( ( f(xgrid,ygrid)/self.W[:,None] )*self.weights[:,None] * (y1-y0)/2 ).sum(0) / 
+                 self.W * self.weights * (x1-x0)/2 ).sum()
+   
 def finite_diff( mat,order,dx=1,**kwargs ):
     """
     Front end for calling different finite differencing methods. Will calculate down the first dimension.
