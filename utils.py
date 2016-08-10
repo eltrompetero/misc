@@ -22,13 +22,14 @@ class QuadGauss(object):
         
         # Lobatto collocation points.
         if lobatto:
-            self.coX = ( -np.cos(np.pi*np.arange(self.N+1)/self.N) + 1 )/2
-            self.weights = np.zeros_like(self.q)+np.pi/self.N
+            self.coX = -np.cos(np.pi*np.arange(self.N+1)/self.N)
+            self.weights = np.zeros(self.order+1)+np.pi/self.N
             self.weights[0] = self.weights[-1] = np.pi/(2*self.N)
         else:
             self.coX,self.weights = chebgauss(self.N+1)
         self.basisCox = [b(self.coX) for b in self.basis]
         self.W = 1/np.sqrt(1-self.coX**2)  # weighting function we must remove
+        self.W[np.isnan(self.W)] = 0.
         
         # Map bounds to given bounds or from given bounds to [-1,1].
         self.map_to_bounds = lambda x,x0,x1: (x+1)/2*(x1-x0) + x0
