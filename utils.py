@@ -20,7 +20,7 @@ i0qq=(2.962898424533095e-1,4.866115913196384e-1,
 # ----------------------------------#
 # Useful mathematical calculations. #
 # ----------------------------------#
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def poly(c,x):
     """
     Smart way of calculating polynomial.
@@ -31,7 +31,7 @@ def poly(c,x):
         y = y*x + i
     return y
 
-@jit(nopython=True)
+@jit(nopython=True,cache=True)
 def iv(x,v=0):
     """
     Calculate of Bessel function. Only implemented for order v=0.
