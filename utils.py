@@ -49,6 +49,7 @@ def iv(x,v=0):
             y[i] = np.exp(ax[i])*poly(i0pp[:5],z) / ( poly(i0qq[:6],z)*np.sqrt(ax[i]) )
     return y
 
+
 class QuadGauss(object):
     def __init__(self,order,lobatto=False):
         """
@@ -87,6 +88,8 @@ class QuadGauss(object):
       
     def dblquad(self,f,x0,x1,y0,y1):
         """
+        Uses a meshgrid to do integrals.
+
         Params:
         -------
         f (lambda function)
@@ -202,6 +205,33 @@ def round_nearest( x, prec ):
 # -------#
 # Other  #
 # -------#
+@jit(nopython=True,nogil=True,cache=True)
+def sub_to_ind(n,i,j):
+    """
+    Convert pair of coordinates of a symmetric square array into consecutive index of flattened upper triangle. This is slimmed down so it won't throw errors like if i>n or j>n or if they're negative. Only checking for if the returned index is negative which could be problematic with wrapped indices.
+    2016-08-16
+    
+    Params:
+    -------
+    n (int)
+        Dimension of square array
+    i,j (int)
+        coordinates
+    """
+    if i<j:
+        k = 0
+        for l in xrange(1,i+2):
+            k += n-l
+        assert k>=0
+        return k-n+j
+    elif i>j:
+        k = 0
+        for l in xrange(1,j+2):
+            k += n-l
+        assert k>=0
+        return k-n+i
+    else:
+        raise Exception("Indices cannot be the same.")
 
 def join_connected_one_pass(ix):
     """
