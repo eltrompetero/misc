@@ -338,8 +338,8 @@ def zip_args(*args):
 
 def bootstrap_f(data,f,nIters,nSamples=-1):
     """
-    Take given data nad compute function f on bootstrapped data.
-    2016-01-18
+    Take given data nad compute function f on bootstrapped data in a parallel fashion.
+    2016-08-26
 
     Params:
     -------
@@ -356,18 +356,26 @@ def bootstrap_f(data,f,nIters,nSamples=-1):
     results (list)
         List of f used on bootstrapped data.
     """
+    from multiprocess import cpu_count,Pool
+
     if nSamples==-1:
         nSamples = len(data)
     results = []
 
     if type(data) is list or data.ndim==1:
-        for i in xrange(nIters):
-            results.append( f(np.random.choice(data,size=nSamples)) )
+        def g(i):
+            np.random.seed()
+            return f(np.random.choice(data,size=nSamples))
     else:
-        for i in xrange(nIters):
+        def g(i):
+            np.random.seed()
             randIx = np.random.randint(len(data),size=nSamples)
-            results.append( f(data[randIx]) )
-    return results
+            return f(data[randIx])
+
+    p = Pool(cpu_count()) 
+    output = p.map(g,xrange(nIters))
+    p.close()
+    return output
 
 def add_colorbar(fig,dimensions,cmap):
     import matplotlib as mpl
