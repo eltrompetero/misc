@@ -792,12 +792,14 @@ def acf_breaks(x,y=None, length=20,iters=0):
 
 def acf(x, length=20,iters=0,nonan=True):
     """
-        Autocorrelation coefficient including for masked arrays.
-        Args:
-            length{20,int}: time lags to do
-            iters{0,int}: number of bootstrap samplestime lags to go up to
-            nonan{True,bool}: ignore nans
+    Autocorrelation coefficient including for masked arrays using the slow way of calculating with numpy.corrcoef.
     2014-09-30
+
+    Args:
+    -----
+    length{20,int}: time lags to do
+    iters{0,int}: number of bootstrap samplestime lags to go up to
+    nonan{True,bool}: ignore nans
     """
     if type(x) is not np.ma.core.MaskedArray:
         if iters==0:
