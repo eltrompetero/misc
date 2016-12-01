@@ -670,15 +670,19 @@ def stack_dict(list,name,axis=0):
 @jit(cache=True)
 def unique_rows(mat,return_inverse=False):
     """
-        Return unique rows indices of a numpy array.
-        Args:
-            mat :
-            **kwargs
-            return_inverse (bool) : if True, return inverse that returns back indices 
-                of unique array that would return the original array 
-        Value:
-            idx : row indices of given mat that will give unique array
+    Return unique rows indices of a numpy array.
     2014-01-30
+
+    Params:
+    -------
+    mat :
+    **kwargs
+    return_inverse (bool) : if True, return inverse that returns back indices 
+        of unique array that would return the original array 
+
+    Value:
+    ------
+    idx : row indices of given mat that will give unique array
     """
     b = numpy.ascontiguousarray(mat).view(numpy.dtype((numpy.void, mat.dtype.itemsize * mat.shape[1])))
     if not return_inverse:

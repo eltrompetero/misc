@@ -3,22 +3,22 @@ import numpy as np
 import numpy
 import matplotlib as mpl
 
-def set_ticks_radian( ax,dy=np.pi,axis='y' ):
+def set_ticks_radian( ax,dy=1.,axis='y' ):
     """
-    Set the x or y axis tick labels to be in units of pi.
+    Set the x or y axis tick labels to be in units of pi. Limited feature does not allow fractions of pi.
     2016-10-24
     
     Params:
     -------
     ax (axis handle)
-    dy (float=np.pi)
-        Step size for the tick labels.
+    dy (float=1.)
+        Step size for the tick labels in units of pi.
     axis (str='y')
         'y' or 'x'
     """
     ylim = [i//np.pi for i in ax.get_ylim()]
     labels =[]
-    for i in np.arange(ylim[0],ylim[1]+dy/np.pi):
+    for i in np.arange(ylim[0],ylim[1]+.1,dy):
         if i==0:
             labels.append(r'$0$')
         elif i==1:
@@ -28,11 +28,11 @@ def set_ticks_radian( ax,dy=np.pi,axis='y' ):
         else:
             labels.append( r'$%d\pi$'%i )
     if axis=='y':
-        ax.set( yticks=np.arange(ylim[0],ylim[1]+dy/np.pi,dy/np.pi)*np.pi,
-                yticklabels=labels)
+        ax.set( yticks=np.arange(ylim[0],ylim[1]+.1,dy)*np.pi,
+                yticklabels=labels, ylim=ax.get_ylim() )
     else:
-        ax.set( xticks=np.arange(ylim[0],ylim[1]+dy/np.pi,dy/np.pi)*np.pi,
-                xticklabels=labels)
+        ax.set( xticks=np.arange(ylim[0],ylim[1]+.1,dy)*np.pi,
+                xticklabels=labels, xlim=ax.get_xlim() )
 
 def add_colorbar(fig,dimensions,cmap,label='',ticklabels=None):
     cbax = fig.add_axes(dimensions)
