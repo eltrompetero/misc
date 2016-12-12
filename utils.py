@@ -76,7 +76,7 @@ def vector_ccf(x,y,length=20):
                 c[i] = ( (x[:-i]*y[i:]).sum(1)/(norm(x[:-i],axis=1)*norm(y[i:],axis=1)) ).mean()
     else:
         raise Exception("length must be int or array of ints.")
-    return
+    return c
 
 
 @jit(nopython=True,cache=True)
