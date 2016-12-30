@@ -455,12 +455,15 @@ def nan_helper(y):
 
 def sort_mat(m,refIx=0,invert=False,returnindex=False):
     """
-        Sort entries in a matrix such that for a selected row/col, all entries are ordered
-        sequentially. Diagonal elements are not counted.
-    
-        invert : Sort ascending by default. From high to low if True.
-        refIx : index of row with which to order
+    Sort entries in a symmetric matrix such that all cols and rows are sorted
+    in the sequential order for a selected row/col.  Diagonal elements are not
+    considered.
     2014-01-23
+    
+    Params:
+    -------
+    invert : Sort ascending by default. From high to low if True.
+    refIx : index of row with which to order
     """
     if m.shape[0]!=m.shape[1]:
         raise Exception("Matrix must be square")
