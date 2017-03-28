@@ -403,6 +403,8 @@ def sort_mat(m,refIx=0,invert=False,returnindex=False):
     
     Params:
     -------
+    m (ndarray)
+        square matrix
     invert : Sort ascending by default. From high to low if True.
     refIx : index of row with which to order
     """

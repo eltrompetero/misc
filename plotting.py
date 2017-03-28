@@ -3,6 +3,21 @@ import numpy as np
 import numpy
 import matplotlib as mpl
 
+def colorcycle(n,scale=lambda i,n:1):
+    """
+    Generator for cycling colors through viridis. Scaling function allows you to rescale the color axis.
+
+    Params:
+    -------
+    n (int)
+        Number of lines to plot.
+    scale (lambda)
+        Function that takes in current index of line and total number of lines. Examples include
+        lambda i,n:exp(-i/2)*5+1
+    """
+    for i in xrange(n):
+        yield plt.cm.viridis(i/(n-1)*scale(i,n))
+
 def set_ticks_radian( ax,dy=1.,axis='y' ):
     """
     Set the x or y axis tick labels to be in units of pi. Limited feature does not allow fractions of pi.
