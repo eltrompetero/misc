@@ -2,6 +2,7 @@ from __future__ import division
 import numpy as np
 import numpy
 import matplotlib as mpl
+import matplotlib.pyplot as plt
 
 def colorcycle(n,scale=lambda i,n:1):
     """
