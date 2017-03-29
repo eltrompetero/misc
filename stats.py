@@ -11,19 +11,19 @@ def acf(x,axis=-1):
     the autocorrelation function and power spectrum are Fourier transform duals.
     2017-01-17
     """
-    w=fft.fft(x-np.expand_dims(x.mean(axis=axis),axis),axis=axis)
-    S=np.abs(w)**2
-    acf=fft.ifft(S,axis=axis).real
+    w = fft.fft(x-np.expand_dims(x.mean(axis=axis),axis),axis=axis)
+    S = np.abs(w)**2
+    acf = fft.ifft(S,axis=axis).real
 
     if x.ndim==1 or axis==0:
         if x.ndim>1:
-            acf /= acf[0][None,:]
+            acf /= np.take(acf,[0],axis=axis)
         else:
             acf /= acf[0]
 
         return acf[:len(acf)//2]
     else:
-        acf = acf/acf[:,0][:,None]
+        acf /= np.take(acf,[0],axis=axis)
         return acf[:,:acf.shape[1]//2]
 
 def _acf(x,maxlag,axis=-1):
