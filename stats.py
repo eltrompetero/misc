@@ -5,11 +5,12 @@ from __future__ import division
 import numpy as np
 from numpy import fft
 
-def acf(x,axis=-1):
+def acf(x,axis=-1,return_power=False):
     """
     Compute the autocorrelation function of a given time series. According to the Wiener-Khintchine theorem,
-    the autocorrelation function and power spectrum are Fourier transform duals.
-    2017-01-17
+    the autocorrelation function and power spectrum are Fourier transform duals. The mean is subtracted
+    <f(t)f(t+dt)>-<f(t)>^2
+    2017-04-05
     """
     w = fft.fft(x-np.expand_dims(x.mean(axis=axis),axis),axis=axis)
     S = np.abs(w)**2
@@ -21,10 +22,15 @@ def acf(x,axis=-1):
         else:
             acf /= acf[0]
 
-        return acf[:len(acf)//2]
+        acf = acf[:len(acf)//2]
     else:
         acf /= np.take(acf,[0],axis=axis)
-        return acf[:,:acf.shape[1]//2]
+        acf = acf[:,:acf.shape[1]//2]
+
+    if return_power:
+        return acf,S
+    else:
+        return acf
 
 def _acf(x,maxlag,axis=-1):
     """
