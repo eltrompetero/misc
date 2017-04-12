@@ -28,13 +28,16 @@ def set_ticks_radian( ax,dy=1.,axis='y' ):
     -------
     ax (axis handle)
     dy (float=1.)
-        Step size for the tick labels in units of pi.
+        Step size for the tick labels in integer units of pi.
     axis (str='y')
         'y' or 'x'
     """
-    ylim = [i//np.pi for i in ax.get_ylim()]
+    if axis=='y':
+        ylim = [i//np.pi for i in ax.get_ylim()]
+    else:
+        ylim = [i//np.pi for i in ax.get_xlim()]
     labels =[]
-    for i in np.arange(ylim[0],ylim[1]+.1,dy):
+    for i in np.arange(ylim[0],ylim[1]*1.1,dy):
         if i==0:
             labels.append(r'$0$')
         elif i==1:
