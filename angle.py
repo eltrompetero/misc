@@ -4,6 +4,16 @@
 # 2017-03-29
 import numpy as np
 
+def mod_angle(angle):
+    """
+    Modulus into (-pi,pi).
+    
+    Params:
+    -------
+    angle (ndarray)
+    """
+    return (angle+np.pi)%(2*np.pi)-np.pi
+
 def phase_dist(phi1,phi2):
     """
     Phase error in each moment of time this is a maximum of pi at each moment in time.
