@@ -12,7 +12,7 @@ def mod_angle(angle):
     -------
     angle (ndarray)
     """
-    return (angle+np.pi)%(2*np.pi)-np.pi
+    return np.mod(angle+np.pi,2*np.pi)-np.pi
 
 def phase_dist(phi1,phi2):
     """
