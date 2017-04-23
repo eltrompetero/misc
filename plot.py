@@ -4,6 +4,56 @@ import numpy
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
+def _interp_r(t1,t2,r1,r2):
+    """
+    Linear interpolation in polar coordinates between theta1 and theta2.
+    
+    Params:
+    -------
+    t1,t2
+        Angle.
+    r1,r2
+        Radius.
+    """
+    a = (r1-r2)/(t1-t2)
+    b = r1-a*t1
+    return lambda t: a*t+b
+
+def interp_r(t,r,dt=.1):
+    """
+    Linear interpolation for a set of points by looping _interp_r(). 
+    
+    Params:
+    -------
+    t (ndarray)
+    r (ndarray)
+    dt (float=.1)
+        Approximate spacing for theta.
+    """
+    interpt,interpr = [],[]
+    for i in xrange(1,len(t)):
+        f = _interp_r( t[i-1],t[i],r[i-1],r[i] )
+        interpt.append( linspace(t[i-1],t[i],abs(t[i]-t[i-1])//dt+2) )
+        interpr.append( f(interpt[-1]) )
+    return interpt,interpr
+
+def smooth_polar_plot(ax,T,R):
+    """
+    Plot linear interpolation for a set of points.
+    
+    Params:
+    -------
+    ax (plot axis)
+    T (ndarray)
+        (n_samples,n_points) matrix of angles. Each row is a separate line to plot.
+    R
+        (n_samples,n_points) matrix of radii. Each row is a separate line to plot.
+    """
+    for t,r in zip(T,R):
+        interpt,interpr = interp_r(t,r)
+        for t,r in zip(interpt,interpr):
+            ax.plot( t,r,'k-',alpha=.2 )
+
 def colorcycle(n,scale=lambda i,n:1):
     """
     Generator for cycling colors through viridis. Scaling function allows you to rescale the color axis.
