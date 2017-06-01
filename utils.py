@@ -20,6 +20,36 @@ i0qq=(2.962898424533095e-1,4.866115913196384e-1,
 # ----------------------------------#
 # Useful mathematical calculations. #
 # ----------------------------------#
+def xmax(a):
+    """
+    Find max in a generator.
+
+    Params:
+    -------
+    a (generator for floats)
+    """
+    nowmx = -np.inf
+    for i in a:
+        if i>nowmx:
+            nowmx = i
+    return nowmx
+
+def xlogsumexp(a,b):
+    """
+    Generator version of scipy.misc.logsumexp().
+    First scan through iterator for the max. Then implement iterative sum.
+    
+    Params:
+    -------
+    a,b (generators)
+        Two copies of the generator.
+    """
+    mx = xmax(a)
+    res = 0
+    for i in b:
+        res += np.exp(i-mx)
+    return np.log(res) + mx
+
 @jit(nopython=True,cache=True)
 def poly(c,x):
     """

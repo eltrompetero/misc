@@ -15,7 +15,7 @@ def _interp_r(t1,t2,r1,r2):
     r1,r2
         Radius.
     """
-    a = (r1-r2)/(t1-t2)
+    a = (r1-r2)/(t1-t2+np.nextafter(0,1))
     b = r1-a*t1
     return lambda t: a*t+b
 
@@ -33,11 +33,11 @@ def interp_r(t,r,dt=.1):
     interpt,interpr = [],[]
     for i in xrange(1,len(t)):
         f = _interp_r( t[i-1],t[i],r[i-1],r[i] )
-        interpt.append( linspace(t[i-1],t[i],abs(t[i]-t[i-1])//dt+2) )
+        interpt.append( np.linspace(t[i-1],t[i],abs(t[i]-t[i-1])//dt+2) )
         interpr.append( f(interpt[-1]) )
     return interpt,interpr
 
-def smooth_polar_plot(ax,T,R):
+def smooth_polar_plot(ax,T,R,fmt='k-',plot_kwargs={}):
     """
     Plot linear interpolation for a set of points.
     
@@ -52,7 +52,7 @@ def smooth_polar_plot(ax,T,R):
     for t,r in zip(T,R):
         interpt,interpr = interp_r(t,r)
         for t,r in zip(interpt,interpr):
-            ax.plot( t,r,'k-',alpha=.2 )
+            ax.plot( t,r,fmt,**plot_kwargs )
 
 def colorcycle(n,scale=lambda i,n:1):
     """
