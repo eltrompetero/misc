@@ -235,10 +235,35 @@ def round_nearest( x, prec ):
 # -------#
 # Other  #
 # -------#
+def reinsert(x,insertix,value,check_sort=False):
+    """
+    Re-insert values into array after they have been deleted. np.insert cannot
+    deal with cases where we want to insert values back into the array but the
+    trimmed array is shorter. This is just a looped version of np.insert.
+    
+    Params:
+    -------
+    x (ndarray)
+    insertix (ndarray)
+        Assuming that this is sorted.
+    value (float)
+    
+    Returns:
+    --------
+    x (ndarray)
+        Now sorted.
+    """
+    for i in insertix:
+        x = np.insert(x,i,value)
+    return x
+
 @jit(nopython=True,nogil=True,cache=True)
 def sub_to_ind(n,i,j):
     """
-    Convert pair of coordinates of a symmetric square array into consecutive index of flattened upper triangle. This is slimmed down so it won't throw errors like if i>n or j>n or if they're negative. Only checking for if the returned index is negative which could be problematic with wrapped indices.
+    Convert pair of coordinates of a symmetric square array into consecutive
+    index of flattened upper triangle. This is slimmed down so it won't throw
+    errors like if i>n or j>n or if they're negative. Only checking for if the
+    returned index is negative which could be problematic with wrapped indices.
     2016-08-16
     
     Params:
