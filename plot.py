@@ -66,8 +66,11 @@ def colorcycle(n,scale=lambda i,n:1):
         Function that takes in current index of line and total number of lines. Examples include
         lambda i,n:exp(-i/2)*5+1
     """
-    for i in xrange(n):
-        yield plt.cm.viridis(i/(n-1)*scale(i,n))
+    if n>1:
+        for i in xrange(n):
+            yield plt.cm.viridis(i/(n-1)*scale(i,n))
+    else:
+        yield plt.cm.viridis(0)
 
 def set_ticks_radian( ax,dy=1.,axis='y' ):
     """
