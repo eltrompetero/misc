@@ -20,6 +20,26 @@ i0qq=(2.962898424533095e-1,4.866115913196384e-1,
 # ----------------------------------#
 # Useful mathematical calculations. #
 # ----------------------------------#
+def weighted_corrcoef(x,y,w):
+    """
+    Params:
+    --------
+    x (ndarray)
+    y (ndarray)
+    w (ndarray)
+        Weights.
+    """
+    w /= w.sum()
+    
+    mx = x.dot(w)
+    my = y.dot(w)
+    
+    covxx = ((x-mx)*(x-mx)).dot(w)
+    covyy = ((y-my)*(y-my)).dot(w)
+    covxy = ((x-mx)*(y-my)).dot(w)
+    
+    return covxy/np.sqrt(covxx*covyy)
+
 def xmax(a):
     """
     Find max in a generator.
