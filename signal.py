@@ -1,0 +1,138 @@
+from __future__ import division
+import numpy as np
+from scipy.signal import get_window,detrend,fftconvolve,convolve2d
+
+def tfcohf(x,y,nfft,spec_win,sm_win,tstep,fs):
+    """
+    Ported from MATLAB function
+    https://www.mathworks.com/matlabcentral/fileexchange/38537-time-frequency-coherency
+
+    TFCOHF Time-frequency coherency
+    Estimates the complex coherency coefficients using Fourier decomposition 
+    of vector X and vector Y. The cross and auto spectra are smoothed with 
+    identical smoothing windows (sm_win).
+    
+    Time-frequency coherency is computed by smoothing the cross- and autospectra
+    using a smoothing kernel specficied by SM_WIN. The cross- and autospectra
+    are estimated using Welch's periodogram method. Signals are dived into overlapping
+    sections, each of which is detrended and windowed by the SPEC_WIN parameter,
+    then zero padded to len NFFT. TSTEP defines the number of samples the
+    window is slided forward. The spectra X, Y, and XY are estimated for each
+    segment.Spectral coefficients are then smoothed for the estimation of 
+    time-frequency coherency using identical smoothing windows.
+    
+    ARGUMENTS:
+              x           --  signal 1 (vector)
+              y           --  signal 2 (vector)
+              nfft        --  len of fft, zero-padded if spec_win has less
+                              than n points
+              spec_win    --  len of window in samples used for spectral
+                              decomposition (Hamming window)
+              sm_win      --  len of window used for smoothing the auto
+                              and cross spectra (Gauss window)
+              tstep       --  number of samples the window is slided forward
+              fs          --  sample frequeny
+    
+    If len(sm_win)==1 it specifies the len of the smoothing window in 
+    seconds. If len(sm_win)==2 sm_win(1) specifies the height of the kernel 
+    in hertz and sm_win(2) the width of the kernel in seconds. Otherwise 
+    sm_win specifies the actual smoothing kernel.
+    
+    OUTPUTS:
+              C           --  complex valued time-frequency coherency
+                              [N,M] matrix with N frequencies and M
+                              time-points
+              F           --  frequency vector
+              T           --  time vector
+    
+    If no outputs are specified, time-frequency coherency is plotted.
+    
+    EXAMPLE:
+    >>fs = 200 spec_win = fs nfft = fs*3 tstep = fs/5
+    >>x1 = sin(2*pi*20*(1:fs*10)/fs) x2 = sin(2*pi*40*(1:fs*10)/fs)
+    >>x = [x1,x1,x2]+randn(1,fs*30)/20 y = [x1,x2,x2]+randn(1,fs*30)/20
+    >>sm_win = [3,2]
+    >>tfcohf(x,y,nfft,spec_win,sm_win,tstep,fs)
+      
+    Time-frequency coherency between two signals sampled at 200 Hz of 30s 
+    duration for which synchronization jumps from 20 to 40 Hz. Data is 
+    decomposed using a 1s window and smoothed over an time-frequency area of 
+    3Hz by 2s. 
+    
+    Please cite the following paper when using this code:
+    Mehrkanoon S, Breakspear M, Daffertshofer A, Boonstra TW (2013). Non-
+    identical smoothing operators for estimating time-frequency interdependence 
+    in electrophysiological recordings. EURASIP Journal on Advances in Signal 
+    Processing 2013, 2013:73. doi:10.1186/1687-6180-2013-73
+    
+    T.W. Boonstra and S. Mehrkanoon          9-October-2012
+    Systems Neuroscience Group, UNSW, Australia.
+    
+    See also FFT CONV
+    """
+    if type(spec_win) is int:
+        wl = spec_win
+    else:
+        wl = len(spec_win)
+
+    # Zero-padding of signal
+    x_new = np.zeros((len(x)+wl))
+    y_new = np.zeros((len(x)+wl))
+    x_new[wl//2:wl//2+len(x)] = x
+    y_new[wl//2:wl//2+len(x)] = y
+    
+    # Compute Fourier coefficients
+    if nfft%2:    # nfft odd
+        select = range((nfft+1)//2)
+    else:
+        select = range(nfft//2+1)   # include DC AND Nyquist
+
+    X = np.zeros((len(select),len(x)//tstep+1),dtype=np.complex)
+    Y = np.zeros((len(select),len(x)//tstep+1),dtype=np.complex)
+
+    if type(spec_win) is int:
+       window = get_window('hamming',spec_win)
+    else:
+        window = spec_win
+    index = np.arange(wl,dtype=int)
+    for k in range(len(x)//tstep+1):
+        # Not sure why this detrending is necessary.
+        temp = np.fft.fft( detrend(x_new[index],type='constant')*window,nfft )
+        X[:,k] = temp[select]
+        temp = np.fft.fft( detrend(y_new[index],type='constant')*window,nfft )
+        Y[:,k] = temp[select]
+        
+        index = index+tstep
+    
+    # compute cross and auto spectra
+    XY = X * Y.conjugate()
+    X = np.abs(X)**2
+    Y = np.abs(Y)**2
+
+    # smooth spectra using sm_win
+    if len(sm_win) == 1:
+        gwl = int(sm_win[0]*fs/tstep)
+        window = get_window(('gaussian',(gwl-1)/2/2.5),gwl)
+    elif len(sm_win) == 2:
+        gwl1 = round(sm_win[1]*nfft/fs)
+        gwl2 = round(sm_win[2]*fs/tstep)
+        window = ( get_window(('gaussian',(gwl1-1)/2/2.5),gwl1)[:,None]*
+                   get_window(('gaussian',(gwl2-1)/2/2.5),gwl2)[None,:] )
+    else:
+        window = sm_win
+    window = window/window.sum()
+    
+    if window.ndim==1:
+        for f in range(X.shape[0]):
+            X[f,:] = fftconvolve(X[f,:],window,'same')
+            Y[f,:] = fftconvolve(Y[f,:],window,'same')
+            XY[f,:] = fftconvolve(XY[f,:],window,'same')
+    else:
+        X = convolve2d(X,window,'same')
+        Y = convolve2d(Y,window,'same')
+        XY = convolve2d(XY,window,'same')
+        
+    # compute tfcoh
+    Cxy = XY/np.sqrt(X*Y)
+
+    return Cxy,np.array(select)*fs/nfft,np.arange(0,len(x),tstep)/fs
