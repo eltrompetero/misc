@@ -24,7 +24,7 @@ def tfcohf(x,y,nfft,spec_win,sm_win,tstep,fs):
     ARGUMENTS:
               x           --  signal 1 (vector)
               y           --  signal 2 (vector)
-              nfft        --  len of fft, zero-padded if spec_win has less
+              nfft (int)  --  len of fft, zero-padded if spec_win has less
                               than n points
               spec_win    --  len of window in samples used for spectral
                               decomposition (Hamming window)
@@ -121,7 +121,7 @@ def tfcohf(x,y,nfft,spec_win,sm_win,tstep,fs):
     else:
         window = sm_win
     window = window/window.sum()
-    
+    print window 
     if window.ndim==1:
         for f in range(X.shape[0]):
             X[f,:] = fftconvolve(X[f,:],window,'same')
