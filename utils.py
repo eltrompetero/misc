@@ -255,6 +255,30 @@ def round_nearest( x, prec ):
 # -------#
 # Other  #
 # -------#
+def unravel_multi_utri_index(ix,n,d):
+    """
+    Generalization of unravel_index to a d-dimensional array with dimension size n.
+
+    Parameters
+    ----------
+    ix : ndarray
+    n : int
+        Size of each dimension.
+    d : int
+        Number of dimensions.
+
+    Returns
+    -------
+    subix
+    """
+    from itertools import combinations
+    
+    subix = []
+    for ijk in combinations(range(n),d):
+        subix.append(ijk)
+
+    return [subix[i] for i in ix]
+
 def reinsert(x,insertix,value,check_sort=False):
     """
     Re-insert values into array after they have been deleted. np.insert cannot
@@ -678,7 +702,7 @@ def add_secs(tm, secs):
 
 def unravel_utri_asymm(ix,shape):
     """
-        Inefficient method for taking index of flattened upper triangle array and giving back row/col index in full array.
+    Inefficient method for taking index of flattened upper triangle array and giving back row/col index in full array.
     2014-04-15
     """
     m,n = shape
@@ -698,7 +722,7 @@ def unravel_utri_asymm(ix,shape):
 
 def triu_asymm(mat):
     """
-        Extract upper triangular elements from asymmetric array.
+    Extract upper triangular elements from asymmetric array.
     2014-04-14
     """
     ix = triu_indices_from_array_asymm(mat)
@@ -707,7 +731,7 @@ def triu_asymm(mat):
 
 def triu_indices_from_array_asymm(mat):
     """
-        Extract upper triangular elements from asymmetric array.
+    Extract upper triangular elements from asymmetric array.
     2014-04-14
     """
     m,n = mat.shape
