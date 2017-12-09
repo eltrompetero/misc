@@ -11,9 +11,17 @@ def acf(x,axis=-1,return_power=False):
     the autocorrelation function and power spectrum are Fourier transform duals. The mean is subtracted
     <f(t)f(t+dt)>-<f(t)>^2
     2017-04-05
+
+    Parameters
+    ----------
+    x : ndarray
+    axis : int,-1
+    return_power: bool,False
+        If True, return power spectrum.
     """
     w = fft.fft(x-np.expand_dims(x.mean(axis=axis),axis),axis=axis)
     S = np.abs(w)**2
+    # We know this must be real because the input signal is all real.
     acf = fft.ifft(S,axis=axis).real
 
     if x.ndim==1 or axis==0:

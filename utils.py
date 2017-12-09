@@ -4,6 +4,7 @@ import numpy
 import math
 from multiprocess import Pool,cpu_count
 from numba import jit
+from numbers import Number
 i0p=(9.999999999999997e-1,2.466405579426905e-1,
 	1.478980363444585e-2,3.826993559940360e-4,5.395676869878828e-6,
 	4.700912200921704e-8,2.733894920915608e-10,1.115830108455192e-12,
@@ -257,27 +258,43 @@ def round_nearest( x, prec ):
 # -------#
 def unravel_multi_utri_index(ix,n,d):
     """
-    Generalization of unravel_index to a d-dimensional array with dimension size n.
+    Generalization of unravel_index to a d-dimensional upper-triangular array with dimension size n.
+
+    This is a slow way of doing it where I iterate through all possible index combinations.
 
     Parameters
     ----------
     ix : ndarray
     n : int
-        Size of each dimension.
+        Number of dimensions, range(n) to choose from.
     d : int
-        Number of dimensions.
+        Extent along each dimension, d-sized subsets  to choose.
 
     Returns
     -------
-    subix
+    subix : list
+        Indices converted into subindices.
     """
     from itertools import combinations
-    
-    subix = []
-    for ijk in combinations(range(n),d):
-        subix.append(ijk)
+    if isinstance(ix,Number):
+        ix = np.array([ix])
+    elif type(ix) is list:
+        ix = np.array(ix)
 
-    return [subix[i] for i in ix]
+    # d-dimensional sub index 
+    subix = np.zeros((len(ix),d),dtype=int)
+    # Iterate through ix in order.
+    sortix = np.argsort(ix)
+    counter = 0  # index for the next entry to find in sorted ix
+
+    # Run through ix and when we get to its value, record it.
+    for i,ijk in enumerate(combinations(range(n),d)):
+        while counter<len(ix) and  i==ix[sortix[counter]]:
+            subix[sortix[counter],:] = ijk
+            counter += 1
+        if counter==len(ix):
+            break
+    return subix
 
 def reinsert(x,insertix,value,check_sort=False):
     """
