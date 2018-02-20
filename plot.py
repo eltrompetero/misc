@@ -54,23 +54,24 @@ def smooth_polar_plot(ax,T,R,fmt='k-',plot_kwargs={}):
         for t,r in zip(interpt,interpr):
             ax.plot( t,r,fmt,**plot_kwargs )
 
-def colorcycle(n,scale=lambda i,n:1):
+def colorcycle(n,scale=lambda i,n:1,cmap=plt.cm.viridis):
     """
     Generator for cycling colors through viridis. Scaling function allows you to rescale the color axis.
 
-    Params:
-    -------
-    n (int)
+    Parameters
+    ----------
+    n : int
         Number of lines to plot.
-    scale (lambda)
+    scale : lambda function
         Function that takes in current index of line and total number of lines. Examples include
         lambda i,n:exp(-i/2)*5+1
+    cmap : colormap,plt.cm.viridis
     """
     if n>1:
         for i in xrange(n):
-            yield plt.cm.viridis(i/(n-1)*scale(i,n))
+            yield cmap(i/(n-1)*scale(i,n))
     else:
-        yield plt.cm.viridis(0)
+        yield cmap(0)
 
 def set_ticks_radian( ax,dy=1.,axis='y' ):
     """
