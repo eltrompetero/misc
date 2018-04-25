@@ -19,7 +19,7 @@ def binom_polyval(coeffs):
         return t
     return p
 
-def binom_polyfit(n,t,order):
+def binom_polyfit(n,t,order,scale='linear'):
     """
     Fit to polynomial expansion:
     a_n * binomk(x,n) + a_{n-1} * binomk(x,n-1) + ... + a_0
@@ -31,17 +31,28 @@ def binom_polyfit(n,t,order):
     t : ndarray
         duration
     order : int
+    scale : str,'linear'
+        Can be 'log' or 'linear'. Determines structure of cost function.
     """
     assert len(n)==len(t)
     assert order>0
     
-    def cost(args):
-        coeffs=args
-        return ((binom_polyval(coeffs)(n)-t)**2).sum()
+    if scale=='linear':
+        def cost(args):
+            coeffs=args
+            return ((binom_polyval(coeffs)(n)-t)**2).sum()
+    elif scale=='log':
+        def cost(args):
+            coeffs=args
+            err=( (np.log(binom_polyval(coeffs)(n))-np.log(t))**2 ).sum()
+            if np.isnan(err).any(): return 1e30
+            return err
+    else:
+        raise Exception("Invalid scale.")
     
-    return minimize(cost,np.zeros(order+1))['x']
+    return minimize(cost,np.ones(order+1))['x']
 
-def constrained_binom_polyfit(n,t,order,fixed_coeffs=(),return_full_output=False):
+def constrained_binom_polyfit(n,t,order,fixed_coeffs=(),return_full_output=False,scale='linear'):
     """
     Parameters
     ----------
@@ -66,14 +77,24 @@ def constrained_binom_polyfit(n,t,order,fixed_coeffs=(),return_full_output=False
             
         fixed_coeffs=[(order-i-ix,j) for ix,(i,j) in enumerate(fixed_coeffs)]
     
-    def cost(args):
-        if len(fixed_coeffs)>0:
-            coeffs=np.insert(args,*zip(*fixed_coeffs))
-        else:
-            coeffs=args
-        return ((binom_polyval(coeffs)(n)-t)**2).sum()
+    if scale=='linear':
+        def cost(args):
+            if len(fixed_coeffs)>0:
+                coeffs=np.insert(args,*zip(*fixed_coeffs))
+            else:
+                coeffs=args
+            return ((binom_polyval(coeffs)(n)-t)**2).sum()
+    elif scale=='log':
+        def cost(args):
+            if len(fixed_coeffs)>0:
+                coeffs=np.insert(args,*zip(*fixed_coeffs))
+            else:
+                coeffs=args
+            err=( (np.log(binom_polyval(coeffs)(n))-np.log(t))**2 ).sum()
+            if np.isnan(err).any(): return 1e30
+            return err
     
-    soln=minimize(cost,np.zeros(order+1-len(fixed_coeffs)))
+    soln=minimize(cost,np.ones(order+1-len(fixed_coeffs)))
     if return_full_output:
         if len(fixed_coeffs)>0:
             return np.insert(soln['x'],*zip(*fixed_coeffs))['x']
