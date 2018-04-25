@@ -1,9 +1,14 @@
 # Module for helper functions with statistical analysis of data.
+# Author: Eddie Lee
 # 2017-01-17
+
 
 from __future__ import division
 import numpy as np
 from numpy import fft
+
+
+
 
 def acf(x,axis=-1,return_power=False):
     """
