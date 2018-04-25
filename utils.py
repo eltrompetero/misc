@@ -1,4 +1,4 @@
-from __future__ import division
+
 import numpy as np
 import numpy
 import math
@@ -177,7 +177,7 @@ class QuadGauss(object):
         
         self.order = order
         self.N = order
-        self.basis = [lambda x,i=i:chebval(x,[0]*i+[1]) for i in xrange(self.N+1)]
+        self.basis = [lambda x,i=i:chebval(x,[0]*i+[1]) for i in range(self.N+1)]
         
         # Lobatto collocation points.
         if lobatto:
@@ -236,7 +236,7 @@ def finite_diff( mat,order,dx=1,**kwargs ):
     order (int=1,2)
         Order of derivative approximation to use.
     """
-    from calculus import finite_diff_1, finite_diff_2
+    from .calculus import finite_diff_1, finite_diff_2
     if mat.ndim==1:
         mat = mat[:,None]
 
@@ -297,7 +297,7 @@ def finite_diff_2(mat,dx,axis=0,test=None):
     def backward_stencil(x,i):
         return (35/12*x[i] -26/3*x[i+1] +19/2*x[i+2] -14/3*x[i+3] +11/12*x[i+4]) / dx**2
 
-    laplacian = np.array([center_stencil(mat,i) for i in xrange(2,mat.size-2)])
+    laplacian = np.array([center_stencil(mat,i) for i in range(2,mat.size-2)])
     
     # Extrapolate endpoints.
     return np.concatenate(( [backward_stencil(mat,0), backward_stencil(mat,1)],
@@ -354,7 +354,7 @@ def unravel_multi_utri_index(ix,n,d):
     counter = 0  # index for the next entry to find in sorted ix
 
     # Run through ix and when we get to its value, record it.
-    for i,ijk in enumerate(combinations(range(n),d)):
+    for i,ijk in enumerate(combinations(list(range(n)),d)):
         while counter<len(ix) and  i==ix[sortix[counter]]:
             subix[sortix[counter],:] = ijk
             counter += 1
@@ -402,13 +402,13 @@ def sub_to_ind(n,i,j):
     """
     if i<j:
         k = 0
-        for l in xrange(1,i+2):
+        for l in range(1,i+2):
             k += n-l
         assert k>=0
         return k-n+j
     elif i>j:
         k = 0
-        for l in xrange(1,j+2):
+        for l in range(1,j+2):
             k += n-l
         assert k>=0
         return k-n+i
@@ -477,7 +477,7 @@ def parallelize( f ):
     def parallelized(*args):
         # Make copies of args.
         instances = [args]
-        for i in xrange(nJobs-1):
+        for i in range(nJobs-1):
             instances.append( deepcopy(args) )
         
         # Wrap f so that the args can be properly expanded and handed over as an expanded list.
@@ -485,7 +485,7 @@ def parallelize( f ):
             return f(*args)
     
         p = Pool(nJobs)
-        output = zip( *p.map(g,instances) )
+        output = list(zip( *p.map(g,instances) ))
         p.close()
         
         combinedOutput = []
@@ -508,7 +508,7 @@ def zip_args(*args):
     except ValueError:
         L = 1
     
-    for i in xrange(L):
+    for i in range(L):
         listOfTuples.append([])
         for j in args:
             if type(j) is list:
@@ -555,7 +555,7 @@ def bootstrap_f(data,f,nIters,nSamples=-1):
             return f(data[randIx])
 
     p = Pool(cpu_count()) 
-    output = p.map(g,xrange(nIters))
+    output = p.map(g,range(nIters))
     p.close()
     return output
 
@@ -593,7 +593,7 @@ def sort_mat(m,refIx=0,invert=False,returnindex=False):
     if m.shape[0]!=m.shape[1]:
         raise Exception("Matrix must be square")
     n = m.shape[0]
-    sortIx = np.expand_dims(range(m.shape[0]),0)
+    sortIx = np.expand_dims(list(range(m.shape[0])),0)
     
     # Put refIx row and col in front to use below algorithm.
     swap_row(m,refIx,0)
@@ -795,7 +795,7 @@ def unravel_utri_asymm(ix,shape):
         mx,mn = n,m
 
     matix = np.zeros((mn,mx),dtype=int)-1
-    matix[triu_indices_asymm(mn,mx)] = range(mn*(mn-1)/2+(mx-mn)*mn)
+    matix[triu_indices_asymm(mn,mx)] = list(range(mn*(mn-1)/2+(mx-mn)*mn))
     foundix = np.argwhere(ix==matix) 
    
     if m>n:
@@ -915,7 +915,7 @@ def acf_breaks(x,y=None, length=20,iters=0):
     if y==None:
         y = x
     else:
-    	y = y.copy()
+        y = y.copy()
         if np.sum(nanix)!=np.sum(np.logical_and(nanix,np.isnan(y))):
             raise Exception("Given vectors x and y do not agree in location of nan's.")
 
@@ -1110,7 +1110,7 @@ def read_csv(fname):
     with open(fname+'.csv', 'rb') as csvfile:
         spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
         for row in spamreader:
-            print ', '.join(row)
+            print(', '.join(row))
     return
 
 def convert_utri_to_array(vec,diag,N):

@@ -1,4 +1,4 @@
-from __future__ import division
+
 import numpy as np
 import numpy
 import matplotlib as mpl
@@ -31,7 +31,7 @@ def interp_r(t,r,dt=.1):
         Approximate spacing for theta.
     """
     interpt,interpr = [],[]
-    for i in xrange(1,len(t)):
+    for i in range(1,len(t)):
         f = _interp_r( t[i-1],t[i],r[i-1],r[i] )
         interpt.append( np.linspace(t[i-1],t[i],abs(t[i]-t[i-1])//dt+2) )
         interpr.append( f(interpt[-1]) )
@@ -68,7 +68,7 @@ def colorcycle(n,scale=lambda i,n:1,cmap=plt.cm.viridis):
     cmap : colormap,plt.cm.viridis
     """
     if n>1:
-        for i in xrange(n):
+        for i in range(n):
             yield cmap(i/(n-1)*scale(i,n))
     else:
         yield cmap(0)

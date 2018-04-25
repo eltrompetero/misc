@@ -1,4 +1,4 @@
-from __future__ import division
+
 import numpy as np
 from scipy.signal import get_window,detrend,fftconvolve,convolve2d
 
@@ -83,9 +83,9 @@ def tfcohf(x,y,nfft,spec_win,sm_win,tstep,fs):
     
     # Compute Fourier coefficients
     if nfft%2:    # nfft odd
-        select = range((nfft+1)//2)
+        select = list(range((nfft+1)//2))
     else:
-        select = range(nfft//2+1)   # include DC AND Nyquist
+        select = list(range(nfft//2+1))   # include DC AND Nyquist
 
     X = np.zeros((len(select),len(x)//tstep+1),dtype=np.complex)
     Y = np.zeros((len(select),len(x)//tstep+1),dtype=np.complex)
@@ -121,7 +121,7 @@ def tfcohf(x,y,nfft,spec_win,sm_win,tstep,fs):
     else:
         window = sm_win
     window = window/window.sum()
-    print window 
+    print(window) 
     if window.ndim==1:
         for f in range(X.shape[0]):
             X[f,:] = fftconvolve(X[f,:],window,'same')

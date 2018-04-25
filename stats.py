@@ -3,7 +3,7 @@
 # 2017-01-17
 
 
-from __future__ import division
+
 import numpy as np
 from numpy import fft
 
@@ -51,7 +51,7 @@ def _acf(x,maxlag,axis=-1):
     2017-01-20
     """
     acf=np.ones((maxlag+1))
-    for i in xrange(1,maxlag+1):
+    for i in range(1,maxlag+1):
         acf[i]=np.corrcoef(x[:-i],x[i:])[0,1]
     return acf
 
@@ -71,7 +71,7 @@ def ccf(x,y,length=20):
     if type(length) is int:
         c = np.zeros((length+1))
         c[0] = corrcoef(x,y)[0,1]
-        for i in xrange(1,length+1):
+        for i in range(1,length+1):
             c[i] = corrcoef(x[:-i],y[i:])[0,1]
     elif type(length) is np.ndarray or type(length) is list:
         c = np.zeros((len(length)))
@@ -100,7 +100,7 @@ def vector_ccf(x,y,length=20):
     if type(length) is int:
         c = np.zeros((length+1))
         c[0] = ( (x*y).sum(1)/(norm(x,axis=1)*norm(y,axis=1)) ).mean()
-        for i in xrange(1,length+1):
+        for i in range(1,length+1):
             c[i] = ( (x[:-i]*y[i:]).sum(1)/(norm(x[:-i],axis=1)*norm(y[i:],axis=1)) ).mean()
     elif type(length) is np.ndarray or type(length) is list:
         c = np.zeros((len(length)))

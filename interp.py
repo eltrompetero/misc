@@ -3,7 +3,7 @@
 # Author: Eddie Lee
 # 2018-04-24
 # =============================================================================================== #
-from __future__ import division
+
 import numpy as np
 from scipy.optimize import minimize
 from scipy.special import binom as binomk
@@ -80,14 +80,14 @@ def constrained_binom_polyfit(n,t,order,fixed_coeffs=(),return_full_output=False
     if scale=='linear':
         def cost(args):
             if len(fixed_coeffs)>0:
-                coeffs=np.insert(args,*zip(*fixed_coeffs))
+                coeffs=np.insert(args,*list(zip(*fixed_coeffs)))
             else:
                 coeffs=args
             return ((binom_polyval(coeffs)(n)-t)**2).sum()
     elif scale=='log':
         def cost(args):
             if len(fixed_coeffs)>0:
-                coeffs=np.insert(args,*zip(*fixed_coeffs))
+                coeffs=np.insert(args,*list(zip(*fixed_coeffs)))
             else:
                 coeffs=args
             err=( (np.log(binom_polyval(coeffs)(n))-np.log(t))**2 ).sum()
@@ -97,9 +97,9 @@ def constrained_binom_polyfit(n,t,order,fixed_coeffs=(),return_full_output=False
     soln=minimize(cost,np.ones(order+1-len(fixed_coeffs)))
     if return_full_output:
         if len(fixed_coeffs)>0:
-            return np.insert(soln['x'],*zip(*fixed_coeffs))['x']
+            return np.insert(soln['x'],*list(zip(*fixed_coeffs)))['x']
         return soln['x'],soln
 
     if len(fixed_coeffs)>0:
-        return np.insert(soln['x'],*zip(*fixed_coeffs))
+        return np.insert(soln['x'],*list(zip(*fixed_coeffs)))
     return soln['x']

@@ -1,6 +1,6 @@
 # 2016-06-30
 # Library for special functions like in scipy.special.
-from __future__ import division
+
 import numpy as np
 
 
@@ -35,8 +35,8 @@ def jacobi_lobatto(n,a,b):
     an =lambda n: -(a**2-b**2+2*(a-b))/((2*n+a+b)*(2*n+a+b+2))
     bn = lambda n: 4*(n-1)*(n+a)*(n+b)*(n+a+b+1) / (2*n+a+b)**2/(2*n+a+b+1)/(2*n+a+b-1)
     
-    Jn = np.diag([an(i) for i in xrange(1,n+1)]) + np.sqrt(np.diag([bn(i) for i in xrange(2,n+1)],k=1) + 
-                                                           np.diag([bn(i) for i in xrange(2,n+1)],k=-1))
+    Jn = np.diag([an(i) for i in range(1,n+1)]) + np.sqrt(np.diag([bn(i) for i in range(2,n+1)],k=1) + 
+                                                           np.diag([bn(i) for i in range(2,n+1)],k=-1))
     coX = np.concatenate(([-1],np.sort(np.linalg.eig(Jn)[0]).real,[1]))
     
     weights = np.zeros_like(coX)
