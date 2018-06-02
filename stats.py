@@ -113,3 +113,27 @@ def vector_ccf(x,y,length=20):
         raise Exception("length must be int or array of ints.")
     return c
 
+def max_likelihood_discrete_power_law(Y,initial_guess=2.,lower_bound=1):
+    """
+    Find the best fit power law exponent for a discrete power law distribution. Use full expression
+    for finding the exponent alpha where Y=X^-alpha that involves solving a transcendental equation.
+
+    Parameters
+    ----------
+    Y : ndarray
+    initial_guess : float,2.
+        Guess for power law exponent alpha.
+    lower_bounds : int,1
+
+    Returns
+    -------
+    soln : scipy.optimize.minimize
+    """
+    from scipy.special import zeta
+    from scipy.optimize import minimize
+
+    def f(alpha):
+        if alpha<1: return 1e30
+        return (-alpha*zeta(alpha+1,lower_bound)/zeta(alpha,lower_bound)+np.log(Y).mean())**2
+
+    return minimize(f,initial_guess)
