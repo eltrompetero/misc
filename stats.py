@@ -113,27 +113,55 @@ def vector_ccf(x,y,length=20):
         raise Exception("length must be int or array of ints.")
     return c
 
-def max_likelihood_discrete_power_law(Y,initial_guess=2.,lower_bound=1):
+def max_likelihood_discrete_power_law(X,initial_guess=2.,lower_bound=1,minimize_kw={}):
     """
     Find the best fit power law exponent for a discrete power law distribution. Use full expression
-    for finding the exponent alpha where Y=X^-alpha that involves solving a transcendental equation.
+    for finding the exponent alpha where X=X^-alpha that involves solving a transcendental equation.
 
     Parameters
     ----------
-    Y : ndarray
+    X : ndarray
     initial_guess : float,2.
         Guess for power law exponent alpha.
+    lower_bounds : int or list,1
+        If list, then list of solns will be returned for each lower bound.
+    minimize_kw : dict,{}
+
+    Returns
+    -------
+    soln : scipy.optimize.minimize or list thereof
+    """
+    from scipy.special import zeta
+    from scipy.optimize import minimize
+    
+    if type(lower_bound) is int:
+        def f(alpha):
+            if alpha<=1: return 1e30
+            return (-alpha*zeta(alpha+1,lower_bound)/zeta(alpha,lower_bound)+np.log(X).mean())**2
+
+        return minimize(f,initial_guess)
+    
+    soln=[]
+    for lower_bound_ in lower_bound:
+        def f(alpha):
+            if alpha<=1: return 1e30
+            return ( -alpha*zeta(alpha+1,lower_bound_)/zeta(alpha,lower_bound_) +
+                     np.log(X[X>=lower_bound_]).mean() )**2
+        soln.append( minimize(f,initial_guess,**minimize_kw) )
+    return soln
+
+def log_likelihood_discrete_power_law(X,alpha,lower_bound=1):
+    """Log likelihood of the discrete power law with exponent X^-alpha.
+    Parameters
+    ----------
+    X : ndarray
+    alpha : float
     lower_bounds : int,1
 
     Returns
     -------
-    soln : scipy.optimize.minimize
+    log_likelihood : ndarray
     """
     from scipy.special import zeta
-    from scipy.optimize import minimize
+    return -alpha*np.log(X) - np.log(zeta(alpha,lower_bound))
 
-    def f(alpha):
-        if alpha<1: return 1e30
-        return (-alpha*zeta(alpha+1,lower_bound)/zeta(alpha,lower_bound)+np.log(Y).mean())**2
-
-    return minimize(f,initial_guess)
