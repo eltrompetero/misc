@@ -163,10 +163,8 @@ class DiscretePowerLaw():
         X : ndarray
         initial_guess : float,2.
             Guess for power law exponent alpha.
-        lower_bound : int or list,1
-            If list, then list of solns will be returned for each lower bound.
-        upper_bound : int or list,np.inf
-            If list, then list of solns will be returned for each lower bound.
+        lower_bound : int,1
+        upper_bound : float,np.inf
         minimize_kw : dict,{}
 
         Returns
@@ -175,28 +173,60 @@ class DiscretePowerLaw():
         """
         from scipy.special import zeta
         from scipy.optimize import minimize
+        assert ((X>=lower_bound)&(X<=upper_bound)).all() 
+
+        def f(alpha):
+            if alpha<=1: return 1e30
+            return -cls.log_likelihood(X,alpha,lower_bound,upper_bound).sum()
+        return minimize(f,initial_guess,**minimize_kw)
+       
+    @classmethod
+    def pipeline_max_likelihood_alpha(cls,X,
+                                      initial_guess=2.,
+                                      lower_bound=1,
+                                      upper_bound=np.inf,
+                                      minimize_kw={}):
+        """Find optimal exponential alpha for a set of different lower and upper bounds.
+
+        Parameters
+        ----------
+        X : ndarray
+        initial_guess : float,2.
+        lower_bound : int or list,1
+            If list, then list of solns will be returned for each lower bound.
+        upper_bound : int or list,np.inf
+            If list, then list of solns will be returned for each lower bound.
+        minimize_kw : dict,{}
         
-        if type(lower_bound) is int and not type(upper_bound) is list:
-            withinbdsIx=(X>=lower_bound)&(X<=upper_bound)
-            def f(alpha):
-                if alpha<=1: return 1e30
-                return -cls.log_likelihood(X,alpha,lower_bound,upper_bound).sum()
-            return minimize(f,initial_guess)
-        
+        Returns
+        -------
+        logL : list
+            Log likelihood per data point for the given upper and lower bound combinations. First
+            tuple in each element is the lower and upper bound for that solution. Then the log
+            likelihood value is given.
+        soln : list 
+            Returns what came from scipy.optimize.minimize.
+        """
         # If only one of the bounds is a list, make the other a list of the same length.
         if type(lower_bound) is list and not type(upper_bound) is list:
             upper_bound=[upper_bound]*len(lower_bound)
         elif type(lower_bound) is int and type(upper_bound) is list:
             lower_bound=[lower_bound]*len(upper_bound)
+        else:
+            upper_bound=[upper_bound]
+            lower_bound=[lower_bound]
 
         soln=[]
+        logL=[]
         for lower_bound_,upper_bound_ in zip(lower_bound,upper_bound):
             withinbdsIx=(X>=lower_bound_)&(X<=upper_bound_)
-            def f(alpha):
-                if alpha<=1: return 1e30
-                return -cls.log_likelihood(X,alpha,lower_bound_,upper_bound_).sum()
-            soln.append( minimize(f,initial_guess,**minimize_kw) )
-        return soln
+            soln.append( cls.max_likelihood_alpha( X[withinbdsIx],
+                                                   initial_guess,
+                                                   lower_bound_,
+                                                   upper_bound_,
+                                                   minimize_kw ) )
+            logL.append( ((lower_bound_,upper_bound_),soln[-1]['fun']/withinbdsIx.sum()) )
+        return logL,soln
     
     @classmethod
     def max_likelihood_lower_bound(cls,X,alpha,
