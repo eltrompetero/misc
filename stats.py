@@ -212,7 +212,7 @@ class DiscretePowerLaw():
             upper_bound=[upper_bound]*len(lower_bound)
         elif type(lower_bound) is int and type(upper_bound) is list:
             lower_bound=[lower_bound]*len(upper_bound)
-        else:
+        elif not (type(lower_bound) is list and type(upper_bound) is list):
             upper_bound=[upper_bound]
             lower_bound=[lower_bound]
 
@@ -225,7 +225,7 @@ class DiscretePowerLaw():
                                                    lower_bound_,
                                                    upper_bound_,
                                                    minimize_kw ) )
-            logL.append( ((lower_bound_,upper_bound_),soln[-1]['fun']/withinbdsIx.sum()) )
+            logL.append( ((lower_bound_,upper_bound_),-soln[-1]['fun']/withinbdsIx.sum()) )
         return logL,soln
     
     @classmethod
