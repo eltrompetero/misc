@@ -113,55 +113,143 @@ def vector_ccf(x,y,length=20):
         raise Exception("length must be int or array of ints.")
     return c
 
-def max_likelihood_discrete_power_law(X,initial_guess=2.,lower_bound=1,minimize_kw={}):
-    """
-    Find the best fit power law exponent for a discrete power law distribution. Use full expression
-    for finding the exponent alpha where X=X^-alpha that involves solving a transcendental equation.
 
-    Parameters
-    ----------
-    X : ndarray
-    initial_guess : float,2.
-        Guess for power law exponent alpha.
-    lower_bounds : int or list,1
-        If list, then list of solns will be returned for each lower bound.
-    minimize_kw : dict,{}
+from scipy.special import zeta
+class DiscretePowerLaw():
+    _default_lower_bound=1
+    _default_upper_bound=np.inf
 
-    Returns
-    -------
-    soln : scipy.optimize.minimize or list thereof
-    """
-    from scipy.special import zeta
-    from scipy.optimize import minimize
+    def __init__(self,alpha,lower_bound=1,upper_bound=np.inf):
+        self.alpha=alpha
+        self.lower_bound=lower_bound
+        self.upper_bound=upper_bound
+
+    @classmethod
+    def pdf(cls,alpha,lower_bound=None,upper_bound=None):
+        """Return CDF function."""
+        x0=lower_bound or cls._default_lower_bound
+        x1=upper_bound or cls._default_upper_bound
+
+        return lambda x: x**(1.*-alpha) / (zeta(alpha,x0)-zeta(alpha,x1+1))
+
+    @classmethod
+    def rvs(cls,alpha,size=(1,),lower_bound=None,upper_bound=None):
+        x0=lower_bound or cls._default_lower_bound
+        x1=upper_bound or cls._default_upper_bound
+        assert x1<np.inf,"Must define upper bound."
+        
+        return np.random.choice(range(x0,x1+1),
+                    size=size,
+                    p=cls.pdf(alpha,x0,x1)(np.arange(x0,x1+1)))
+
+    #@classmethod
+    #def rvs(cls,alpha,size=(1,),lower_bound=None,upper_bound=None):
+    #    x0=lower_bound or cls._default_lower_bound
+    #    x1=upper_bound or cls._default_upper_bound
+    #    
+    #    return (x0**(1-alpha)-(x0**(1-alpha)-x1**(1-alpha))*np.random.rand(*size))**(1/(1-alpha))
+
+    @classmethod
+    def max_likelihood_alpha(cls,X,
+                             initial_guess=2.,
+                             lower_bound=1,
+                             upper_bound=np.inf,
+                             minimize_kw={}):
+        """
+        Find the best fit power law exponent for a discrete power law distribution. 
+
+        Parameters
+        ----------
+        X : ndarray
+        initial_guess : float,2.
+            Guess for power law exponent alpha.
+        lower_bound : int or list,1
+            If list, then list of solns will be returned for each lower bound.
+        upper_bound : int or list,np.inf
+            If list, then list of solns will be returned for each lower bound.
+        minimize_kw : dict,{}
+
+        Returns
+        -------
+        soln : scipy.optimize.minimize or list thereof
+        """
+        from scipy.special import zeta
+        from scipy.optimize import minimize
+        
+        if type(lower_bound) is int and not type(upper_bound) is list:
+            withinbdsIx=(X>=lower_bound)&(X<=upper_bound)
+            def f(alpha):
+                if alpha<=1: return 1e30
+                return -cls.log_likelihood(X,alpha,lower_bound,upper_bound).sum()
+            return minimize(f,initial_guess)
+        
+        # If only one of the bounds is a list, make the other a list of the same length.
+        if type(lower_bound) is list and not type(upper_bound) is list:
+            upper_bound=[upper_bound]*len(lower_bound)
+        elif type(lower_bound) is int and type(upper_bound) is list:
+            lower_bound=[lower_bound]*len(upper_bound)
+
+        soln=[]
+        for lower_bound_,upper_bound_ in zip(lower_bound,upper_bound):
+            withinbdsIx=(X>=lower_bound_)&(X<=upper_bound_)
+            def f(alpha):
+                if alpha<=1: return 1e30
+                return -cls.log_likelihood(X,alpha,lower_bound_,upper_bound_).sum()
+            soln.append( minimize(f,initial_guess,**minimize_kw) )
+        return soln
     
-    if type(lower_bound) is int:
-        def f(alpha):
-            if alpha<=1: return 1e30
-            return (-alpha*zeta(alpha+1,lower_bound)/zeta(alpha,lower_bound)+np.log(X).mean())**2
+    @classmethod
+    def max_likelihood_lower_bound(cls,X,alpha,
+                                   initial_guess=2.,
+                                   upper_bound=np.inf,
+                                   minimize_kw={}):
+        """
+        This doesn't work. 
 
+        Find the best fit power law exponent for a discrete power law distribution. Use full expression
+        for finding the exponent alpha where X=X^-alpha that involves solving a transcendental equation.
+
+        Parameters
+        ----------
+        X : ndarray
+        alpha : float
+            Value for power law exponent.
+        initial_guess : float,2.
+            Guess for lower cutoff.
+        upper_bound : int,np.inf
+        minimize_kw : dict,{}
+
+        Returns
+        -------
+        soln : scipy.optimize.minimize
+        """
+        from scipy.special import zeta
+        from scipy.optimize import minimize
+        
+        def f(lower_bound):
+            withinbdsIx=(X>=lower_bound)&(X<=upper_bound)
+            if not 1<=lower_bound<=upper_bound: return 1e30
+            return ( alpha*(zeta(alpha+1,lower_bound)-zeta(alpha+1,upper_bound+1)) /
+                     (zeta(alpha,lower_bound)-zeta(alpha,upper_bound+1))+np.log(X[withinbdsIx]).mean() )**2
         return minimize(f,initial_guess)
     
-    soln=[]
-    for lower_bound_ in lower_bound:
-        def f(alpha):
-            if alpha<=1: return 1e30
-            return ( -alpha*zeta(alpha+1,lower_bound_)/zeta(alpha,lower_bound_) +
-                     np.log(X[X>=lower_bound_]).mean() )**2
-        soln.append( minimize(f,initial_guess,**minimize_kw) )
-    return soln
+    @classmethod
+    def log_likelihood(cls,X,alpha,
+                       lower_bound=1,upper_bound=np.inf):
+        """Log likelihood of the discrete power law with exponent X^-alpha.
 
-def log_likelihood_discrete_power_law(X,alpha,lower_bound=1):
-    """Log likelihood of the discrete power law with exponent X^-alpha.
-    Parameters
-    ----------
-    X : ndarray
-    alpha : float
-    lower_bounds : int,1
+        Parameters
+        ----------
+        X : ndarray
+        alpha : float
+        lower_bound : int,1
+        upper_bound : int,np.inf
 
-    Returns
-    -------
-    log_likelihood : ndarray
-    """
-    from scipy.special import zeta
-    return -alpha*np.log(X) - np.log(zeta(alpha,lower_bound))
+        Returns
+        -------
+        log_likelihood : ndarray
+        """
+        from scipy.special import zeta
+        assert ((X>=lower_bound)&(X<=upper_bound)).all()
+        return -alpha*np.log(X) - np.log(zeta(alpha,lower_bound)-zeta(alpha,upper_bound+1))
 
