@@ -282,4 +282,41 @@ class DiscretePowerLaw():
         from scipy.special import zeta
         assert ((X>=lower_bound)&(X<=upper_bound)).all()
         return -alpha*np.log(X) - np.log(zeta(alpha,lower_bound)-zeta(alpha,upper_bound+1))
+#end DiscretePowerLaw
 
+
+
+class PowerLaw():
+    _default_alpha=2.
+    _default_lower_bound=1.
+
+    def __init__(self,alpha,lower_bound):
+        self.alpha=alpha
+        self.lower_bound=lower_bound
+
+    @classmethod
+    def rvs(cls,alpha=None,lower_bound=None,size=(1,)):
+        """
+        Parameters
+        ----------
+        alpha : float,None
+        lower_bound : float,None
+        size : tuple,(1,)
+
+        Returns
+        -------
+        X : ndarray
+            Sample of dimensions size.
+        """
+        # Input checking.
+        assert type(size) is int or type(size) is tuple, "Size must be an int or tuple."
+        if type(size) is int:
+            size=(size,)
+        assert all([type(s) is int for s in size])
+
+        return lower_bound*(1-np.random.rand(*size))**(1/(1-alpha))
+
+    @classmethod
+    def cdf(cls,alpha=None,lower_bound=None):
+        return lambda x: x**1-alpha/lower_bound**(1-alpha)
+#end PowerLaw
