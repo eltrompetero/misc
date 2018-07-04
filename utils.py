@@ -757,7 +757,7 @@ def zero_crossing(m):
 
 def collect_sig_2side(data,nulls,p):
     """
-        Collect values that are significant on a two tail test for a two dimensional array.
+    Collect values that are significant on a two tail test for a two dimensional array.
     2014-06-17
     """
     _data = np.reshape( data,data.shape+(1,) )
@@ -767,21 +767,32 @@ def collect_sig_2side(data,nulls,p):
     phi = np.sum( _data<=_nulls,2 )/float(nulls.shape[2]) < p
     return data[np.logical_or(plo,phi)]
 
-def sub_times(tm1,tm0):
+def _unravel_utri(ix,n):
     """
-        Subtract two datetime.time objects. Return difference in seconds.
-    2014-05-23
+    Parameters
+    ----------
+    ix : int
+    n : int
+    
+    Returns
+    -------
+    i,j : int
     """
-    import datetime
-    t1 = datetime.datetime(100, 1, 1, tm1.hour, tm1.minute, tm1.second)
-    t0 = datetime.datetime(100, 1, 1, tm0.hour, tm0.minute, tm0.second)
-    return (t1-t0).total_seconds()
+    i=0
+    counter=0
+    while counter<=ix:
+        counter+=n-i-1
+        i+=1
+    i-=1
+    if i==0:
+        j=ix+1
+    elif counter>ix:
+        j=ix%(counter-(n-i-1))+i+1
+    else:
+        j=ix-counter+i+1
+    return i,j
 
-def add_secs(tm, secs):
-    import datetime
-    fulldate = datetime.datetime(100, 1, 1, tm.hour, tm.minute, tm.second)
-    fulldate = fulldate + datetime.timedelta(seconds=secs)
-    return fulldate.time()
+unravel_utri=np.vectorize(_unravel_utri)
 
 def unravel_utri_asymm(ix,shape):
     """
@@ -822,7 +833,9 @@ def triu_indices_from_array_asymm(mat):
 
 def triu_indices_asymm(m,n):
     """
-        Extract upper triangular elements from asymmetric array. The problem with asymmetric matrices is that if the longer dimension is along rows, then to extract every pairwise comparison you have to extract all elements below the diagonal (not above as is typically the case).
+    Extract upper triangular elements from asymmetric array. The problem with asymmetric matrices is
+    that if the longer dimension is along rows, then to extract every pairwise comparison you have
+    to extract all elements below the diagonal (not above as is typically the case).
     2014-04-15
     """
     if m>n:

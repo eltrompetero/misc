@@ -287,20 +287,24 @@ class DiscretePowerLaw():
 
 
 class PowerLaw():
+    """With upper and lower bounds."""
     _default_alpha=2.
     _default_lower_bound=1.
+    _default_upper_bound=np.inf
 
-    def __init__(self,alpha,lower_bound):
+    def __init__(self,alpha,lower_bound,upper_bound=np.inf):
         self.alpha=alpha
         self.lower_bound=lower_bound
+        self.upper_bound=upper_bound
 
     @classmethod
-    def rvs(cls,alpha=None,lower_bound=None,size=(1,)):
+    def rvs(cls,alpha=None,lower_bound=None,upper_bound=None,size=(1,)):
         """
         Parameters
         ----------
         alpha : float,None
         lower_bound : float,None
+        upper_bound : float,None
         size : tuple,(1,)
 
         Returns
@@ -309,12 +313,27 @@ class PowerLaw():
             Sample of dimensions size.
         """
         # Input checking.
+        assert alpha>0
         assert type(size) is int or type(size) is tuple, "Size must be an int or tuple."
         if type(size) is int:
             size=(size,)
         assert all([type(s) is int for s in size])
+        alpha*=1.
 
-        return lower_bound*(1-np.random.rand(*size))**(1/(1-alpha))
+        if upper_bound is None:
+            if 'self.upper_bound' in vars():
+                upper_bound=self.upper_bound
+            else:
+                upper_bound=cls._default_upper_bound
+        if lower_bound is None:
+            if 'self.lower_bound' in vars():
+                lower_bound=self.lower_bound
+            else:
+                lower_bound=cls._default_lower_bound
+
+
+        return ( lower_bound**(1-alpha)-(lower_bound**(1-alpha) -
+                 upper_bound**(1-alpha))*np.random.rand(*size) )**(1/(1-alpha))
 
     @classmethod
     def cdf(cls,alpha=None,lower_bound=None):
