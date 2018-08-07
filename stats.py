@@ -1,13 +1,8 @@
 # Module for helper functions with statistical analysis of data.
 # Author: Eddie Lee
 # 2017-01-17
-
-
-
 import numpy as np
 from numpy import fft
-
-
 
 
 def acf(x,axis=-1,return_power=False):
@@ -15,7 +10,6 @@ def acf(x,axis=-1,return_power=False):
     Compute the autocorrelation function of a given time series. According to the Wiener-Khintchine theorem,
     the autocorrelation function and power spectrum are Fourier transform duals. The mean is subtracted
     <f(t)f(t+dt)>-<f(t)>^2
-    2017-04-05
 
     Parameters
     ----------
@@ -23,6 +17,12 @@ def acf(x,axis=-1,return_power=False):
     axis : int,-1
     return_power: bool,False
         If True, return power spectrum.
+
+    Returns
+    -------
+    acf : ndarray
+    S : ndarray
+        Power.
     """
     w = fft.fft(x-np.expand_dims(x.mean(axis=axis),axis),axis=axis)
     S = np.abs(w)**2

@@ -322,6 +322,48 @@ def round_nearest( x, prec ):
 # -------#
 # Other  #
 # -------#
+@jit(nopython=True)
+def fast_histogram(x,bins):
+    """
+    Fast, simple version of histogram that takes in a unsorted list and histograms into the given 
+    bins. For efficiency, the list is sorted in place.
+    
+    Parameters
+    ----------
+    x : list
+        Elements will be sorted in place.
+    bins : list
+    
+    Returns
+    -------
+    y : list
+        Of integers.
+    """
+    x.sort()
+    y=[]
+    
+    # Skip elements of x that are less than the min
+    counter=0
+    while x[counter]<bins[0]:
+        counter+=1
+    
+    # Count elements in bins except for last bin
+    binIx=0
+    while counter<len(x) and binIx<(len(bins)-2):
+        y.append(0)
+        while x[counter]<bins[binIx+1]:
+            y[-1]+=1
+            counter+=1
+        binIx+=1
+        
+    # Count last bin
+    y.append(0)
+    while counter<len(x) and x[counter]<bins[binIx+1]:
+        y[-1]+=1
+        counter+=1
+        
+    return y
+
 def unravel_multi_utri_index(ix,n,d):
     """
     Generalization of unravel_index to a d-dimensional upper-triangular array with dimension size n.
