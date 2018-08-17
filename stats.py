@@ -173,7 +173,9 @@ class DiscretePowerLaw():
         """
         from scipy.special import zeta
         from scipy.optimize import minimize
-        assert ((X>=lower_bound)&(X<=upper_bound)).all() 
+        if type(X) is list:
+            X=np.array(X)
+        assert ((X>=lower_bound)&(X<=upper_bound)).all(),"All elements must be within bounds."
 
         def f(alpha):
             if alpha<=1: return 1e30
@@ -251,7 +253,7 @@ class DiscretePowerLaw():
 
         Returns
         -------
-        soln : scipy.optimize.minimize
+        soln : dict from scipy.optimize.minimize
         """
         from scipy.special import zeta
         from scipy.optimize import minimize
