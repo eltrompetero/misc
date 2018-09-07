@@ -3,7 +3,7 @@ import numpy as np
 import numpy
 import math
 from multiprocess import Pool,cpu_count
-from numba import jit
+from numba import jit,njit
 from numbers import Number
 i0p=(9.999999999999997e-1,2.466405579426905e-1,
 	1.478980363444585e-2,3.826993559940360e-4,5.395676869878828e-6,
@@ -809,6 +809,7 @@ def collect_sig_2side(data,nulls,p):
     phi = np.sum( _data<=_nulls,2 )/float(nulls.shape[2]) < p
     return data[np.logical_or(plo,phi)]
 
+@njit
 def _unravel_utri(ix,n):
     """
     Convert the index ix from the flattened utri array to the dimension in an nxn matrix.
@@ -835,8 +836,34 @@ def _unravel_utri(ix,n):
     else:
         j=ix-counter+i+1
     return i,j
-
 unravel_utri=np.vectorize(_unravel_utri)
+
+@njit
+def _ravel_utri(i,j,n):
+    """
+    Convert the index ix from the flattened utri array to the dimension in an nxn matrix.
+
+    Parameters
+    ----------
+    i : int
+    j : int
+    
+    Returns
+    -------
+    ix : int
+    """
+    assert i!=j
+    if i>j:
+        tmp=i
+        i=j
+        j=tmp
+
+    ix=0
+    for i_ in range(i):
+        ix+=n-1-i_
+    ix+=j-i-1
+    return ix
+ravel_utri=np.vectorize(_ravel_utri)
 
 def unravel_utri_asymm(ix,shape):
     """
