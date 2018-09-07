@@ -1,4 +1,4 @@
-
+# Module for useful functions.
 import numpy as np
 import numpy
 import math
@@ -811,6 +811,8 @@ def collect_sig_2side(data,nulls,p):
 
 def _unravel_utri(ix,n):
     """
+    Convert the index ix from the flattened utri array to the dimension in an nxn matrix.
+
     Parameters
     ----------
     ix : int
