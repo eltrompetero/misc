@@ -13,7 +13,7 @@ import numpy
 #)
 setup(
     cmdclass = {'build_ext': build_ext},
-    ext_modules = [Extension("calculus", ["calculus.pyx"],
+    ext_modules = [Extension("calculus", ["c_calculus.pyx"],
                              include_dirs=[ numpy.get_include()],
                              library_dirs=['/usr/lib/x86_64-linux-gnu'])]
 )
