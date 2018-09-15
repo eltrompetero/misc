@@ -315,7 +315,10 @@ class PowerLaw():
             Sample of dimensions size.
         """
         # Input checking.
-        assert alpha>0
+        if alpha is None:
+            alpha=cls._default_alpha
+        else:
+            assert alpha>0
         assert type(size) is int or type(size) is tuple, "Size must be an int or tuple."
         if type(size) is int:
             size=(size,)
@@ -340,4 +343,12 @@ class PowerLaw():
     @classmethod
     def cdf(cls,alpha=None,lower_bound=None):
         return lambda x: x**1-alpha/lower_bound**(1-alpha)
+
+    @classmethod
+    def max_likelihood_alpha(cls,x,alpha=None,lower_bound=None):
+        if lower_bound is None:
+            lower_bound=cls._default_lower_bound
+        assert (x>lower_bound).all()        
+        n=len(x)
+        return 1+n/np.log(x/lower_bound).sum()
 #end PowerLaw
