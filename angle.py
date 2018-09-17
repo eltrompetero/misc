@@ -3,6 +3,7 @@
 # Email: edl56@cornell.edu
 # 2017-03-29
 import numpy as np
+from numpy import sin,cos,arcsin,arccos,arctan2,pi
 
 def mod_angle(angle):
     """
@@ -83,3 +84,76 @@ class Quaternion():
     def __repr__(self):
         return "Quaternion: [%1.3f,%1.3f,%1.3f,%1.3f]"%(self.real,self.vec[0],self.vec[1],self.vec[2])
 #end Quaternion
+
+
+class SphereCoordinate():
+    """Coordinate on a spherical surface. Contains methods for easy manipulation and movement 
+    of points. Sphere is normalized to unit sphere.
+    """
+    def __init__(self,*args):
+        """
+        Parameters
+        ----------
+        (x,y,z) or vector or (phi,theta)
+        """
+        self.update_xy(*args)
+            
+    def update_xy(self,*args):
+        if len(args)==2:
+            phi,theta=args
+            self.vec=np.array([cos(phi)*sin(theta),sin(phi)*sin(theta),cos(theta)])
+            self.phi,self.theta=phi,theta
+        else:
+            assert len(args)==3 or len(args[0])==3
+            if len(args)==3:
+                args=np.array(args)
+            else:
+                self.vec=args[0]
+                
+            self.vec=self.vec/np.linalg.norm(self.vec)
+            self.phi,self.theta=self._vec_to_angle(*self.vec)
+    
+    @classmethod
+    def _angle_to_vec(cls,phi,theta):
+        return np.array([cos(phi)*sin(theta),sin(phi)*sin(theta),cos(theta)])
+    
+    @classmethod
+    def _vec_to_angle(cls,x,y,z):
+        return arctan2(y,x)+pi/2, arccos(z)
+            
+    def random_shift(self,return_angle=False,bds=[0,1]):
+        """
+        Return a vector that is randomly shifted away from this coordinate. This is done by
+        imagining that hte north pole is aligned along this vector and then adding a random angle
+        and then rotating the north pole to align with this vector.
+
+        Parameters
+        ----------
+        return_angle : bool,False
+            If True, return random vector in form of a (phi,theta) pair.
+        bds : tuple,[0,1]
+            Bounds on uniform number generator to only sample between fixed limits of theta. This
+            can be calculated using the formula
+                (1+cos(theta)) / 2 = X
+            where 0<=x<=1
+
+        Returns
+        -------
+        randvec : ndarray
+        """
+        # setup rotation operation
+        rotvec=np.cross(self.vec, np.array([0,0,1]))
+        a,b=cos(self.theta/2),sin(self.theta/2)
+        rotq=Quaternion(a, b*rotvec[0], b*rotvec[1], b*rotvec[2])
+                
+        # Add random shift while to north pole
+        dphi, dtheta = (np.random.uniform(0, 2*np.pi),
+                        np.arccos(2*np.random.uniform(*bds)-1))
+        dvec=self._angle_to_vec(dphi, dtheta)
+        randq=Quaternion(0, *dvec)
+        
+        # Rotate north pole to this vector's orientation
+        if return_angle:
+            return self._vec_to_angle( *randq.rotate(rotq.inv()).vec )
+        return randq.rotate(rotq.inv()).vec
+#end SphereCoordinate
