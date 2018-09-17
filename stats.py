@@ -171,7 +171,6 @@ class DiscretePowerLaw():
         -------
         soln : scipy.optimize.minimize or list thereof
         """
-        from scipy.special import zeta
         from scipy.optimize import minimize
         if type(X) is list:
             X=np.array(X)
