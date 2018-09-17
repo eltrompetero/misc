@@ -66,7 +66,17 @@ class Quaternion():
         return np.array([[1-2*(qj**2+qk**2), 2*(qi*qj-qk*qr), 2*(qi*qk+qj*qr)],
                          [2*(qi*qj+qk*qr), 1-2*(qi**2+qk**2), 2*(qj*qk-qi*qr)],
                          [2*(qi*qk-qj*qr), 2*(qj*qk+qi*qr), 1-2*(qi**2+qj**2)]])
-    
+
+    def rotate(self,r):
+        """Rotate this quaternion by the rotation specified in the given quaternion. The rotation
+        quaternion must be of form cos(theta/2) + (a i, b j, c k)*sin(theta/2)
+
+        Parameters
+        ----------
+        r : Quaternion
+        """
+        return r.hprod( self.hprod( r.inv() ) )
+
     def __str__(self):
         return "Quaternion: [%1.3f,%1.3f,%1.3f,%1.3f]"%(self.real,self.vec[0],self.vec[1],self.vec[2])
     
