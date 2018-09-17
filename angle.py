@@ -127,6 +127,8 @@ class SphereCoordinate():
         imagining that hte north pole is aligned along this vector and then adding a random angle
         and then rotating the north pole to align with this vector.
 
+        Angles are given relative to the north pole; that is, theta in [0,pi] and phi in [0,2*pi].
+
         Parameters
         ----------
         return_angle : bool,False
