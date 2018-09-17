@@ -121,7 +121,7 @@ class SphereCoordinate():
     def _vec_to_angle(cls,x,y,z):
         return arctan2(y,x)+pi/2, arccos(z)
             
-    def random_shift(self,return_angle=False,bds=[0,1]):
+    def random_shift(self,return_angle=True,bds=[0,1]):
         """
         Return a vector that is randomly shifted away from this coordinate. This is done by
         imagining that hte north pole is aligned along this vector and then adding a random angle
