@@ -4,7 +4,7 @@ import numpy as np
 class QuadGauss(object):
     def __init__(self,order,method='legendre',lobatto=False):
         """
-        Straightforward gaussian integration using Chebyshev polynomials with linear mapping of the
+        Straightforward gaussian integration using Chebyshev polynomials with mapping of the
         bounds into [-1,1]. Most useful for a bounded interval.
 
         Parameters
