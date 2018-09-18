@@ -143,17 +143,42 @@ class SphereCoordinate():
         -------
         randvec : ndarray
         """
-        # setup rotation operation
+        # when vector is near south pole, we have numerical erros that are dominant for the rotation
+        # and so we move it to the northern hemisphere before doing any calculation
+        if self.vec.dot(np.array([0,0,-1]))>.5:
+            # setup rotation operation
+            vec=self.vec.copy()
+            vec[-1]*=-1
+            theta=np.pi-self.theta
+
+            rotvec=np.cross(vec, np.array([0,0,-1]))
+
+            a,b=cos(theta/2),sin(theta/2)
+            rotq=Quaternion(a, b*rotvec[0], b*rotvec[1], b*rotvec[2])
+            # Add random shift to south pole
+            dphi, dtheta = (np.random.uniform(0, 2*np.pi),
+                            np.pi-np.arccos(2*np.random.uniform(*bds)-1))
+            dvec=self._angle_to_vec(dphi, dtheta)
+            randq=Quaternion(0, *dvec)
+            # Rotate north pole to this vector's orientation
+            if return_angle:
+                newphi, newtheta=self._vec_to_angle( *randq.rotate(rotq.inv()).vec )
+                newtheta=np.pi-newtheta
+                return newphi,newtheta
+            newvec=randq.rotate(rotq.inv()).vec
+            newvec[-1]*=-1
+            return newvec
+
         rotvec=np.cross(self.vec, np.array([0,0,1]))
+
         a,b=cos(self.theta/2),sin(self.theta/2)
         rotq=Quaternion(a, b*rotvec[0], b*rotvec[1], b*rotvec[2])
-                
         # Add random shift to north pole
         dphi, dtheta = (np.random.uniform(0, 2*np.pi),
                         np.arccos(2*np.random.uniform(*bds)-1))
+
         dvec=self._angle_to_vec(dphi, dtheta)
         randq=Quaternion(0, *dvec)
-        
         # Rotate north pole to this vector's orientation
         if return_angle:
             return self._vec_to_angle( *randq.rotate(rotq.inv()).vec )
