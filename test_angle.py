@@ -17,5 +17,10 @@ def test_quaternion():
     theta=pi/2
     p=Quaternion(0,1.,0,0)
     q=Quaternion(cos(theta/2),0,sin(theta/2),0)
-
     assert np.isclose( q.hprod(p.hprod(q.inv())).vec, q.rotmat().dot(p.vec) ).all()
+
+    # check that inverse rotation on rotation return original vector
+    theta=pi/2
+    p=Quaternion(0,1.,0,0)
+    q=Quaternion(cos(theta/2),0,sin(theta/2),0)
+    assert np.isclose( p.vec, p.rotate(q).rotate(q.inv()).vec ).all()

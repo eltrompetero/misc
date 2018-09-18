@@ -51,15 +51,15 @@ class Quaternion():
         negvec=-self.vec
         return Quaternion(self.real,*negvec)
     
-    def hprod(self,q):
+    def hprod(self,t):
         """Right side Hamiltonian product."""
         p=[self.real]+self.vec.tolist()
-        q=[q.real]+q.vec.tolist()
+        t=[t.real]+t.vec.tolist()
         """Hamiltonian product between two quaternions."""
-        return Quaternion( p[0]*q[0] -p[1]*q[1] -p[2]*q[2] -p[3]*q[3],
-                           p[0]*q[1] +p[1]*q[0] +p[2]*q[3] -p[3]*q[2],
-                           p[0]*q[2] -p[1]*q[3] +p[2]*q[0] +p[3]*q[1],
-                           p[0]*q[3] +p[1]*q[2] -p[2]*q[1] +p[3]*q[0] )
+        return Quaternion( p[0]*t[0] -p[1]*t[1] -p[2]*t[2] -p[3]*t[3],
+                           p[0]*t[1] +p[1]*t[0] +p[2]*t[3] -p[3]*t[2],
+                           p[0]*t[2] -p[1]*t[3] +p[2]*t[0] +p[3]*t[1],
+                           p[0]*t[3] +p[1]*t[2] -p[2]*t[1] +p[3]*t[0] )
     
     def rotmat(self):
         qr=self.real
@@ -83,6 +83,14 @@ class Quaternion():
     
     def __repr__(self):
         return "Quaternion: [%1.3f,%1.3f,%1.3f,%1.3f]"%(self.real,self.vec[0],self.vec[1],self.vec[2])
+
+    def __eq__(self,y):
+        if not type(y) is Quaternion:
+            raise NotImplementedError
+
+        if y.real==self.real and np.array_equal(y.vec,self.vec):
+            return True
+        return False
 #end Quaternion
 
 
@@ -143,44 +151,42 @@ class SphereCoordinate():
         -------
         randvec : ndarray
         """
-        # when vector is near south pole, we have numerical erros that are dominant for the rotation
-        # and so we move it to the northern hemisphere before doing any calculation
+        # setup rotation operation
         if self.vec.dot(np.array([0,0,-1]))>.5:
-            # setup rotation operation
+            # when vector is near south pole, numerical erros are dominant for the rotation and so we
+            # move it to the northern hemisphere before doing any calculation
             vec=self.vec.copy()
+            # move vector to the north pole
             vec[-1]*=-1
             theta=np.pi-self.theta
-
-            rotvec=np.cross(vec, np.array([0,0,-1]))
-
-            a,b=cos(theta/2),sin(theta/2)
-            rotq=Quaternion(a, b*rotvec[0], b*rotvec[1], b*rotvec[2])
-            # Add random shift to south pole
-            dphi, dtheta = (np.random.uniform(0, 2*np.pi),
-                            np.pi-np.arccos(2*np.random.uniform(*bds)-1))
-            dvec=self._angle_to_vec(dphi, dtheta)
-            randq=Quaternion(0, *dvec)
-            # Rotate north pole to this vector's orientation
-            if return_angle:
-                newphi, newtheta=self._vec_to_angle( *randq.rotate(rotq.inv()).vec )
-                newtheta=np.pi-newtheta
-                return newphi,newtheta
-            newvec=randq.rotate(rotq.inv()).vec
-            newvec[-1]*=-1
-            return newvec
-
-        rotvec=np.cross(self.vec, np.array([0,0,1]))
-
-        a,b=cos(self.theta/2),sin(self.theta/2)
+            inSouthPole=True
+        else:
+            vec=self.vec.copy()
+            theta=self.theta
+            inSouthPole=False
+        
+        # rotation axis
+        rotvec=np.cross(vec, np.array([0,0,1]))
+        rotvec/=np.linalg.norm(rotvec)
+        a,b=cos(theta/2),sin(theta/2)
         rotq=Quaternion(a, b*rotvec[0], b*rotvec[1], b*rotvec[2])
+
         # Add random shift to north pole
         dphi, dtheta = (np.random.uniform(0, 2*np.pi),
                         np.arccos(2*np.random.uniform(*bds)-1))
-
         dvec=self._angle_to_vec(dphi, dtheta)
         randq=Quaternion(0, *dvec)
+        
         # Rotate north pole to this vector's orientation
         if return_angle:
-            return self._vec_to_angle( *randq.rotate(rotq.inv()).vec )
-        return randq.rotate(rotq.inv()).vec
+            newphi, newtheta=self._vec_to_angle( *randq.rotate(rotq.inv()).vec )
+            if inSouthPole:
+                # move back to south pole
+                newtheta=np.pi-newtheta
+            return newphi,newtheta
+        newvec=randq.rotate(rotq.inv()).vec
+        if inSouthPole:
+            # move back to south pole
+            newvec[-1]*=-1
+        return newvec
 #end SphereCoordinate
