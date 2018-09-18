@@ -119,7 +119,7 @@ class SphereCoordinate():
     
     @classmethod
     def _vec_to_angle(cls,x,y,z):
-        return arctan2(y,x)+pi/2, arccos(z)
+        return arctan2(y,x)%(2*np.pi), arccos(z)
             
     def random_shift(self,return_angle=True,bds=[0,1]):
         """
@@ -148,7 +148,7 @@ class SphereCoordinate():
         a,b=cos(self.theta/2),sin(self.theta/2)
         rotq=Quaternion(a, b*rotvec[0], b*rotvec[1], b*rotvec[2])
                 
-        # Add random shift while to north pole
+        # Add random shift to north pole
         dphi, dtheta = (np.random.uniform(0, 2*np.pi),
                         np.arccos(2*np.random.uniform(*bds)-1))
         dvec=self._angle_to_vec(dphi, dtheta)
