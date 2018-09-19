@@ -390,8 +390,8 @@ def parallelize( f ):
 
 def zip_args(*args):
     """
-    Given a mixed set of list and int/float args, turn them into a set up tuples. This can be used to faciliate pipeline operations. This only takes lists!
-    2016-02-08
+    Given a mixed set of list and int/float args, turn them into a set up tuples. This can be used
+    to facilitate pipeline operations. This only takes lists!
     """
     listOfTuples = []
     try:
@@ -407,7 +407,6 @@ def zip_args(*args):
             else:
                 listOfTuples[-1].append(j)
     return [tuple(i) for i in listOfTuples]
-
 
 def bootstrap_f(data,f,nIters,nSamples=-1):
     """
