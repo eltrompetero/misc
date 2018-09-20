@@ -98,12 +98,15 @@ class SphereCoordinate():
     """Coordinate on a spherical surface. Contains methods for easy manipulation and movement 
     of points. Sphere is normalized to unit sphere.
     """
+
     def __init__(self,*args,rng=None):
         """
         Parameters
         ----------
         (x,y,z) or vector or (phi,theta)
+        rng : np.random.RandomState,None
         """
+
         self.update_xy(*args)
         if rng is None:
             self.rng=np.random.RandomState()
@@ -127,7 +130,7 @@ class SphereCoordinate():
     
     @classmethod
     def _angle_to_vec(cls,phi,theta):
-        return np.array([cos(phi)*sin(theta),sin(phi)*sin(theta),cos(theta)])
+        return np.array([cos(phi)*sin(theta), sin(phi)*sin(theta), cos(theta)])
     
     @classmethod
     def _vec_to_angle(cls,x,y,z):
@@ -155,8 +158,9 @@ class SphereCoordinate():
         -------
         randvec : ndarray
         """
+
         # setup rotation operation
-        if self.vec.dot(np.array([0,0,-1]))>.5:
+        if self.vec[-1]<-.5:
             # when vector is near south pole, numerical erros are dominant for the rotation and so we
             # move it to the northern hemisphere before doing any calculation
             vec=self.vec.copy()
@@ -169,10 +173,10 @@ class SphereCoordinate():
             theta=self.theta
             inSouthPole=False
         
-        # rotation axis
-        rotvec=np.cross(vec, np.array([0,0,1]))
-        rotvec/=np.linalg.norm(rotvec)
-        a,b=cos(theta/2),sin(theta/2)
+        # rotation axis given by cross product with (0,0,1)
+        rotvec=np.array([vec[1], -vec[0], 0])
+        rotvec/=np.sqrt(rotvec[0]**2 + rotvec[1]**2)
+        a, b=cos(theta/2), sin(theta/2)
         rotq=Quaternion(a, b*rotvec[0], b*rotvec[1], b*rotvec[2])
 
         # Add random shift to north pole
@@ -187,7 +191,7 @@ class SphereCoordinate():
             if inSouthPole:
                 # move back to south pole
                 newtheta=np.pi-newtheta
-            return newphi,newtheta
+            return newphi, newtheta
         newvec=randq.rotate(rotq.inv()).vec
         if inSouthPole:
             # move back to south pole
