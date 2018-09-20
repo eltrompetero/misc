@@ -98,13 +98,17 @@ class SphereCoordinate():
     """Coordinate on a spherical surface. Contains methods for easy manipulation and movement 
     of points. Sphere is normalized to unit sphere.
     """
-    def __init__(self,*args):
+    def __init__(self,*args,rng=None):
         """
         Parameters
         ----------
         (x,y,z) or vector or (phi,theta)
         """
         self.update_xy(*args)
+        if rng is None:
+            self.rng=np.random.RandomState()
+        else:
+            self.rng=rng
             
     def update_xy(self,*args):
         if len(args)==2:
@@ -172,8 +176,8 @@ class SphereCoordinate():
         rotq=Quaternion(a, b*rotvec[0], b*rotvec[1], b*rotvec[2])
 
         # Add random shift to north pole
-        dphi, dtheta = (np.random.uniform(0, 2*np.pi),
-                        np.arccos(2*np.random.uniform(*bds)-1))
+        dphi, dtheta = (self.rng.uniform(0, 2*np.pi),
+                        np.arccos(2*self.rng.uniform(*bds)-1))
         dvec=self._angle_to_vec(dphi, dtheta)
         randq=Quaternion(0, *dvec)
         
