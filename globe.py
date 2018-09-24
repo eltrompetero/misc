@@ -1,7 +1,29 @@
 # Module for useful functions on the 2D sphere.
 import numpy as np
-from numpy import cos,sin,arctan2,arccos
+from numpy import cos,sin,arctan2,arccos,pi
 from .angle import Quaternion
+
+
+def rand(n=1, degree=True):
+    """Sample points from the surface of a sphere.
+
+    Parameters
+    ----------
+    n : int,1
+    degree : bool,True
+
+    Returns
+    -------
+    randlon : float
+    randlat : float
+    """
+    if degree:
+        randlat=arccos(2*np.random.rand(n)-1)/pi*180-90
+        randlon=np.random.uniform(-180,180,size=n)
+        return randlon,randlat
+    randlat=arccos(2*np.random.rand(n)-1)-pi/2
+    randlon=np.random.uniform(-pi,pi,size=n)
+    return randlon,randlat
 
 
 class PoissonDiscSphere():
@@ -12,14 +34,14 @@ class PoissonDiscSphere():
     """
 
     def __init__(self, r,
-                 width_bds=(0,2*np.pi),
-                 height_bds=(-np.pi/2,np.pi/2),
+                 width_bds=(0,2*pi),
+                 height_bds=(-pi/2,pi/2),
                  fast_sample_size=30,
                  k=30,
                  rng=None):
         assert r>0,r
-        assert 0<=width_bds[0]<=width_bds[1]<=2*np.pi
-        assert -np.pi/2<=height_bds[0]<=height_bds[1]<=np.pi/2
+        assert 0<=width_bds[0]<=width_bds[1]<=2*pi
+        assert -pi/2<=height_bds[0]<=height_bds[1]<=pi/2
 
         self.width, self.height = width_bds, height_bds
         self.r = r
@@ -140,12 +162,12 @@ class PoissonDiscSphere():
         none of them are suitable (because they're too close to existing points in the sample),
         return False. Otherwise, return the pt in a list.
         """
-        sphereRefpt=SphereCoordinate(refpt[0],refpt[1]+np.pi/2)
+        sphereRefpt=SphereCoordinate(refpt[0],refpt[1]+pi/2)
         i = 0
         while i < self.k:
             pt=sphereRefpt.random_shift(bds=self.unif_theta_bounds)
             # put back into same range as this code
-            pt=np.array([pt[0],pt[1]-np.pi/2])
+            pt=np.array([pt[0],pt[1]-pi/2])
             if not (self.width[0] < pt[0] < self.width[1] and 
                     self.height[0] < pt[1] < self.height[1]):
                 # This point falls outside the domain, so try again.
@@ -226,8 +248,8 @@ class PoissonDiscSphere():
         """
         # Account for discontinuity at phi=0 and phi=2*pi
         d=np.abs(x-y)
-        ix=d[:,0]>np.pi
-        d[ix,0]=np.pi-d[ix,0]%np.pi
+        ix=d[:,0]>pi
+        d[ix,0]=pi-d[ix,0]%pi
         return ( d**2 ).sum(1)
 #end PoissonDiscSphere
 
@@ -272,7 +294,7 @@ class SphereCoordinate():
     
     @classmethod
     def _vec_to_angle(cls,x,y,z):
-        return arctan2(y,x)%(2*np.pi), arccos(z)
+        return arctan2(y,x)%(2*pi), arccos(z)
             
     def random_shift(self,return_angle=True,bds=[0,1]):
         """
@@ -304,7 +326,7 @@ class SphereCoordinate():
             vec=self.vec.copy()
             # move vector to the north pole
             vec[-1]*=-1
-            theta=np.pi-self.theta
+            theta=pi-self.theta
             inSouthPole=True
         else:
             vec=self.vec.copy()
@@ -318,7 +340,7 @@ class SphereCoordinate():
         rotq=Quaternion(a, b*rotvec[0], b*rotvec[1], b*rotvec[2])
 
         # Add random shift to north pole
-        dphi, dtheta = (self.rng.uniform(0, 2*np.pi),
+        dphi, dtheta = (self.rng.uniform(0, 2*pi),
                         np.arccos(2*self.rng.uniform(*bds)-1))
         dvec=self._angle_to_vec(dphi, dtheta)
         randq=Quaternion(0, *dvec)
@@ -328,7 +350,7 @@ class SphereCoordinate():
             newphi, newtheta=self._vec_to_angle( *randq.rotate(rotq.inv()).vec )
             if inSouthPole:
                 # move back to south pole
-                newtheta=np.pi-newtheta
+                newtheta=pi-newtheta
             return newphi, newtheta
         newvec=randq.rotate(rotq.inv()).vec
         if inSouthPole:
