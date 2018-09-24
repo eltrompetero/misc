@@ -1,6 +1,6 @@
 # Module for useful functions on the 2D sphere.
 import numpy as np
-from numpy import cos,sin,arctan2,arccos,pi
+from numpy import cos,sin,arctan2,arccos,arcsin,pi
 from .angle import Quaternion
 
 
@@ -129,6 +129,7 @@ class PoissonDiscSphere():
         Returns
         -------
         mindist : float
+            On a unit sphere. Multiply by the radius to get it in the desired units.
         """
 
         distance=np.zeros(self.fastSampleSize)
@@ -225,12 +226,15 @@ class PoissonDiscSphere():
         from numpy import sin,cos
 
         if x.ndim==2 and y.ndim==1:
-            return np.arccos(sin(x[:,1])*sin(y[1])+cos(x[:,1])*cos(y[1])*cos(np.abs(x[:,0]-y[0])))
+            return 2*arcsin( np.sqrt(sin((x[:,1]-y[:,1])/2)**2 +
+                             cos(x[:,1])*cos(y[:,1])*sin((x[:,0]-y[:,0])/2)**2) )
         elif x.ndim==1 and y.ndim==2:
-            return np.arccos(sin(x[1])*sin(y[:,1])+cos(x[1])*cos(y[:,1])*cos(np.abs(x[0]-y[:,0])))
+            return 2*arcsin( np.sqrt(sin((x[1]-y[:,1])/2)**2 +
+                             cos(x[1])*cos(y[:,1])*sin((x[0]-y[:,0])/2)**2) )
         elif x.ndim==2 and y.ndim==2:
-            return np.arccos(sin(x[:,1])*sin(y[:,1])+cos(x[:,1])*cos(y[:,1])*cos(np.abs(x[:,0]-y[:,0])))
-        return np.arccos(sin(x[1])*sin(y[1])+cos(x[1])*cos(y[1])*cos(np.abs(x[0]-y[0])))
+            return 2*arcsin( np.sqrt(sin((x[:,1]-y[1])/2)**2 +
+                             cos(x[:,1])*cos(y[1])*sin((x[:,0]-y[0])/2)**2) )
+        return 2*arcsin( np.sqrt(sin((x[1]-y[1])/2)**2+cos(x[1])*cos(y[1])*sin((x[0]-y[0])/2)**2) )
     
     @staticmethod
     def fast_dist(x,y):
@@ -341,7 +345,7 @@ class SphereCoordinate():
 
         # Add random shift to north pole
         dphi, dtheta = (self.rng.uniform(0, 2*pi),
-                        np.arccos(2*self.rng.uniform(*bds)-1))
+                        arccos(2*self.rng.uniform(*bds)-1))
         dvec=self._angle_to_vec(dphi, dtheta)
         randq=Quaternion(0, *dvec)
         
