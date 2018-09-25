@@ -123,12 +123,9 @@ class PoissonDiscSphere():
         ix : int 
         """
 
-        distance=np.zeros(self.fastSampleSize)
-        neighborix=self.get_neighbours(pt)
+        neighborix=np.array(self.get_neighbours(pt))
+        distance=self.dist(pt, self.samples[neighborix])
 
-        for i,idx in enumerate(neighborix):
-            nearby_pt = self.samples[idx]
-            distance[i] = self.dist(nearby_pt,pt)
         if ignore_zero and len(neighborix)>0:
             keepix=distance>ignore_zero
             distance=distance[keepix]
