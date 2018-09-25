@@ -39,7 +39,18 @@ class PoissonDiscSphere():
                  height_bds=(-pi/2,pi/2),
                  fast_sample_size=30,
                  k=30,
+                 coarse_grid=None,
+                 k_coarse=6,
                  rng=None):
+        """
+        Parameters
+        ----------
+        coarse_grid : ndarray
+            These are used to bin the grid points to make neighbor searching more efficient.
+        k_coarse : int,6
+            Number of nearest neighbors on the coarse grid to use for fast neighbor searching. For
+            the spherical surface about 6 should be good enough for the roughly hexagonal tiling.
+        """
         assert r>0,r
         assert 0<=width_bds[0]<=width_bds[1]<=2*pi
         assert -pi/2<=height_bds[0]<=height_bds[1]<=pi/2
@@ -49,10 +60,24 @@ class PoissonDiscSphere():
         self.k = k
         self.unif_theta_bounds=(1+np.cos(r))/2,(1+np.cos(2*r))/2
         self.fastSampleSize=fast_sample_size
+        self.coarseGrid=coarse_grid
+        self.kCoarse=k_coarse
         if rng is None:
             self.rng=np.random.RandomState()
         else:
             self.rng=rng
+
+        self.preprocess_coarse_grid()
+
+    def preprocess_coarse_grid(self):
+        """Find the k_coarse nearest neighbors for each point in the coarse grid. Also include self
+        in the list and thus the +1.
+        """
+        coarseNeighbors=[]
+        for pt in self.coarseGrid:
+            coarseNeighbors.append( np.argsort(self.dist(pt,
+                                                         self.coarseGrid))[:self.kCoarse+1].tolist() )
+        self.coarseNeighbors=coarseNeighbors
 
     def get_neighbours(self, xy, top_n=None):
         """Return top_n neighbors according to the fast Euclidean distance calculation.
@@ -70,8 +95,14 @@ class PoissonDiscSphere():
         top_n=top_n or self.fastSampleSize
 
         if len(self.samples)>1:
-            d=self.fast_dist(xy, self.samples)
-            return np.argsort(d)[:top_n]
+            # find the closest grid point by fast search
+            d=self.fast_dist(xy, self.coarseGrid)
+            # return all children of that grid point and its neighbors
+            allSurroundingGridIx=self.coarseNeighbors[np.argmin(d)]
+            neighbors=[]
+            for ix in allSurroundingGridIx:
+                neighbors+=self.samplesByGrid[ix]
+            return neighbors
         return []
 
     def _get_closest_neighbor(self, pt, ignore_zero=1e-9):
@@ -180,12 +211,17 @@ class PoissonDiscSphere():
         # We failed to find a suitable point in the vicinity of refpt.
         return False
 
+    def assign_grid_point(self,pt):
+        return np.argmin( self.dist(pt, self.coarseGrid) )
+
     def sample(self):
         """Poisson disc random sampling in 2D.
         Draw random samples on the domain width x height such that no two samples are closer than r
         apart. The parameter k determines the maximum number of candidate points to be chosen around
         each reference point before removing it from the "active" list.
         """
+        self.samplesByGrid=[[] for i in self.coarseGrid]
+
         # Pick a random point to start with.
         pt = np.array([self.rng.uniform(*self.width),
                        self.rng.uniform(*self.height)])
@@ -208,6 +244,7 @@ class PoissonDiscSphere():
                 self.samples.append(pt[0])
                 nsamples = len(self.samples) - 1
                 active.append(nsamples)
+                self.samplesByGrid[self.assign_grid_point(pt[0])].append(len(self.samples)-1)
             else:
                 # We had to give up looking for valid points near refpt, so
                 # remove it from the list of "active" points.
