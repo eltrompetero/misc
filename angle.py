@@ -44,6 +44,7 @@ class Quaternion():
     """Basic quaternion class.
     """
     def __init__(self,a,b,c,d):
+        print("This is deprecated. Use Quaternion from globe.py.")
         self.real=a
         self.vec=np.array([b,c,d])
         
