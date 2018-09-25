@@ -169,11 +169,7 @@ class PoissonDiscSphere():
             On a unit sphere. Multiply by the radius to get it in the desired units.
         """
 
-        distance=np.zeros(self.fastSampleSize)
-        for i,idx in enumerate(self.get_neighbours(pt)):
-            nearby_pt = self.samples[idx]
-            # Squared distance between candidate point, pt, and this nearby_pt.
-            distance[i] = self.dist(nearby_pt,pt)
+        distance=self.dist(pt, self.samples[self.get_neighbours(pt)])
         if ignore_zero:
             return distance[distance>ignore_zero].min()
         return distance.min()
