@@ -164,10 +164,10 @@ class PoissonDiscSphere():
         none of them are suitable (because they're too close to existing points in the sample),
         return False. Otherwise, return the pt in a list.
         """
-        sphereRefpt=SphereCoordinate(refpt[0],refpt[1]+pi/2)
+        sphereRefpt=jitSphereCoordinate(refpt[0],refpt[1]+pi/2)
         i = 0
         while i < self.k:
-            pt=sphereRefpt.random_shift(bds=self.unif_theta_bounds)
+            pt=sphereRefpt.random_shift(self.unif_theta_bounds)
             # put back into same range as this code
             pt=np.array([pt[0],pt[1]-pi/2])
             if not (self.width[0] < pt[0] < self.width[1] and 
