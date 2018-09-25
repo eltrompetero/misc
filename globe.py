@@ -212,7 +212,7 @@ class PoissonDiscSphere():
         return False
 
     def assign_grid_point(self,pt):
-        return np.argmin( self.dist(pt, self.coarseGrid) )
+        return np.argmin( self.fast_dist(pt, self.coarseGrid) )
 
     def sample(self):
         """Poisson disc random sampling in 2D.
