@@ -60,12 +60,17 @@ class PoissonDiscSphere():
         self.k = k
         self.unif_theta_bounds=(1+np.cos(r))/2,(1+np.cos(2*r))/2
         self.fastSampleSize=fast_sample_size
-        self.coarseGrid=coarse_grid
-        self.kCoarse=k_coarse
         if rng is None:
             self.rng=np.random.RandomState()
         else:
             self.rng=rng
+
+        if coarse_grid is None:
+            # Generate random coarse grid. This only impacts total run time slightly for small
+            # grids.
+            coarse_grid=np.vstack(( rand(k_coarse, False) )).T
+        self.coarseGrid=coarse_grid
+        self.kCoarse=k_coarse
 
         self.preprocess_coarse_grid()
 
