@@ -40,16 +40,17 @@ class PoissonDiscSphere():
                  fast_sample_size=30,
                  k=30,
                  coarse_grid=None,
-                 k_coarse=6,
+                 k_coarse=9,
                  rng=None):
         """
         Parameters
         ----------
         coarse_grid : ndarray
             These are used to bin the grid points to make neighbor searching more efficient.
-        k_coarse : int,6
+        k_coarse : int,9
             Number of nearest neighbors on the coarse grid to use for fast neighbor searching. For
-            the spherical surface about 6 should be good enough for the roughly hexagonal tiling.
+            the spherical surface about 6 should be good enough for the roughly hexagonal tiling,
+            but I find that irregular tiling means having more neighbors is a good idea.
         """
         assert r>0,r
         assert 0<=width_bds[0]<=width_bds[1]<=2*pi
@@ -98,7 +99,7 @@ class PoissonDiscSphere():
         
         # case where coarse grid is defined
         if not self.coarseGrid is None:
-            if len(self.samples)>1:
+            if len(self.samples)>0:
                 # find the closest grid point by fast search
                 d=self.fast_dist(xy, self.coarseGrid)
                 # return all children of that grid point and its neighbors
@@ -201,12 +202,12 @@ class PoissonDiscSphere():
         none of them are suitable (because they're too close to existing points in the sample),
         return False. Otherwise, return the pt in a list.
         """
-        sphereRefpt=jitSphereCoordinate(refpt[0],refpt[1]+pi/2)
+        sphereRefpt=jitSphereCoordinate(refpt[0], refpt[1]+pi/2)
         i = 0
         while i < self.k:
             pt=sphereRefpt.random_shift(self.unif_theta_bounds)
             # put back into same range as this code
-            pt=np.array([pt[0],pt[1]-pi/2])
+            pt=np.array([pt[0], pt[1]-pi/2])
             if not (self.width[0] < pt[0] < self.width[1] and 
                     self.height[0] < pt[1] < self.height[1]):
                 # This point falls outside the domain, so try again.
@@ -217,7 +218,7 @@ class PoissonDiscSphere():
         # We failed to find a suitable point in the vicinity of refpt.
         return False
 
-    def assign_grid_point(self,pt):
+    def assign_grid_point(self, pt):
         return np.argmin( self.fast_dist(pt, self.coarseGrid) )
 
     def sample(self):
@@ -233,6 +234,8 @@ class PoissonDiscSphere():
         pt = np.array([self.rng.uniform(*self.width),
                        self.rng.uniform(*self.height)])
         self.samples = [pt]
+        if not self.coarseGrid is None:
+            self.samplesByGrid[self.assign_grid_point(pt)].append(0)
 
         # and it is active, in the sense that we're going to look for more
         # points in its neighbourhood.
@@ -257,29 +260,30 @@ class PoissonDiscSphere():
                 # We had to give up looking for valid points near refpt, so
                 # remove it from the list of "active" points.
                 active.remove(idx)
-                
-            #print("active samples left: %d"%len(active))
         
         self.samples=np.vstack(self.samples)
+        # we cannot take a faster small sample than the size of the system
         if len(self.samples)<self.fastSampleSize:
             self.fastSampleSize=len(self.samples)
+        if not self.coarseGrid is None:
+            assert sum([len(s) for s in self.samplesByGrid])==len(self.samples)
         return self.samples
     
     @classmethod
-    def dist(cls,x,y):
+    def dist(cls, x, y):
         """Great circle distance"""
 
         from numpy import sin,cos
 
         if x.ndim==2 and y.ndim==1:
-            return 2*arcsin( np.sqrt(sin((x[:,1]-y[:,1])/2)**2 +
-                             cos(x[:,1])*cos(y[:,1])*sin((x[:,0]-y[:,0])/2)**2) )
+            return 2*arcsin( np.sqrt(sin((x[:,1]-y[1])/2)**2 +
+                             cos(x[:,1])*cos(y[1])*sin((x[:,0]-y[0])/2)**2) )
         elif x.ndim==1 and y.ndim==2:
             return 2*arcsin( np.sqrt(sin((x[1]-y[:,1])/2)**2 +
                              cos(x[1])*cos(y[:,1])*sin((x[0]-y[:,0])/2)**2) )
         elif x.ndim==2 and y.ndim==2:
-            return 2*arcsin( np.sqrt(sin((x[:,1]-y[1])/2)**2 +
-                             cos(x[:,1])*cos(y[1])*sin((x[:,0]-y[0])/2)**2) )
+            return 2*arcsin( np.sqrt(sin((x[:,1]-y[:,1])/2)**2 +
+                             cos(x[:,1])*cos(y[:,1])*sin((x[:,0]-y[:,0])/2)**2) )
         return 2*arcsin( np.sqrt(sin((x[1]-y[1])/2)**2+cos(x[1])*cos(y[1])*sin((x[0]-y[0])/2)**2) )
     
     @staticmethod
