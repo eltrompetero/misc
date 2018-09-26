@@ -65,14 +65,11 @@ class PoissonDiscSphere():
         else:
             self.rng=rng
 
-        if coarse_grid is None:
-            # Generate random coarse grid. This only impacts total run time slightly for small
-            # grids.
-            coarse_grid=np.vstack(( rand(k_coarse, False) )).T
         self.coarseGrid=coarse_grid
         self.kCoarse=k_coarse
-
-        self.preprocess_coarse_grid()
+        
+        if not self.coarseGrid is None:
+            self.preprocess_coarse_grid()
 
     def preprocess_coarse_grid(self):
         """Find the k_coarse nearest neighbors for each point in the coarse grid. Also include self
@@ -98,17 +95,26 @@ class PoissonDiscSphere():
         """
 
         top_n=top_n or self.fastSampleSize
+        
+        # case where coarse grid is defined
+        if not self.coarseGrid is None:
+            if len(self.samples)>1:
+                # find the closest grid point by fast search
+                d=self.fast_dist(xy, self.coarseGrid)
+                # return all children of that grid point and its neighbors
+                allSurroundingGridIx=self.coarseNeighbors[np.argmin(d)]
+                neighbors=[]
+                for ix in allSurroundingGridIx:
+                    neighbors+=self.samplesByGrid[ix]
+                return neighbors
+            return []
 
-        if len(self.samples)>1:
-            # find the closest grid point by fast search
-            d=self.fast_dist(xy, self.coarseGrid)
-            # return all children of that grid point and its neighbors
-            allSurroundingGridIx=self.coarseNeighbors[np.argmin(d)]
-            neighbors=[]
-            for ix in allSurroundingGridIx:
-                neighbors+=self.samplesByGrid[ix]
-            return neighbors
+        if len(self.samples)>0:
+            # find the closest point by fast search
+            d=self.fast_dist(xy, self.samples)
+            return np.argsort(d)[:top_n].tolist()
         return []
+
 
     def _get_closest_neighbor(self, pt, ignore_zero=1e-9):
         """
@@ -176,14 +182,16 @@ class PoissonDiscSphere():
         It must be no closer than r from any other point: check the cells in its immediate
         neighbourhood.
         """
-
-        for idx in self.get_neighbours(pt):
-            nearby_pt = self.samples[idx]
-            # Squared distance between candidate point, pt, and this nearby_pt.
-            distance = self.dist(nearby_pt,pt)
-            if distance < self.r:
-                # The points are too close, so pt is not a candidate.
-                return False
+        
+        if len(self.samples)>0:
+            neighborIx=self.get_neighbours(pt)
+            for ix in neighborIx:
+                if (self.dist(pt, self.samples[ix]) < self.r):
+                    return False
+            #if len(neighborIx)>0:
+            #    if (self.dist(pt, np.array(self.samples)[neighborIx]) < self.r).any():
+            #        # The points are too close, so pt is not a candidate.
+            #        return False
         # All points tested: if we're here, pt is valid
         return True
     
@@ -218,7 +226,8 @@ class PoissonDiscSphere():
         apart. The parameter k determines the maximum number of candidate points to be chosen around
         each reference point before removing it from the "active" list.
         """
-        self.samplesByGrid=[[] for i in self.coarseGrid]
+        if not self.coarseGrid is None:
+            self.samplesByGrid=[[] for i in self.coarseGrid]
 
         # Pick a random point to start with.
         pt = np.array([self.rng.uniform(*self.width),
@@ -242,7 +251,8 @@ class PoissonDiscSphere():
                 self.samples.append(pt[0])
                 nsamples = len(self.samples) - 1
                 active.append(nsamples)
-                self.samplesByGrid[self.assign_grid_point(pt[0])].append(len(self.samples)-1)
+                if not self.coarseGrid is None:
+                    self.samplesByGrid[self.assign_grid_point(pt[0])].append(len(self.samples)-1)
             else:
                 # We had to give up looking for valid points near refpt, so
                 # remove it from the list of "active" points.
