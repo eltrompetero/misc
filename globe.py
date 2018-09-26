@@ -26,6 +26,20 @@ def rand(n=1, degree=True):
     randlon=np.random.uniform(-pi,pi,size=n)
     return randlon,randlat
 
+def haversine(x,y,r=1):
+    """
+    Parameters
+    ----------
+    x,y : tuple
+        (lon, lat)
+    radius : float,1
+
+    Returns
+    -------
+    dist : float
+    """
+    return r * 2 * arcsin(np.sqrt( sin((x[1]-y[1])/2)**2 +
+                                   cos(x[1])*cos(y[1])*sin((x[0]-y[0])/2)**2 ))
 
 class PoissonDiscSphere():
     """A class for generating two-dimensional Possion (blue) noise) modified from: 
