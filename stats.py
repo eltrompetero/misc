@@ -295,7 +295,7 @@ class DiscretePowerLaw():
         return ( -alpha*np.log(X) - np.log(zeta(alpha, lower_bound)-zeta(alpha, upper_bound+1))).sum()
 
     @classmethod
-    def alpha_range(cls, x, alpha, dL, lower_bound=None):
+    def alpha_range(cls, x, alpha, dL, lower_bound=None, upper_bound=np.inf):
         """
         Upper and lower values for alpha that correspond to a likelihood drop of dL. You must be at
         a peak of likelihood otherwise the results will be nonsensical.
@@ -306,6 +306,7 @@ class DiscretePowerLaw():
         alpha : float
         dL : float
         lower_bound : float,None
+        upper_bound : float,np.inf
 
         Returns
         -------
@@ -319,14 +320,14 @@ class DiscretePowerLaw():
         assert (x>=lower_bound).all()
         alphabds=[0,0]
 
-        mxlik=DiscretePowerLaw.log_likelihood(x, alpha, lower_bound)
+        mxlik=DiscretePowerLaw.log_likelihood(x, alpha, lower_bound, upper_bound)
 
         # Lower dL
-        f=lambda a: (DiscretePowerLaw.log_likelihood(x, a, lower_bound) - (mxlik+dL))**2
+        f=lambda a: (DiscretePowerLaw.log_likelihood(x, a, lower_bound, upper_bound) - (mxlik+dL))**2
         alphabds[0]=minimize( f, alpha+.1, method='nelder-mead' )['x']
 
         # Upper dL
-        f=lambda a: (DiscretePowerLaw.log_likelihood(x, a, lower_bound) - (mxlik-dL))**2
+        f=lambda a: (DiscretePowerLaw.log_likelihood(x, a, lower_bound, upper_bound) - (mxlik-dL))**2
         alphabds[1]=minimize( f, alpha-.1, method='nelder-mead' )['x']
 
         return alphabds
