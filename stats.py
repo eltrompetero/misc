@@ -133,7 +133,7 @@ class DiscretePowerLaw():
         return lambda x: x**(1.*-alpha) / (zeta(alpha,x0)-zeta(alpha,x1+1))
 
     @classmethod
-    def rvs(cls,alpha,size=(1,),lower_bound=None,upper_bound=None):
+    def rvs(cls, alpha, size=(1,), lower_bound=None, upper_bound=None):
         x0=lower_bound or cls._default_lower_bound
         x1=upper_bound or cls._default_upper_bound
         assert x1<np.inf,"Must define upper bound."
@@ -154,7 +154,8 @@ class DiscretePowerLaw():
                              initial_guess=2.,
                              lower_bound=1,
                              upper_bound=np.inf,
-                             minimize_kw={}):
+                             minimize_kw={},
+                             full_output=False):
         """
         Find the best fit power law exponent for a discrete power law distribution. 
 
@@ -179,8 +180,12 @@ class DiscretePowerLaw():
 
         def f(alpha):
             if alpha<=1: return 1e30
-            return -cls.log_likelihood(X,alpha,lower_bound,upper_bound).sum()
-        return minimize(f,initial_guess,**minimize_kw)
+            return -cls.log_likelihood(X, alpha, lower_bound, upper_bound, normalize=True)
+
+        soln=minimize(f, initial_guess, **minimize_kw)
+        if full_output:
+            return soln['x'], soln
+        return soln['x']
        
     @classmethod
     def pipeline_max_likelihood_alpha(cls,X,
@@ -266,8 +271,9 @@ class DiscretePowerLaw():
         return minimize(f,initial_guess)
     
     @classmethod
-    def log_likelihood(cls,X,alpha,
-                       lower_bound=1,upper_bound=np.inf):
+    def log_likelihood(cls, X, alpha, 
+                       lower_bound=1, upper_bound=np.inf, 
+                       normalize=False):
         """Log likelihood of the discrete power law with exponent X^-alpha.
 
         Parameters
@@ -276,14 +282,54 @@ class DiscretePowerLaw():
         alpha : float
         lower_bound : int,1
         upper_bound : int,np.inf
+        normalize : bool,False
 
         Returns
         -------
         log_likelihood : ndarray
         """
         from scipy.special import zeta
-        assert ((X>=lower_bound)&(X<=upper_bound)).all()
-        return -alpha*np.log(X) - np.log(zeta(alpha,lower_bound)-zeta(alpha,upper_bound+1))
+        assert ((X>=lower_bound) & (X<=upper_bound)).all()
+        if not normalize:
+            return -alpha*np.log(X).sum()
+        return ( -alpha*np.log(X) - np.log(zeta(alpha, lower_bound)-zeta(alpha, upper_bound+1))).sum()
+
+    @classmethod
+    def alpha_range(cls, x, alpha, dL, lower_bound=None):
+        """
+        Upper and lower values for alpha that correspond to a likelihood drop of dL. You must be at
+        a peak of likelihood otherwise the results will be nonsensical.
+
+        Parameters
+        ----------
+        x : ndarray
+        alpha : float
+        dL : float
+        lower_bound : float,None
+
+        Returns
+        -------
+        alphabds : twople
+            Lower and upper bounds on alpha.
+        """
+        from scipy.optimize import minimize
+
+        if lower_bound is None:
+            lower_bound=cls._default_lower_bound
+        assert (x>=lower_bound).all()
+        alphabds=[0,0]
+
+        mxlik=DiscretePowerLaw.log_likelihood(x, alpha, lower_bound)
+
+        # Lower dL
+        f=lambda a: (DiscretePowerLaw.log_likelihood(x, a, lower_bound) - (mxlik+dL))**2
+        alphabds[0]=minimize( f, alpha+.1, method='nelder-mead' )['x']
+
+        # Upper dL
+        f=lambda a: (DiscretePowerLaw.log_likelihood(x, a, lower_bound) - (mxlik-dL))**2
+        alphabds[1]=minimize( f, alpha-.1, method='nelder-mead' )['x']
+
+        return alphabds
 #end DiscretePowerLaw
 
 
