@@ -150,7 +150,7 @@ class DiscretePowerLaw():
     #    return (x0**(1-alpha)-(x0**(1-alpha)-x1**(1-alpha))*np.random.rand(*size))**(1/(1-alpha))
 
     @classmethod
-    def max_likelihood_alpha(cls,X,
+    def max_likelihood_alpha(cls, X,
                              initial_guess=2.,
                              lower_bound=1,
                              upper_bound=np.inf,
@@ -171,6 +171,7 @@ class DiscretePowerLaw():
         -------
         soln : scipy.optimize.minimize or list thereof
         """
+
         from scipy.optimize import minimize
         if type(X) is list:
             X=np.array(X)
@@ -344,7 +345,7 @@ class PowerLaw():
         return lambda x: x**1-alpha/lower_bound**(1-alpha)
 
     @classmethod
-    def max_likelihood_alpha(cls,x,alpha=None,lower_bound=None):
+    def max_likelihood_alpha(cls, x, alpha=None, lower_bound=None):
         if lower_bound is None:
             lower_bound=cls._default_lower_bound
         assert (x>lower_bound).all()        

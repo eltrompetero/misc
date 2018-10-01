@@ -2,7 +2,7 @@ from .polynomial import *
 
 
 class QuadGauss(object):
-    def __init__(self,order,method='legendre'):
+    def __init__(self, order, method='legendre'):
         """
         Straightforward gaussian integration using orthogonal polynomials with mapping of the
         bounds into [-1,1]. Most useful for a bounded interval.
