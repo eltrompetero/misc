@@ -348,7 +348,7 @@ class PowerLaw():
     def max_likelihood_alpha(cls, x, alpha=None, lower_bound=None):
         if lower_bound is None:
             lower_bound=cls._default_lower_bound
-        assert (x>lower_bound).all()        
+        assert (x>=lower_bound).all()        
         n=len(x)
         return 1+n/np.log(x/lower_bound).sum()
 #end PowerLaw
