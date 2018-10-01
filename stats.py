@@ -339,16 +339,61 @@ class PowerLaw():
 
         return ( lower_bound**(1-alpha)-(lower_bound**(1-alpha) -
                  upper_bound**(1-alpha))*np.random.rand(*size) )**(1/(1-alpha))
-
+    
     @classmethod
     def cdf(cls,alpha=None,lower_bound=None):
         return lambda x: x**1-alpha/lower_bound**(1-alpha)
 
     @classmethod
-    def max_likelihood_alpha(cls, x, alpha=None, lower_bound=None):
+    def max_likelihood_alpha(cls, x, lower_bound=None):
         if lower_bound is None:
             lower_bound=cls._default_lower_bound
         assert (x>=lower_bound).all()        
         n=len(x)
         return 1+n/np.log(x/lower_bound).sum()
+
+    @classmethod
+    def log_likelihood(cls, x, alpha, lower_bound, upper_bound=np.inf, normalized=False):
+        assert alpha>1
+        if normalized:
+            Z=( lower_bound**(1-alpha)-upper_bound**(1-alpha) )/(alpha-1)
+            return -alpha*np.log(x).sum() - np.log(Z)
+        return -alpha*np.log(x).sum()
+
+    @classmethod
+    def alpha_range(cls, x, alpha, dL, lower_bound=None):
+        """
+        Upper and lower values for alpha that correspond to a likelihood drop of dL. You must be at
+        a peak of likelihood otherwise the results will be nonsensical.
+
+        Parameters
+        ----------
+        x : ndarray
+        alpha : float
+        dL : float
+        lower_bound : float,None
+
+        Returns
+        -------
+        alphabds : twople
+            Lower and upper bounds on alpha.
+        """
+        from scipy.optimize import minimize
+
+        if lower_bound is None:
+            lower_bound=cls._default_lower_bound
+        assert (x>=lower_bound).all()
+        alphabds=[0,0]
+
+        mxlik=PowerLaw.log_likelihood(x, alpha, lower_bound)
+
+        # Lower dL
+        f=lambda a: (PowerLaw.log_likelihood(x, a, lower_bound) - (mxlik+dL))**2
+        alphabds[0]=minimize( f, alpha+.1, method='nelder-mead' )['x']
+
+        # Upper dL
+        f=lambda a: (PowerLaw.log_likelihood(x, a, lower_bound) - (mxlik-dL))**2
+        alphabds[1]=minimize( f, alpha-.1, method='nelder-mead' )['x']
+
+        return alphabds
 #end PowerLaw
