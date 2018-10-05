@@ -2,7 +2,7 @@ from .polynomial import *
 import dill
 import pickle
 import os
-TMP_DR='/tmp/eddie'
+TMP_DR=os.path.expanduser('~')+'/tmp/eddie'
 
 
 class QuadGauss():
