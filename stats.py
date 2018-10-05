@@ -297,7 +297,7 @@ class DiscretePowerLaw():
     @classmethod
     def alpha_range(cls, x, alpha, dL, lower_bound=None, upper_bound=np.inf):
         """
-        Upper and lower values for alpha that correspond to a likelihood drop of dL. You must be at
+        Upper and lower values for alpha that correspond to a likelihood increase/drop of dL. You must be at
         a peak of likelihood otherwise the results will be nonsensical.
 
         Parameters

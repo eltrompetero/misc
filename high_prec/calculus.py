@@ -54,7 +54,7 @@ class QuadGauss(object):
         self.map_to_bounds = lambda x,x0,x1: (x+1)/2*(x1-x0) + x0
         self.map_from_bounds = lambda x,x0,x1: (x-x0)/(x1-x0)*2. - 1.
 
-    def quad(self,f,x0,x1):
+    def quad(self, f, x0, x1, weight_factors=None):
         """
         Parameters
         ----------
@@ -62,11 +62,16 @@ class QuadGauss(object):
             One dimensional function
         x0 : float
         x1 : float
+        weight_factors : ndarray,None
 
         Returns
         -------
         val : float
         """
-        return ( ( f(self.map_to_bounds(self.coX,x0,x1))/self.W )*(self.weights) ).sum() * (x1-x0)/2
+
+        if weight_factors is None:
+            weight_factors=np.ones(len(self.weights))
+
+        return ( ( f(self.map_to_bounds(self.coX,x0,x1))/self.W )*(self.weights*weight_factors) ).sum() * (x1-x0)/2
 #end QuadGauss
 
