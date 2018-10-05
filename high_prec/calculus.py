@@ -47,8 +47,15 @@ class QuadGauss():
             # Quicklaod from cache if possible. Separate cache by degree and decimal precision
             cacheFile='%s/%s'%(TMP_DR, 'high_prec_gauss_quad_legendre_%d_%d.p'%(order,mp.dps))
             if not recache and os.path.isfile(cacheFile):
-                self.__setstate__(pickle.load(open(cacheFile, 'rb')))
+                try:
+                    self.__setstate__(pickle.load(open(cacheFile, 'rb')))
+                    run_setup=False
+                except AttributeError:
+                    run_setup=True
             else:
+                run_setup=True
+
+            if run_setup:
                 self.basis = [lambda x,i=i:np.array([legendre(i,x_) for x_ in x]) for i in range(self.N+1)]
                 self.coX,self.weights=leggauss(self.N+1)
                 self.coX=np.array(self.coX)
