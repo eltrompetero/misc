@@ -1,8 +1,12 @@
 from .polynomial import *
+import dill
+import pickle
+import os
+TMP_DR='/tmp/eddie'
 
 
-class QuadGauss(object):
-    def __init__(self, order, method='legendre'):
+class QuadGauss():
+    def __init__(self, order, method='legendre', recache=False):
         """
         Straightforward gaussian integration using orthogonal polynomials with mapping of the
         bounds into [-1,1]. Most useful for a bounded interval.
@@ -12,8 +16,7 @@ class QuadGauss(object):
         order : int
             Order of basis expansion.
         method : str,'legendre'
-        lobatto : bool,False
-            If True, use Lobatto collocation points. Only works for Chebyshev polynomials.
+        recache : bool,False
         """
         self.order = order
         self.N = order
@@ -41,15 +44,25 @@ class QuadGauss(object):
             #self.W[np.isnan(self.W)] = 0.
 
         elif method=='legendre':
-            self.basis = [lambda x,i=i:np.array([legendre(i,x_) for x_ in x]) for i in range(self.N+1)]
-            self.coX,self.weights=leggauss(self.N+1)
-            self.coX=np.array(self.coX)
-            self.weights=np.array(self.weights)
-            self.basisCox = [b(self.coX) for b in self.basis]
-            self.W=np.ones_like(self.coX)
+            # Quicklaod from cache if possible. Separate cache by degree and decimal precision
+            cacheFile='%s/%s'%(TMP_DR, 'high_prec_gauss_quad_legendre_%d_%d.p'%(order,mp.dps))
+            if not recache and os.path.isfile(cacheFile):
+                self.__setstate__(pickle.load(open(cacheFile, 'rb')))
+            else:
+                self.basis = [lambda x,i=i:np.array([legendre(i,x_) for x_ in x]) for i in range(self.N+1)]
+                self.coX,self.weights=leggauss(self.N+1)
+                self.coX=np.array(self.coX)
+                self.weights=np.array(self.weights)
+                self.basisCox = [b(self.coX) for b in self.basis]
+                self.W=np.ones_like(self.coX)
+
+                dill.dump(self.__dict__, open(cacheFile, 'wb'))
 
         else: raise Exception("Invalid basis choice.")
+
+        self.define_domain_maps()
         
+    def define_domain_maps(self):
         # Map bounds to given bounds or from given bounds to [-1,1].
         self.map_to_bounds = lambda x,x0,x1: (x+1)/2*(x1-x0) + x0
         self.map_from_bounds = lambda x,x0,x1: (x-x0)/(x1-x0)*2. - 1.
@@ -73,5 +86,13 @@ class QuadGauss(object):
             weight_factors=np.ones(len(self.weights))
 
         return ( ( f(self.map_to_bounds(self.coX,x0,x1))/self.W )*(self.weights*weight_factors) ).sum() * (x1-x0)/2
+
+    def __setstate__(self, unpickled):
+        self.basis=unpickled['basis']
+        self.coX=unpickled['coX']
+        self.weights=unpickled['weights']
+        self.basisCox=unpickled['basisCox']
+        self.W=unpickled['W']
+        self.define_domain_maps()
 #end QuadGauss
 
