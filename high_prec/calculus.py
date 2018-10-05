@@ -6,7 +6,7 @@ TMP_DR=os.path.expanduser('~')+'/tmp/eddie'
 
 
 class QuadGauss():
-    def __init__(self, order, method='legendre', recache=False):
+    def __init__(self, order, method='legendre', recache=False, iprint=False):
         """
         Straightforward gaussian integration using orthogonal polynomials with mapping of the
         bounds into [-1,1]. Most useful for a bounded interval.
@@ -58,6 +58,8 @@ class QuadGauss():
                     self.__setstate__(pickle.load(open(copyCacheFile, 'rb')))
                     os.remove(copyCacheFile)
                     run_setup=False
+                    if iprint:
+                        print("Loaded from cache.")
                 except (AttributeError, EOFError):
                     run_setup=True
             else:
@@ -71,7 +73,8 @@ class QuadGauss():
                 self.basisCox = [b(self.coX) for b in self.basis]
                 self.W=np.ones_like(self.coX)
                 
-                print("QuadGauss is caching %s."%cacheFile)
+                if iprint:
+                    print("QuadGauss is caching %s."%cacheFile)
                 dill.dump(self.__dict__, open(cacheFile, 'wb'))
 
         else: raise Exception("Invalid basis choice.")
