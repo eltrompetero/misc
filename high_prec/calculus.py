@@ -44,25 +44,34 @@ class QuadGauss():
             #self.W[np.isnan(self.W)] = 0.
 
         elif method=='legendre':
-            # Quicklaod from cache if possible. Separate cache by degree and decimal precision
-            cacheFile='%s/%s'%(TMP_DR, 'high_prec_gauss_quad_legendre_%d_%d.p'%(order,mp.dps))
+            # Quicklaod from cache if possible. Identify cache by degree and decimal precision
+            cacheFile='%s/%s'%(TMP_DR, 'high_prec_gauss_quad_legendre_%d_%d.p'%(order, mp.dps))
             if not recache and os.path.isfile(cacheFile):
                 try:
-                    self.__setstate__(pickle.load(open(cacheFile, 'rb')))
+                    # Just in case multiple processes are trying to read from the same file, create your own
+                    # separate copy of the file first
+                    from shutil import copy
+                    from uuid import uuid4
+                    copyCacheFile=cacheFile + str(uuid4())
+                    copy(cacheFile, copyCacheFile)
+
+                    self.__setstate__(pickle.load(open(copyCacheFile, 'rb')))
+                    os.remove(copyCacheFile)
                     run_setup=False
-                except AttributeError:
+                except (AttributeError, EOFError):
                     run_setup=True
             else:
                 run_setup=True
 
             if run_setup:
                 self.basis = [lambda x,i=i:np.array([legendre(i,x_) for x_ in x]) for i in range(self.N+1)]
-                self.coX,self.weights=leggauss(self.N+1)
+                self.coX, self.weights=leggauss(self.N+1)
                 self.coX=np.array(self.coX)
                 self.weights=np.array(self.weights)
                 self.basisCox = [b(self.coX) for b in self.basis]
                 self.W=np.ones_like(self.coX)
-
+                
+                print("QuadGauss is caching %s."%cacheFile)
                 dill.dump(self.__dict__, open(cacheFile, 'wb'))
 
         else: raise Exception("Invalid basis choice.")
