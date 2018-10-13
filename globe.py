@@ -66,6 +66,7 @@ class PoissonDiscSphere():
             the spherical surface about 6 should be good enough for the roughly hexagonal tiling,
             but I find that irregular tiling means having more neighbors is a good idea.
         """
+
         assert r>0,r
         assert 0<=width_bds[0]<=width_bds[1]<=2*pi
         assert -pi/2<=height_bds[0]<=height_bds[1]<=pi/2
@@ -86,10 +87,21 @@ class PoissonDiscSphere():
         if not self.coarseGrid is None:
             self.preprocess_coarse_grid()
 
+    def set_coarse_grid(self, coarse_grid):
+        """Assign new coarse grid."""
+
+        self.coarseGrid=coarse_grid
+        self.preprocess_coarse_grid()
+        self.samplesByGrid=[[] for i in self.coarseGrid]
+
+        for i,pt in enumerate(self.samples):
+            self.samplesByGrid[self.assign_grid_point(pt)].append(i)
+
     def preprocess_coarse_grid(self):
         """Find the k_coarse nearest neighbors for each point in the coarse grid. Also include self
         in the list and thus the +1.
         """
+
         coarseNeighbors=[]
         for pt in self.coarseGrid:
             coarseNeighbors.append( np.argsort(self.dist(pt,
@@ -129,7 +141,6 @@ class PoissonDiscSphere():
             d=self.fast_dist(xy, self.samples)
             return np.argsort(d)[:top_n].tolist()
         return []
-
 
     def _get_closest_neighbor(self, pt, ignore_zero=1e-9):
         """
@@ -241,6 +252,7 @@ class PoissonDiscSphere():
         apart. The parameter k determines the maximum number of candidate points to be chosen around
         each reference point before removing it from the "active" list.
         """
+
         if not self.coarseGrid is None:
             self.samplesByGrid=[[] for i in self.coarseGrid]
 

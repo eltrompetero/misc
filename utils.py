@@ -171,6 +171,25 @@ def iv(x,v=0):
 # -------#
 # Other  #
 # -------#
+def merge(sets):
+    """Merge a list of sets such that any two sets with any intersection are merged."""
+    merged = 1  # has a merge occurred?
+    while merged:
+        merged = 0
+        results = []
+        while sets:
+            common, rest = sets[0], sets[1:]
+            sets = []
+            for x in rest:
+                if x.isdisjoint(common):
+                    sets.append(x)
+                else:
+                    merged = 1
+                    common |= x
+            results.append(common)
+        sets = results
+    return sets
+
 @jit(nopython=True)
 def fast_histogram(x,bins):
     """
