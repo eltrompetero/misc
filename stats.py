@@ -407,7 +407,7 @@ class PowerLaw():
         assert alpha>1
         if normalized:
             Z=( lower_bound**(1-alpha)-upper_bound**(1-alpha) )/(alpha-1)
-            return -alpha*np.log(x).sum() - np.log(Z)
+            return -alpha*np.log(x).sum() - len(x) * np.log(Z)
         return -alpha*np.log(x).sum()
 
     @classmethod
@@ -493,7 +493,7 @@ class ExpTruncPowerLaw():
     def max_likelihood(cls,
                        x,
                        lower_bound=None,
-                       initial_guess=[2,1000],
+                       initial_guess=[2,1],
                        full_output=False):
         """
         Parameters
@@ -518,7 +518,7 @@ class ExpTruncPowerLaw():
             alpha, el=params
             return -cls.log_likelihood(x, alpha, el, lower_bound, True)
 
-        soln=minimize(cost, initial_guess, bounds=[(.5+1e-10,np.inf),(1e-10,np.inf)])
+        soln=minimize(cost, initial_guess, bounds=[(1+1e-10,np.inf),(1e-10,np.inf)])
         if full_output: 
             return soln['x'], soln
         return soln['x']
@@ -535,6 +535,6 @@ class ExpTruncPowerLaw():
 
         if normalized:
             Z=el**(alpha-1.) * gammainc(1-alpha, lower_bound*el)
-            return -alpha*np.log(x).sum() -el*x.sum() - np.log(Z)
+            return -alpha*np.log(x).sum() - el*x.sum() - len(x) * np.log(Z)
         return -alpha*np.log(x).sum() -el*x.sum()
 #end ExpTruncPowerLaw
