@@ -4,6 +4,7 @@
 import numpy as np
 from numpy import fft
 from scipy.optimize import minimize
+from scipy.special import zeta
 
 
 def acf(x,axis=-1,return_power=False):
@@ -115,7 +116,9 @@ def vector_ccf(x,y,length=20):
     return c
 
 
-from scipy.special import zeta
+# =============================================================================================== #
+# Statistical distributions
+# =============================================================================================== #
 class DiscretePowerLaw():
     _default_lower_bound=1
     _default_upper_bound=np.inf
@@ -326,7 +329,6 @@ class DiscretePowerLaw():
 
         return alphabds
 #end DiscretePowerLaw
-
 
 
 class PowerLaw():
