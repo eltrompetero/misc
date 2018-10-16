@@ -3,6 +3,7 @@
 # 2017-01-17
 import numpy as np
 from numpy import fft
+from scipy.optimize import minimize
 
 
 def acf(x,axis=-1,return_power=False):
@@ -141,13 +142,6 @@ class DiscretePowerLaw():
         return np.random.choice(range(x0,x1+1),
                     size=size,
                     p=cls.pdf(alpha,x0,x1)(np.arange(x0,x1+1)))
-
-    #@classmethod
-    #def rvs(cls,alpha,size=(1,),lower_bound=None,upper_bound=None):
-    #    x0=lower_bound or cls._default_lower_bound
-    #    x1=upper_bound or cls._default_upper_bound
-    #    
-    #    return (x0**(1-alpha)-(x0**(1-alpha)-x1**(1-alpha))*np.random.rand(*size))**(1/(1-alpha))
 
     @classmethod
     def max_likelihood(cls, X,
@@ -388,19 +382,46 @@ class PowerLaw():
                  upper_bound**(1-alpha))*np.random.rand(*size) )**(1/(1-alpha))
     
     @classmethod
-    def cdf(cls, alpha=None, lower_bound=None):
+    def cdf(cls, alpha=None, lower_bound=None, upper_bound=None):
         alpha=alpha or cls._default_alpha
         lower_bound=lower_bound or cls._default_lower_bound
-
-        return lambda x: -(x**(1-alpha) - lower_bound**(1-alpha)) / lower_bound**(1-alpha)
+        
+        if upper_bound is None:
+            return lambda x: -(x**(1-alpha) - lower_bound**(1-alpha)) / lower_bound**(1-alpha)
+        return lambda x: ( -(x**(1-alpha) - lower_bound**(1-alpha)) /
+                           (lower_bound**(1-alpha) - upper_bound**(1-alpha)) )
 
     @classmethod
-    def max_likelihood(cls, x, lower_bound=None):
+    def max_likelihood(cls, x, lower_bound=None, upper_bound=None, full_output=False):
+        """
+        Parameters
+        ----------
+        x : ndarray
+        lower_bound : float,None
+        upper_bound : float,None
+        full_output : bool,False
+
+        Returns
+        -------
+        alpha : float
+        """
+
         if lower_bound is None:
             lower_bound=cls._default_lower_bound
-        assert (x>=lower_bound).all()        
+        assert (x>=lower_bound).all()
         n=len(x)
-        return 1+n/np.log(x/lower_bound).sum()
+
+        if upper_bound is None:
+            return 1+n/np.log(x/lower_bound).sum()
+        
+        assert (x<=upper_bound).all()
+        def cost(alpha):
+            return -cls.log_likelihood(x, alpha, lower_bound, upper_bound, True)
+
+        soln=minimize(cost, cls._default_alpha, bounds=[(1+1e-10,np.inf)])
+        if full_output:
+            return soln['x'], soln
+        return soln['x']
 
     @classmethod
     def log_likelihood(cls, x, alpha, lower_bound, upper_bound=np.inf, normalized=False):
