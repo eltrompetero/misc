@@ -388,8 +388,11 @@ class PowerLaw():
                  upper_bound**(1-alpha))*np.random.rand(*size) )**(1/(1-alpha))
     
     @classmethod
-    def cdf(cls,alpha=None,lower_bound=None):
-        return lambda x: x**1-alpha/lower_bound**(1-alpha)
+    def cdf(cls, alpha=None, lower_bound=None):
+        alpha=alpha or cls._default_alpha
+        lower_bound=lower_bound or cls._default_lower_bound
+
+        return lambda x: -(x**(1-alpha) - lower_bound**(1-alpha)) / lower_bound**(1-alpha)
 
     @classmethod
     def max_likelihood_alpha(cls, x, lower_bound=None):
@@ -444,3 +447,94 @@ class PowerLaw():
 
         return alphabds
 #end PowerLaw
+
+
+class ExpTruncPowerLaw():
+    """With upper and lower bounds."""
+    _default_alpha=2.
+    _default_lower_bound=1.
+    _default_el=.1
+
+    def __init__(self, alpha, el, lower_bound):
+        self.alpha=alpha
+        self.el=el
+        self.lower_bound=lower_bound
+
+        # setup inverse tranform sampling
+        self.setup_inverse_cdf()
+
+    def setup_inverse_cdf(self, cdf_res=10000):
+        """Uses inverse transform sampling. CDF is approximated using cubic interpolation."""
+        from scipy.interpolate import InterpolatedUnivariateSpline
+        x=np.logspace(np.log10(self.lower_bound), np.log10(10/self.el), cdf_res)
+        cdf=self.cdf(self.alpha, self.el, self.lower_bound)(x)
+        assert (cdf<=1).all()
+        
+        # define inverse transform
+        invcdf=InterpolatedUnivariateSpline(cdf, x, ext='const')
+        self.rvs=lambda size=1: invcdf(np.random.rand(size))
+
+    @classmethod
+    def cdf(cls, alpha=None, el=None, lower_bound=None):
+        from scipy.special import gamma
+        from mpmath import gammainc as _gammainc
+
+        if alpha is None:
+            alpha=cls._default_alpha
+        if el is None:
+            el=cls._default_el
+        if lower_bound is None:
+            lower_bound=cls._default_lower_bound
+
+        gammainc=np.vectorize(lambda x:float(_gammainc(1-alpha,x)))
+        return lambda x: ( 1-gammainc(x*el)/gammainc(lower_bound*el) )
+
+    @classmethod
+    def max_likelihood(cls,
+                       x,
+                       lower_bound=None,
+                       initial_guess=[2,1000],
+                       full_output=False):
+        """
+        Parameters
+        ----------
+        x : ndarray
+        lower_bound : float,None
+        initial_guess : twople,[2,1000]
+        full_output : bool,False
+
+        Returns
+        -------
+        params : ndarray
+        """
+        from scipy.optimize import minimize
+
+        if lower_bound is None:
+            lower_bound=cls._default_lower_bound
+        assert (x>=lower_bound).all()
+        assert initial_guess[0]>1 and initial_guess[1]>0
+        
+        def cost(params):
+            alpha, el=params
+            return -cls.log_likelihood(x, alpha, el, lower_bound, True)
+
+        soln=minimize(cost, initial_guess, bounds=[(.5+1e-10,np.inf),(1e-10,np.inf)])
+        if full_output: 
+            return soln['x'], soln
+        return soln['x']
+
+    @classmethod
+    def log_likelihood(cls, x, alpha, el, lower_bound, normalized=False):
+        """
+        Parameters
+        ----------
+        """
+
+        from mpmath import gammainc as _gammainc
+        gammainc=lambda *args:float(_gammainc(*args))
+
+        if normalized:
+            Z=el**(alpha-1.) * gammainc(1-alpha, lower_bound*el)
+            return -alpha*np.log(x).sum() -el*x.sum() - np.log(Z)
+        return -alpha*np.log(x).sum() -el*x.sum()
+#end ExpTruncPowerLaw
