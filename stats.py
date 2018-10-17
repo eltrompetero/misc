@@ -130,12 +130,24 @@ class DiscretePowerLaw():
         self.upper_bound=upper_bound
 
     @classmethod
-    def pdf(cls,alpha,lower_bound=None,upper_bound=None):
-        """Return CDF function."""
+    def pdf(cls, alpha, lower_bound=None, upper_bound=None):
+        """Return PDF function."""
         x0=lower_bound or cls._default_lower_bound
         x1=upper_bound or cls._default_upper_bound
 
-        return lambda x: x**(1.*-alpha) / (zeta(alpha,x0)-zeta(alpha,x1+1))
+        if x1==np.inf:
+            return lambda x: x**(1.*-alpha) / (zeta(alpha,x0)-zeta(alpha,x1+1))
+        Z=( np.arange(x0, x1+1)**(1.*-alpha) ).sum()
+        return lambda x: x**(1.*-alpha)/Z
+
+    @classmethod
+    def cdf(cls, alpha, lower_bound=None, upper_bound=None):
+        """Return CDF function."""
+        x0=lower_bound or cls._default_lower_bound
+        x1=upper_bound or cls._default_upper_bound
+        
+        pdf=cls.pdf(alpha, x0, x1)
+        return np.vectorize(lambda x: pdf(np.arange(x0, x+1)).sum())
 
     @classmethod
     def rvs(cls, alpha, size=(1,), lower_bound=None, upper_bound=None):
