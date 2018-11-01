@@ -116,24 +116,51 @@ class LevyGaussQuad():
         self.b=b
         self.innerprod=innerprod
 
-    def levy_quad(self, n):
+    def polish_roots(self, poly, roots, n_iters):
+        """
+        Parameters
+        ----------
+        poly : numpy.polynomial.polynomial.Polynomial
+        roots : ndarray
+            Initial guess for roots.
+        n_iters : int
+
+        Returns
+        -------
+        polished_roots : ndarray
+        """
+        
+        polishedRoots=roots[:]
+        for i,r in enumerate(roots):
+            for j in range(n_iters):
+                x0=polishedRoots[i]
+                polishedRoots[i]=x0 - poly(x0)/poly.deriv()(x0)
+        return polishedRoots
+
+    def levy_quad(self, n, polish=False, n_iters=10):
         """
         Parameters
         ----------
         n : int
             Degree of expansion.
+        polish : bool,False
+        n_iters : int,10
 
         Returns
         -------
         abscissa : ndarray
         weights : ndarray
         """
+
         if n>len(self.p):
             raise Exception
         assert n>2
 
         # find roots of polynomial
-        abscissa=self.p[n-1].roots()
+        abscissa=self.p[n-1].roots().real
+        if polish:
+            abscissa=self.polish_roots(self.p[n-1], abscissa, n_iters)
+
         # using formula given in Numerical Recipes
         weights=self.innerprod[n-2] / (self.p[n-2](abscissa) * self.p[n-1].deriv()(abscissa))
 
