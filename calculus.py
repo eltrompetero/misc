@@ -1,7 +1,10 @@
 import numpy as np
+from scipy.integrate import quad
 from scipy.special import binom
 
-
+# ========================================================= #
+# Gaussian quadrature techniques
+# ========================================================= #
 def legcoeffs(n,k):
     """
     Generate coefficients for all polynomial terms of the Legendre polynomials using recursive
@@ -55,6 +58,88 @@ def leggauss(n,x0=None):
         J[-1,-1]=x0 - J[-1,-2]**2 * legval(x0, [0]*(n-2)+[1]) / legval(x0, [0]*(n-1)+[1])
         x,vec=np.linalg.eigh(J)
         return x,vec[0]**2 * 2
+
+
+class LevyGaussQuad():
+    """Construct Gaussian quadrature for Levy integral used in the Bethe lattice model for mean-field dislocation avalanches.
+    
+    See Numerical Recipes for details about how this works.
+    """
+    def __init__(self, n, x0, x1, mu):
+        """
+        Parameters
+        ----------
+        n : int
+            Degree of polynomial expansion.
+        x0 : float
+            Lower cutoff for Levy distribution.
+        x1 : float
+            Upper cutoff for Levy distribution.
+        mu : float
+            Exponent for Levy distribution x^{-mu-1}
+        """
+
+        assert x0>0 and x1>x0 and mu>0 and n>2
+        
+        self.x0, self.x1=x0, x1
+        self.mu=mu
+        self.K=lambda x, mu=self.mu, x0=self.x0, x1=self.x1: mu/2 * x**(-mu-1) / (x0**-mu - x1**-mu)
+        # check that kernel integrates to 1/2
+        assert np.isclose( quad(self.K, x0, x1)[0], .5 )
+
+        self.n=n  # degree of polynomial
+        
+        self.construct_polynomials()
+        
+    def construct_polynomials(self):
+        """Construct polynomials up to nth degree. Save the results to the instance.
+        """
+        from numpy.polynomial.polynomial import Polynomial
+        
+        p=[Polynomial([1])]  # polynomials
+        a=[]
+        b=[0]
+        innerprod=[.5]  # constructed such that inner product of f(x)=1 is 1/2
+
+        # first polynomial is special
+        a.append( quad(lambda x: self.K(x) * x, self.x0, self.x1)[0]/innerprod[0] )
+        p.append( Polynomial([-a[0],1])*p[0] )
+
+        for i in range(1,self.n+1):
+            innerprod.append( quad(lambda x:p[i](x)**2 * self.K(x), self.x0, self.x1)[0] )
+            a.append(quad( lambda x:x * p[i](x)**2 * self.K(x), self.x0, self.x1 )[0] / innerprod[i])
+            b.append(innerprod[i] / innerprod[i-1])
+            p.append(Polynomial([-a[i],1]) * p[i] - b[i] * p[i-1])
+            
+        self.p=p
+        self.a=a
+        self.b=b
+        self.innerprod=innerprod
+
+    def levy_quad(self, n):
+        """
+        Parameters
+        ----------
+        n : int
+            Degree of expansion.
+
+        Returns
+        -------
+        abscissa : ndarray
+        weights : ndarray
+        """
+        if n>len(self.p):
+            raise Exception
+        assert n>2
+
+        # find roots of polynomial
+        abscissa=self.p[n-1].roots()
+        # using formula given in Numerical Recipes
+        weights=self.innerprod[n-2] / (self.p[n-2](abscissa) * self.p[n-1].deriv()(abscissa))
+
+        return abscissa, weights
+#end LevyGaussQuad
+
 
 class QuadGauss():
     def __init__(self,order,method='legendre',lobatto=False):

@@ -448,7 +448,7 @@ class ExpTruncDiscretePowerLaw(DiscretePowerLaw):
             alpha, el=params
             return -cls.log_likelihood(X, alpha, el, lower_bound, upper_bound, normalize=True)
 
-        soln=minimize(f, initial_guess, **minimize_kw, bounds=[(1+1e-10,np.inf), (1e-10,np.inf)])
+        soln=minimize(f, initial_guess, **minimize_kw, bounds=[(1+1e-10,np.inf), (1e-6,np.inf)])
         if full_output:
             return soln['x'], soln
         return soln['x']
@@ -476,6 +476,7 @@ class ExpTruncDiscretePowerLaw(DiscretePowerLaw):
         from scipy.special import zeta
         from mpmath import polylog
         assert ((X>=lower_bound) & (X<=upper_bound)).all()
+        assert el>1e-8, "Precision errors occur when el is too small."
 
         if not normalize:
             return -alpha*np.log(X).sum() -el*X.sum()
@@ -667,7 +668,7 @@ class ExpTruncPowerLaw():
             lower_bound=cls._default_lower_bound
 
         gammainc=np.vectorize(lambda x:float(_gammainc(1-alpha,x)))
-        return lambda x: ( 1-gammainc(x*el)/gammainc(lower_bound*el) )
+        return lambda x: ( 1-gammainc(x*float(el))/gammainc(lower_bound*float(el)) )
 
     @classmethod
     def max_likelihood(cls,

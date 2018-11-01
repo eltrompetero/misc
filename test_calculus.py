@@ -69,3 +69,24 @@ def test_quad():
         else:
             trueVal=2./(po+1)
             assert np.isclose(qg.quad(f,-1,1),trueVal)
+
+def test_LevyQuadGauss():
+    x0, x1=1, 3.6
+    mu=1.5
+    lgq=LevyGaussQuad(10, x0, x1, mu)
+
+    for i in range(3,10):
+        """Test that integration matches up with integration with quad."""
+        abscissa, weights=lgq.levy_quad(i)
+        
+        # check that weights add up to 1/2 which is same as integrating f(x)=1
+        assert np.isclose(weights.sum(), .5)
+        
+        # check simple polynomial integrals
+        f=lambda x:x
+        assert np.isclose(quad(lambda x:f(x)*lgq.K(x), x0, x1)[0], weights.dot(f(abscissa)))
+        f=lambda x:x**2
+        assert np.isclose(quad(lambda x:f(x)*lgq.K(x), x0, x1)[0], weights.dot(f(abscissa)))
+        # this is the highest order that should be possible to integrate
+        f=lambda x:x**3
+        assert np.isclose(quad(lambda x:f(x)*lgq.K(x), x0, x1)[0], weights.dot(f(abscissa)))
