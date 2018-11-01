@@ -137,7 +137,7 @@ class LevyGaussQuad():
                 polishedRoots[i]=x0 - poly(x0)/poly.deriv()(x0)
         return polishedRoots
 
-    def levy_quad(self, n, polish=False, n_iters=10):
+    def levy_quad(self, n, polish=True, n_iters=7):
         """
         Parameters
         ----------
