@@ -115,10 +115,8 @@ class LevyGaussQuad():
         assert n>1
 
         # find roots of polynomial
-        abscissa=np.array([mp.mpf(i) for i in Polynomial(self.p[n].coef.astype(float)).roots()])
+        abscissa=np.array([mp.mpf(i) for i in Polynomial(self.p[n].coef.astype(float)).roots().real])
         abscissa=self.polish_roots(self.p[n].coef[::-1].tolist(), abscissa, n_iters)
-        #abscissa=np.array(polyroots(self.p[n].coef[::-1], maxsteps=50000))
-                                    #roots_init=Polynomial(self.p[n].coef.astype(float)).roots()))
 
         # using formula given in Numerical Recipes
         weights=self.innerprod[n-1] / (self.p[n-1](abscissa) * self.p[n].deriv()(abscissa))
