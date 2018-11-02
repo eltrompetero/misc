@@ -2,7 +2,129 @@ from .polynomial import *
 import dill
 import pickle
 import os
+from mpmath import quad,polyroots
+from numpy.polynomial.polynomial import Polynomial
 TMP_DR=os.path.expanduser('~')+'/tmp/eddie'
+
+
+class LevyGaussQuad():
+    """Construct Gaussian quadrature for Levy integral used in the Bethe lattice model for mean-field
+    dislocation avalanches.
+    
+    See Numerical Recipes for details about how this works.
+    """
+    def __init__(self, n, x0, x1, mu, dps=15):
+        """
+        Parameters
+        ----------
+        n : int
+            Degree of polynomial expansion.
+        x0 : float
+            Lower cutoff for Levy distribution.
+        x1 : float
+            Upper cutoff for Levy distribution.
+        mu : float
+            Exponent for Levy distribution x^{-mu-1}
+        """
+        
+        # check args
+        assert x0>0 and x1>x0 and mu>0 and n>2
+        if not type(x1) is mpf:
+            x1=mpf(x1)
+        if not type(x0) is mpf:
+            x0=mpf(x0)
+        if not type(mu) is mpf:
+            mu=mpf(mu)
+
+        mp.dps=dps
+        
+        self.x0, self.x1=x0, x1
+        self.mu=mu
+        self.K=lambda x, mu=self.mu, x0=self.x0, x1=self.x1 : mu/2 * x**(-mu-1) / (x0**-mu - x1**-mu)
+        # check that kernel integrates to 1/2
+        assert np.isclose( float(quad(self.K, [x0,x1])), .5 )
+
+        self.n=n  # degree of polynomial
+        
+        self.construct_polynomials()
+        
+    def construct_polynomials(self):
+        """Construct polynomials up to nth degree. Save the results to the instance.
+        """
+        
+        p=[Polynomial([mp.mpf(1)])]  # polynomials
+        a=[]
+        b=[mp.mpf(0)]
+        innerprod=[mp.mpf(1/2)]  # constructed such that inner product of f(x)=1 is 1/2
+
+        # first polynomial is special
+        a.append( quad(lambda x: self.K(x) * x, [self.x0,self.x1])/innerprod[0] )
+        p.append( Polynomial([-a[0],mp.mpf(1)])*p[0] )
+
+        for i in range(1,self.n+1):
+            innerprod.append( quad(lambda x:p[i](x)**2 * self.K(x), [self.x0,self.x1]) )
+            a.append( quad( lambda x:x * p[i](x)**2 * self.K(x), [self.x0,self.x1] ) / innerprod[i] )
+            b.append(innerprod[i] / innerprod[i-1])
+            p.append(Polynomial([-a[i],mp.mpf(1)]) * p[i] - b[i] * p[i-1])
+            
+        self.p=p
+        self.a=a
+        self.b=b
+        self.innerprod=innerprod
+
+    def polish_roots(self, coeffs, roots, n_iters):
+        """
+        Parameters
+        ----------
+        coeffs: list of mpf
+            Coefficient to use in mp.polyval. NOTE that these are in the reverse order of numpy.polyval!
+        roots : ndarray
+            Initial guess for roots.
+        n_iters : int
+
+        Returns
+        -------
+        polished_roots : ndarray
+        """
+        
+        polishedRoots=roots[:]
+        for i,r in enumerate(roots):
+            for j in range(n_iters):
+                x0=polishedRoots[i]
+                p, pp=mp.polyval(coeffs, x0, derivative=1)
+                polishedRoots[i]=x0 - p/pp
+        return polishedRoots
+
+    def levy_quad(self, n, polish=True, n_iters=10):
+        """
+        Parameters
+        ----------
+        n : int
+            Degree of expansion.
+        polish : bool,False
+        n_iters : int,10
+
+        Returns
+        -------
+        abscissa : ndarray
+        weights : ndarray
+        """
+
+        if n>len(self.p):
+            raise Exception
+        assert n>1
+
+        # find roots of polynomial
+        abscissa=np.array([mp.mpf(i) for i in Polynomial(self.p[n].coef.astype(float)).roots()])
+        abscissa=self.polish_roots(self.p[n].coef[::-1].tolist(), abscissa, n_iters)
+        #abscissa=np.array(polyroots(self.p[n].coef[::-1], maxsteps=50000))
+                                    #roots_init=Polynomial(self.p[n].coef.astype(float)).roots()))
+
+        # using formula given in Numerical Recipes
+        weights=self.innerprod[n-1] / (self.p[n-1](abscissa) * self.p[n].deriv()(abscissa))
+
+        return abscissa, weights
+#end LevyGaussQuad
 
 
 class QuadGauss():

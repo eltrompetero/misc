@@ -73,9 +73,9 @@ def test_quad():
 def test_LevyQuadGauss():
     x0, x1=1, 3.6
     mu=1.5
-    lgq=LevyGaussQuad(10, x0, x1, mu)
+    lgq=LevyGaussQuad(30, x0, x1, mu)
 
-    for i in range(3,10):
+    for i in range(3,15,5):
         """Test that integration matches up with integration with quad."""
         abscissa, weights=lgq.levy_quad(i)
         
