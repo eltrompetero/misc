@@ -61,11 +61,12 @@ def leggauss(n,x0=None):
 
 
 class LevyGaussQuad():
-    """Construct Gaussian quadrature for Levy integral used in the Bethe lattice model for mean-field dislocation avalanches.
+    """Construct Gaussian quadrature for Levy integral used in the Bethe lattice model for mean-field
+    dislocation avalanches.
     
     See Numerical Recipes for details about how this works.
     """
-    def __init__(self, n, x0, x1, mu):
+    def __init__(self, n, x0, x1, mu, Z=None):
         """
         Parameters
         ----------
@@ -77,15 +78,22 @@ class LevyGaussQuad():
             Upper cutoff for Levy distribution.
         mu : float
             Exponent for Levy distribution x^{-mu-1}
+        Z : float
+            Normalization factor for kernel K. If None, it's set such that the kernel integrate to 1/2 over
+            positive values. Not sure why this does nothing to the value of the weights.
         """
 
         assert x0>0 and x1>x0 and mu>0 and n>2
         
         self.x0, self.x1=x0, x1
         self.mu=mu
-        self.K=lambda x, mu=self.mu, x0=self.x0, x1=self.x1: mu/2 * x**(-mu-1) / (x0**-mu - x1**-mu)
-        # check that kernel integrates to 1/2
-        assert np.isclose( quad(self.K, x0, x1)[0], .5 )
+        if Z is None:
+            self.K=lambda x, mu=self.mu, x0=self.x0, x1=self.x1: mu/2 * x**(-mu-1) / (x0**-mu - x1**-mu)
+            # check that kernel integrates to 1/2
+            assert np.isclose( quad(self.K, x0, x1)[0], .5 )
+        else:
+            self.Z=Z
+            self.K=lambda x, mu=self.mu, Z=Z : x**(-mu-1) / Z
 
         self.n=n  # degree of polynomial
         
