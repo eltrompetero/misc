@@ -16,7 +16,7 @@ class LevyGaussQuad():
     
     See Numerical Recipes for details about how this works.
     """
-    def __init__(self, n, x0, x1, mu, dps=15, manual_root_finding_ix=17):
+    def __init__(self, n, x0, x1, mu, dps=15, bisect_root_finding_ix=17):
         """
         Parameters
         ----------
@@ -29,30 +29,30 @@ class LevyGaussQuad():
         mu : float
             Exponent for Levy distribution x^{-mu-1}
         dps : int,15
-            Precision for the context of this instance. Uses self.mp to store particular dps environment.
-        manual_root_finding_ix : int,17
+            Precision for the context of this instance. Uses mp.to store particular dps environment.
+        bisect_root_finding_ix : int,17
             Last index at which numpy root finding will be used as the starting point
         """
         
         # check args
-        assert x0>0 and x1>x0 and mu>0 and n>2
-        self.mp=mp.mp.clone()
-        self.mp.dps=dps
+        assert x0>0 and x1>x0 and mu>0 and n>2 and bisect_root_finding_ix>3
+        self.dps=dps
+        mp.mp.dps=dps
         if not type(x1) is mpf:
-            x1=self.mp.mpf(x1)
+            x1=mp.mpf(x1)
         if not type(x0) is mpf:
-            x0=self.mp.mpf(x0)
+            x0=mp.mpf(x0)
         if not type(mu) is mpf:
-            mu=self.mp.mpf(mu)
+            mu=mp.mpf(mu)
         
         self.x0, self.x1=x0, x1
         self.mu=mu
         self.K=lambda x, mu=self.mu, x0=self.x0, x1=self.x1 : mu/2 * x**(-mu-1) / (x0**-mu - x1**-mu)
         # check that kernel integrates to 1/2
-        assert np.isclose( float(self.mp.quad(self.K, [x0,x1])), .5 )
+        assert np.isclose( float(mp.quad(self.K, [x0,x1])), .5 )
 
         self.n=n  # degree of polynomial
-        self.manualRootFindingIx=manual_root_finding_ix
+        self.bisectRootFindingIx=bisect_root_finding_ix
         
         self.construct_polynomials()
         
@@ -60,20 +60,20 @@ class LevyGaussQuad():
         """Construct polynomials up to nth degree. Save the results to the instance.
         """
         
-        p=[Polynomial([self.mp.mpf(1)])]  # polynomials
+        p=[Polynomial([mp.mpf(1)])]  # polynomials
         a=[]
-        b=[self.mp.mpf(0)]
-        innerprod=[self.mp.mpf(1/2)]  # constructed such that inner product of f(x)=1 is 1/2
+        b=[mp.mpf(0)]
+        innerprod=[mp.mpf(1/2)]  # constructed such that inner product of f(x)=1 is 1/2
 
         # first polynomial is special
-        a.append( self.mp.quad(lambda x: self.K(x) * x, [self.x0,self.x1])/innerprod[0] )
-        p.append( Polynomial([-a[0],self.mp.mpf(1)])*p[0] )
+        a.append( mp.quad(lambda x: self.K(x) * x, [self.x0,self.x1])/innerprod[0] )
+        p.append( Polynomial([-a[0],mp.mpf(1)])*p[0] )
 
         for i in range(1,self.n+1):
-            innerprod.append( self.mp.quad(lambda x:p[i](x)**2 * self.K(x), [self.x0,self.x1]) )
-            a.append( self.mp.quad( lambda x:x * p[i](x)**2 * self.K(x), [self.x0,self.x1] ) / innerprod[i] )
+            innerprod.append( mp.quad(lambda x:p[i](x)**2 * self.K(x), [self.x0,self.x1]) )
+            a.append( mp.quad( lambda x:x * p[i](x)**2 * self.K(x), [self.x0,self.x1] ) / innerprod[i] )
             b.append(innerprod[i] / innerprod[i-1])
-            p.append(Polynomial([-a[i],self.mp.mpf(1)]) * p[i] - b[i] * p[i-1])
+            p.append(Polynomial([-a[i],mp.mpf(1)]) * p[i] - b[i] * p[i-1])
             
         self.p=p
         self.a=a
@@ -87,7 +87,7 @@ class LevyGaussQuad():
         Parameters
         ----------
         coeffs: list of mpf
-            Coefficient to use in self.mp.polyval. NOTE that these are in the reverse order of numpy.polyval!
+            Coefficient to use in mp.polyval. NOTE that these are in the reverse order of numpy.polyval!
         roots : ndarray
             Initial guess for roots.
         n_iters : int
@@ -110,7 +110,7 @@ class LevyGaussQuad():
         Parameters
         ----------
         coeffs: list of mpf
-            Coefficient to use in self.mp.polyval. NOTE that these are in the reverse order of numpy.polyval!
+            Coefficient to use in mp.polyval. NOTE that these are in the reverse order of numpy.polyval!
         root : mp.mpf
             Initial guess for roots.
         n_iters : int
@@ -122,7 +122,7 @@ class LevyGaussQuad():
         
         prevdx=np.inf
         for i in range(n_iters):
-            p, pp=self.mp.polyval(coeffs, root, derivative=1)
+            p, pp=mp.polyval(coeffs, root, derivative=1)
             dx=p/pp
             if abs(dx)>abs(prevdx) and abs(dx)>1e-2:
                 raise Exception(prevdx,dx)
@@ -151,8 +151,8 @@ class LevyGaussQuad():
             Estimate of root.
         """
 
-        signa=np.sign(self.mp.polyval(coeffs, a))
-        signb=np.sign(self.mp.polyval(coeffs, b))
+        signa=np.sign(mp.polyval(coeffs, a))
+        signb=np.sign(mp.polyval(coeffs, b))
         if signa==signb:
             raise BisectionError("Bisection will fail to find root.")
         assert a<b
@@ -162,8 +162,8 @@ class LevyGaussQuad():
         while not found:
             # using the fact that the sign of the function must change when crossing the root, we can
             # repeatedly bisect and know which side the root must be on
-            signa=np.sign(self.mp.polyval(coeffs, a))
-            signmid=np.sign(self.mp.polyval(coeffs, (a+b)/2))
+            signa=np.sign(mp.polyval(coeffs, a))
+            signmid=np.sign(mp.polyval(coeffs, (a+b)/2))
             if signa==signmid:
                 a=(a+b)/2
             else:
@@ -198,9 +198,9 @@ class LevyGaussQuad():
         assert n>1
         
         # numpy works fine for small polynomials
-        if n<(self.manualRootFindingIx+1):
+        if n<(self.bisectRootFindingIx+1):
             # find roots of polynomial
-            abscissa=np.array([self.mp.mpf(i) for i in Polynomial(self.p[n].coef.astype(float)).roots().real])
+            abscissa=np.array([mp.mpf(i) for i in Polynomial(self.p[n].coef.astype(float)).roots().real])
             abscissa=self.polish_roots(self.p[n].coef[::-1].tolist(), abscissa, n_iters)
         # otherwise must find the roots slow way by using bisection
         else:
@@ -212,16 +212,18 @@ class LevyGaussQuad():
             # since the roots are interleaved, we can build them up
             # start with base root found by using numpy's root finding
             if len(self._roots)==0:
-                n_=self.manualRootFindingIx
-                brackets=Polynomial(self.p[n_].coef.astype(float)).roots().real
+                n_=self.bisectRootFindingIx
+                brackets=np.array([mp.mpf(i)
+                                   for i in Polynomial(self.p[n_].coef.astype(float)).roots().real])
                 brackets=self.polish_roots(self.p[n_].coef[::-1].tolist(), brackets, n_iters)
             else:
-                n_=self.manualRootFindingIx+len(self._roots)
+                n_=self.bisectRootFindingIx+len(self._roots)
                 brackets=self._roots[-1]
             brackets=np.insert(brackets, 0, self.x0)
             brackets=np.append(brackets, self.x1)
 
             while n_<n:
+                assert len(brackets)==(n_+2)
                 newroots=[]
                 for i in range(len(brackets)-1):
                     newroots.append( self.bisection(self.p[n_+1].coef[::-1].tolist(),
@@ -233,7 +235,7 @@ class LevyGaussQuad():
                 brackets=np.append(brackets, self.x1)
                 n_+=1
 
-            abscissa=self._roots[n-self.manualRootFindingIx-1]
+            abscissa=self._roots[n-self.bisectRootFindingIx-1]
             abscissa=self.polish_roots(self.p[n].coef[::-1].tolist(), abscissa, n_iters)
 
         # using formula given in Numerical Recipes
@@ -241,13 +243,80 @@ class LevyGaussQuad():
 
         return abscissa, weights
 
+    def quad(self, f, tol=1e-15, return_error=False, **kwargs):
+        """Perform integration. Increase precision til required tolerence is met.
+
+        Parameters
+        ----------
+        f : function
+        tol : float,1e-15
+        return_error : bool,False
+        n_iters : int
+        eps : float,1e-10
+        iprint : bool,False
+
+        Returns
+        -------
+        val : mp.mpf
+        """
+        
+        max_degree=self.n
+
+        # first try integration with default starting degree and degree-1
+        abscissa, weights=self.levy_quad(self.bisectRootFindingIx-1, **kwargs)
+        prevval=f(abscissa).dot(weights)
+        
+        abscissa, weights=self.levy_quad(self.bisectRootFindingIx, **kwargs)
+        val=f(abscissa).dot(weights)
+        
+        # keep increasing acurracy while outside tolerance and below max degree
+        if abs(prevval-val)>tol:
+            prevval=val 
+            withinTol=False
+            deg=self.bisectRootFindingIx+1
+
+            while not withinTol and deg<max_degree:
+                abscissa, weights=self.levy_quad(deg, **kwargs)
+                val=f(abscissa).dot(weights)
+
+                if abs(prevval-val)>tol:
+                    prevval=val 
+                    deg+=1
+                else:
+                    withinTol=True
+        
+        if return_error:
+            return val, abs(val-prevval)
+        return val
+
     def raise_precision(self, delta_dps=20):
         """levy_quad will fail when precision is not high enough. To raise precision, we must reinitialize
         everything.
         """
+        raise Exception("This is buggy. May have to do with problems with mp.clone().")
+        # this ends up not actually changing some of the working precision
         self.__init__(self.n, self.x0, self.x1, self.mu,
-                      dps=self.mp.dps+delta_dps,
-                      manual_root_finding_ix=self.manualRootFindingIx)
+                      dps=mp.dps+delta_dps,
+                      bisect_root_finding_ix=self.bisectRootFindingIx)
+
+    def __getstate__(self):
+        """To deal with bugs with pickling mpmath objects."""
+        toPickle=self.__dict__.copy()
+        for k in toPickle.keys():
+            if type(toPickle[k]) is mp.mpf:
+                toPickle[k]=str(toPickle[k])
+        return toPickle
+    
+    def __setstate__(self, unpickled):
+        for k in unpickled.keys():
+            if type(unpickled[k]) is str:
+                unpickled[k]=mp.mpf(unpickled[k])
+        self.__init__( unpickled['n'],
+                       unpickled['x0'],
+                       unpickled['x1'],
+                       unpickled['mu'],
+                       unpickled['dps'],
+                       unpickled['bisectRootFindingIx'] )
 #end LevyGaussQuad
 
 
