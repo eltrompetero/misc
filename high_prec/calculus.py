@@ -13,7 +13,7 @@ class LevyGaussQuad():
     
     See Numerical Recipes for details about how this works.
     """
-    def __init__(self, n, x0, x1, mu, dps=15, manual_root_finding_ix=17, iprint=False):
+    def __init__(self, n, x0, x1, mu, dps=15, manual_root_finding_ix=17):
         """
         Parameters
         ----------
@@ -28,7 +28,6 @@ class LevyGaussQuad():
         dps : int,15
         manual_root_finding_ix : int,17
             Last index at which numpy root finding will be used as the starting point
-        iprint : bool,False
         """
         
         # check args
@@ -102,7 +101,7 @@ class LevyGaussQuad():
     def polish_one_root(self, coeffs, root, n_iters):
         """
         Use Newton-Raphson method to polish root.
-        TODO: add termination condition
+        TODO: add termination condition based on dx
 
         Parameters
         ----------
@@ -127,7 +126,7 @@ class LevyGaussQuad():
             prevdx=dx
         return root
 
-    def bisection(self, coeffs, a, b, tol=1e-6, n_iters=10, iprint=False):
+    def bisection(self, coeffs, a, b, tol=1e-6, n_iters=10):
         """Use bisection to find roots of function. Then polish off with Newton-Raphson method.
 
         Parameters
@@ -141,7 +140,6 @@ class LevyGaussQuad():
             Upper bound on bracket.
         tol : float,1e-10
             Difference b-a when the Newton-Raphson method is called.
-        iprint : bool,False
 
         Returns
         -------
@@ -170,14 +168,19 @@ class LevyGaussQuad():
                 root=(a+b)/2
         return self.polish_one_root(coeffs, root, n_iters)
 
-    def levy_quad(self, n, polish=True, n_iters=10, eps=1e-10):
+    def levy_quad(self, n, n_iters=10, eps=1e-10, iprint=False):
         """
+        Abscissa and weights for quadrature.
+
         Parameters
         ----------
         n : int
             Degree of expansion.
-        polish : bool,False
         n_iters : int,10
+            Number of Newton-Raphson iterations to take at end to polish found roots.
+        eps : float,1e-10
+            Amount to move away from brackets to find interleaved roots.
+        iprint : bool,False
 
         Returns
         -------
