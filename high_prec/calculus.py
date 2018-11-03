@@ -27,6 +27,7 @@ class LevyGaussQuad():
         mu : float
             Exponent for Levy distribution x^{-mu-1}
         dps : int,15
+            Precision for the context of this instance. Uses self.mp to store particular dps environment.
         manual_root_finding_ix : int,17
             Last index at which numpy root finding will be used as the starting point
         """
