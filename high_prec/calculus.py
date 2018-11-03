@@ -2,6 +2,7 @@ from .polynomial import *
 import dill
 import pickle
 import os
+import mpmath as mp
 from mpmath import quad,polyroots
 from numpy.polynomial.polynomial import Polynomial
 TMP_DR=os.path.expanduser('~')+'/tmp/eddie'
@@ -32,20 +33,20 @@ class LevyGaussQuad():
         
         # check args
         assert x0>0 and x1>x0 and mu>0 and n>2
+        self.mp=mp.mp.clone()
+        self.mp.dps=dps
         if not type(x1) is mpf:
-            x1=mpf(x1)
+            x1=self.mp.mpf(x1)
         if not type(x0) is mpf:
-            x0=mpf(x0)
+            x0=self.mp.mpf(x0)
         if not type(mu) is mpf:
-            mu=mpf(mu)
-
-        mp.dps=dps
+            mu=self.mp.mpf(mu)
         
         self.x0, self.x1=x0, x1
         self.mu=mu
         self.K=lambda x, mu=self.mu, x0=self.x0, x1=self.x1 : mu/2 * x**(-mu-1) / (x0**-mu - x1**-mu)
         # check that kernel integrates to 1/2
-        assert np.isclose( float(quad(self.K, [x0,x1])), .5 )
+        assert np.isclose( float(self.mp.quad(self.K, [x0,x1])), .5 )
 
         self.n=n  # degree of polynomial
         self.manualRootFindingIx=manual_root_finding_ix
@@ -56,20 +57,20 @@ class LevyGaussQuad():
         """Construct polynomials up to nth degree. Save the results to the instance.
         """
         
-        p=[Polynomial([mp.mpf(1)])]  # polynomials
+        p=[Polynomial([self.mp.mpf(1)])]  # polynomials
         a=[]
-        b=[mp.mpf(0)]
-        innerprod=[mp.mpf(1/2)]  # constructed such that inner product of f(x)=1 is 1/2
+        b=[self.mp.mpf(0)]
+        innerprod=[self.mp.mpf(1/2)]  # constructed such that inner product of f(x)=1 is 1/2
 
         # first polynomial is special
-        a.append( quad(lambda x: self.K(x) * x, [self.x0,self.x1])/innerprod[0] )
-        p.append( Polynomial([-a[0],mp.mpf(1)])*p[0] )
+        a.append( self.mp.quad(lambda x: self.K(x) * x, [self.x0,self.x1])/innerprod[0] )
+        p.append( Polynomial([-a[0],self.mp.mpf(1)])*p[0] )
 
         for i in range(1,self.n+1):
-            innerprod.append( quad(lambda x:p[i](x)**2 * self.K(x), [self.x0,self.x1]) )
-            a.append( quad( lambda x:x * p[i](x)**2 * self.K(x), [self.x0,self.x1] ) / innerprod[i] )
+            innerprod.append( self.mp.quad(lambda x:p[i](x)**2 * self.K(x), [self.x0,self.x1]) )
+            a.append( self.mp.quad( lambda x:x * p[i](x)**2 * self.K(x), [self.x0,self.x1] ) / innerprod[i] )
             b.append(innerprod[i] / innerprod[i-1])
-            p.append(Polynomial([-a[i],mp.mpf(1)]) * p[i] - b[i] * p[i-1])
+            p.append(Polynomial([-a[i],self.mp.mpf(1)]) * p[i] - b[i] * p[i-1])
             
         self.p=p
         self.a=a
@@ -83,7 +84,7 @@ class LevyGaussQuad():
         Parameters
         ----------
         coeffs: list of mpf
-            Coefficient to use in mp.polyval. NOTE that these are in the reverse order of numpy.polyval!
+            Coefficient to use in self.mp.polyval. NOTE that these are in the reverse order of numpy.polyval!
         roots : ndarray
             Initial guess for roots.
         n_iters : int
@@ -106,7 +107,7 @@ class LevyGaussQuad():
         Parameters
         ----------
         coeffs: list of mpf
-            Coefficient to use in mp.polyval. NOTE that these are in the reverse order of numpy.polyval!
+            Coefficient to use in self.mp.polyval. NOTE that these are in the reverse order of numpy.polyval!
         root : mp.mpf
             Initial guess for roots.
         n_iters : int
@@ -118,7 +119,7 @@ class LevyGaussQuad():
         
         prevdx=np.inf
         for i in range(n_iters):
-            p, pp=mp.polyval(coeffs, root, derivative=1)
+            p, pp=self.mp.polyval(coeffs, root, derivative=1)
             dx=p/pp
             if abs(dx)>abs(prevdx) and abs(dx)>1e-2:
                 raise Exception(prevdx,dx)
@@ -147,8 +148,8 @@ class LevyGaussQuad():
             Estimate of root.
         """
 
-        signa=np.sign(mp.polyval(coeffs, a))
-        signb=np.sign(mp.polyval(coeffs, b))
+        signa=np.sign(self.mp.polyval(coeffs, a))
+        signb=np.sign(self.mp.polyval(coeffs, b))
         if signa==signb:
             raise Exception("Bisection will fail to find root.")
         assert a<b
@@ -158,8 +159,8 @@ class LevyGaussQuad():
         while not found:
             # using the fact that the sign of the function must change when crossing the root, we can
             # repeatedly bisect and know which side the root must be on
-            signa=np.sign(mp.polyval(coeffs, a))
-            signmid=np.sign(mp.polyval(coeffs, (a+b)/2))
+            signa=np.sign(self.mp.polyval(coeffs, a))
+            signmid=np.sign(self.mp.polyval(coeffs, (a+b)/2))
             if signa==signmid:
                 a=(a+b)/2
             else:
@@ -196,7 +197,7 @@ class LevyGaussQuad():
         # numpy works fine for small polynomials
         if n<(self.manualRootFindingIx+1):
             # find roots of polynomial
-            abscissa=np.array([mp.mpf(i) for i in Polynomial(self.p[n].coef.astype(float)).roots().real])
+            abscissa=np.array([self.mp.mpf(i) for i in Polynomial(self.p[n].coef.astype(float)).roots().real])
             abscissa=self.polish_roots(self.p[n].coef[::-1].tolist(), abscissa, n_iters)
         # otherwise must find the roots slow way by using bisection
         else:
@@ -242,7 +243,7 @@ class LevyGaussQuad():
         everything.
         """
         self.__init__(self.n, self.x0, self.x1, self.mu,
-                      dps=mp.dps+delta_dps,
+                      dps=self.mp.dps+delta_dps,
                       manual_root_finding_ix=self.manualRootFindingIx)
 #end LevyGaussQuad
 
