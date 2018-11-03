@@ -36,6 +36,7 @@ class LevyGaussQuad():
         
         # check args
         assert x0>0 and x1>x0 and mu>0 and n>2 and bisect_root_finding_ix>3
+        assert bisect_root_finding_ix<=n
         self.dps=dps
         mp.mp.dps=dps
         if not type(x1) is mpf:
@@ -243,7 +244,7 @@ class LevyGaussQuad():
 
         return abscissa, weights
 
-    def quad(self, f, tol=1e-15, return_error=False, **kwargs):
+    def quad(self, f, tol=1e-15, return_error=False, max_precision=1000, **kwargs):
         """Perform integration. Increase precision til required tolerence is met.
 
         Parameters
@@ -251,6 +252,7 @@ class LevyGaussQuad():
         f : function
         tol : float,1e-15
         return_error : bool,False
+        max_precision : int,1000
         n_iters : int
         eps : float,1e-10
         iprint : bool,False
@@ -261,29 +263,38 @@ class LevyGaussQuad():
         """
         
         max_degree=self.n
+        done=False
 
-        # first try integration with default starting degree and degree-1
-        abscissa, weights=self.levy_quad(self.bisectRootFindingIx-1, **kwargs)
-        prevval=f(abscissa).dot(weights)
-        
-        abscissa, weights=self.levy_quad(self.bisectRootFindingIx, **kwargs)
-        val=f(abscissa).dot(weights)
-        
-        # keep increasing acurracy while outside tolerance and below max degree
-        if abs(prevval-val)>tol:
-            prevval=val 
-            withinTol=False
-            deg=self.bisectRootFindingIx+1
-
-            while not withinTol and deg<max_degree:
-                abscissa, weights=self.levy_quad(deg, **kwargs)
+        while not done and self.dps<max_precision:
+            try:
+                # first try integration with default starting degree and degree-1
+                abscissa, weights=self.levy_quad(self.bisectRootFindingIx-1, **kwargs)
+                prevval=f(abscissa).dot(weights)
+                
+                abscissa, weights=self.levy_quad(self.bisectRootFindingIx, **kwargs)
                 val=f(abscissa).dot(weights)
-
+                
+                # keep increasing acurracy while outside tolerance and below max degree
                 if abs(prevval-val)>tol:
                     prevval=val 
-                    deg+=1
-                else:
-                    withinTol=True
+                    withinTol=False
+                    deg=self.bisectRootFindingIx+1
+
+                    while not withinTol and deg<max_degree:
+                        abscissa, weights=self.levy_quad(deg, **kwargs)
+                        val=f(abscissa).dot(weights)
+
+                        if abs(prevval-val)>tol:
+                            prevval=val 
+                            deg+=1
+                        else:
+                            withinTol=True
+                done=True
+            except BisectionError:
+                self.raise_precision(40)
+
+        if self.dps>max_precision:
+            raise Exception("Max precision reached without convergence.")
         
         if return_error:
             return val, abs(val-prevval)
@@ -292,11 +303,15 @@ class LevyGaussQuad():
     def raise_precision(self, delta_dps=20):
         """levy_quad will fail when precision is not high enough. To raise precision, we must reinitialize
         everything.
+
+        Parameters
+        ----------
+        delta_dps : int,20
         """
-        raise Exception("This is buggy. May have to do with problems with mp.clone().")
+        
         # this ends up not actually changing some of the working precision
         self.__init__(self.n, self.x0, self.x1, self.mu,
-                      dps=mp.dps+delta_dps,
+                      dps=self.dps+delta_dps,
                       bisect_root_finding_ix=self.bisectRootFindingIx)
 
     def __getstate__(self):
@@ -360,7 +375,7 @@ class QuadGauss():
 
         elif method=='legendre':
             # Quicklaod from cache if possible. Identify cache by degree and decimal precision
-            cacheFile='%s/%s'%(TMP_DR, 'high_prec_gauss_quad_legendre_%d_%d.p'%(order, mp.dps))
+            cacheFile='%s/%s'%(TMP_DR, 'high_prec_gauss_quad_legendre_%d_%d.p'%(order, mp.mp.dps))
             if not recache and os.path.isfile(cacheFile):
                 try:
                     # Just in case multiple processes are trying to read from the same file, create your own
