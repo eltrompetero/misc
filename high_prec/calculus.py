@@ -36,7 +36,6 @@ class LevyGaussQuad():
         
         # check args
         assert x0>0 and x1>x0 and mu>0 and n>2 and bisect_root_finding_ix>3
-        assert bisect_root_finding_ix<=n
         self.dps=dps
         mp.mp.dps=dps
         if not type(x1) is mpf:
@@ -174,7 +173,7 @@ class LevyGaussQuad():
                 root=(a+b)/2
         return self.polish_one_root(coeffs, root, n_iters)
 
-    def levy_quad(self, n, n_iters=10, eps=1e-10, iprint=False):
+    def gauss_quad(self, n, n_iters=10, eps=1e-10, iprint=False):
         """
         Abscissa and weights for quadrature.
 
@@ -268,10 +267,10 @@ class LevyGaussQuad():
         while not done and self.dps<max_precision:
             try:
                 # first try integration with default starting degree and degree-1
-                abscissa, weights=self.levy_quad(self.bisectRootFindingIx-1, **kwargs)
+                abscissa, weights=self.gauss_quad(self.bisectRootFindingIx-1, **kwargs)
                 prevval=f(abscissa).dot(weights)
                 
-                abscissa, weights=self.levy_quad(self.bisectRootFindingIx, **kwargs)
+                abscissa, weights=self.gauss_quad(self.bisectRootFindingIx, **kwargs)
                 val=f(abscissa).dot(weights)
                 
                 # keep increasing acurracy while outside tolerance and below max degree
@@ -281,7 +280,7 @@ class LevyGaussQuad():
                     deg=self.bisectRootFindingIx+1
 
                     while not withinTol and deg<max_degree:
-                        abscissa, weights=self.levy_quad(deg, **kwargs)
+                        abscissa, weights=self.gauss_quad(deg, **kwargs)
                         val=f(abscissa).dot(weights)
 
                         if abs(prevval-val)>tol:
@@ -301,7 +300,7 @@ class LevyGaussQuad():
         return val
 
     def raise_precision(self, delta_dps=20):
-        """levy_quad will fail when precision is not high enough. To raise precision, we must reinitialize
+        """gauss_quad will fail when precision is not high enough. To raise precision, we must reinitialize
         everything.
 
         Parameters
@@ -333,6 +332,235 @@ class LevyGaussQuad():
                        unpickled['dps'],
                        unpickled['bisectRootFindingIx'] )
 #end LevyGaussQuad
+
+
+class FracPolyGaussQuad(LevyGaussQuad):
+    """Construct Gaussian quadrature for fractional power law integral used in the Bethe lattice model for
+    mean-field dislocation avalanches.
+    
+    See Numerical Recipes for details about how this works.
+    """
+    def __init__(self, n, theta, dps=15, bisect_root_finding_ix=17):
+        """
+        Maps integration over semi-infinite interval [0,inf] mapped to [-1,1].
+
+        Parameters
+        ----------
+        n : int
+            Degree of polynomial expansion.
+        theta : float
+            Exponent x^theta
+        dps : int,15
+            Precision for the context of this instance. Uses mp.to store particular dps environment.
+        bisect_root_finding_ix : int,17
+            Last index at which numpy root finding will be used as the starting point
+        """
+        
+        # check args
+        assert theta>0 and n>2 and bisect_root_finding_ix>3
+        self.dps=dps
+        mp.mp.dps=dps
+        if not type(theta) is mpf:
+            theta=mp.mpf(theta)
+        
+        self.theta=theta
+        def K(x, theta=self.theta):
+            if x==1: return mp.inf
+            return (-2/(x-1)-1)**theta
+        self.K=K
+
+        self.n=n  # degree of polynomial
+        self.bisectRootFindingIx=bisect_root_finding_ix
+        
+        self.construct_polynomials()
+
+    def construct_polynomials(self):
+        """Construct polynomials up to nth degree. Save the results to the instance.
+        """
+        
+        p=[Polynomial([mp.mpf(1)])]  # polynomials
+        a=[]
+        b=[mp.mpf(0)]
+        innerprod=[mp.quad(self.K, [-1,1])]  # constructed such that inner product of f(x)=1 is 1/2
+
+        # first polynomial is special
+        a.append( mp.quad(lambda x: self.K(x) * x, [-1,1])/innerprod[0] )
+        p.append( Polynomial([-a[0],mp.mpf(1)])*p[0] )
+
+        for i in range(1,self.n+1):
+            innerprod.append( mp.quad(lambda x:p[i](x)**2 * self.K(x), [-1,1]) )
+            a.append( mp.quad( lambda x:x * p[i](x)**2 * self.K(x), [-1,1] ) / innerprod[i] )
+            b.append(innerprod[i] / innerprod[i-1])
+            p.append(Polynomial([-a[i],mp.mpf(1)]) * p[i] - b[i] * p[i-1])
+            
+        self.p=p
+        self.a=a
+        self.b=b
+        self.innerprod=innerprod
+
+    def gauss_quad(self, n, n_iters=10, eps=1e-10, iprint=False):
+        """
+        Abscissa and weights for quadrature.
+
+        Parameters
+        ----------
+        n : int
+            Degree of expansion.
+        n_iters : int,10
+            Number of Newton-Raphson iterations to take at end to polish found roots.
+        eps : float,1e-10
+            Amount to move away from brackets to find interleaved roots.
+        iprint : bool,False
+
+        Returns
+        -------
+        abscissa : ndarray
+        weights : ndarray
+        """
+
+        if n>len(self.p):
+            raise Exception
+        assert n>1
+        
+        # numpy works fine for small polynomials
+        if n<(self.bisectRootFindingIx+1):
+            # find roots of polynomial only keep positive roots
+            abscissa=np.array([mp.mpf(i) for i in Polynomial(self.p[n].coef.astype(float)).roots().real])
+            abscissa=self.polish_roots(self.p[n].coef[::-1].tolist(), abscissa, n_iters)
+        # otherwise must find the roots slow way by using bisection
+        else:
+            if iprint:
+                print("Starting bisection algorithm for finding roots.")
+            if not '_roots' in self.__dict__.keys():
+                self._roots=[]
+
+            # since the roots are interleaved, we can build them up
+            # start with base root found by using numpy's root finding
+            if len(self._roots)==0:
+                n_=self.bisectRootFindingIx
+                brackets=np.array([mp.mpf(i)
+                                   for i in Polynomial(self.p[n_].coef.astype(float)).roots().real])
+                brackets=self.polish_roots(self.p[n_].coef[::-1].tolist(), brackets, n_iters)
+            else:
+                n_=self.bisectRootFindingIx+len(self._roots)
+                brackets=self._roots[-1]
+            # add ends of interval
+            brackets=np.insert(brackets, 0, mp.mpf(-1))
+            brackets=np.append(brackets, mp.mpf(1))
+
+            while n_<n:
+                assert len(brackets)==(n_+2)
+                newroots=[]
+                for i in range(len(brackets)-1):
+                    newroots.append( self.bisection(self.p[n_+1].coef[::-1].tolist(),
+                                                    brackets[i]+eps,
+                                                    brackets[i+1]-eps) )
+                self._roots.append(np.array( newroots ))
+                brackets=self._roots[-1]
+                brackets=np.insert(brackets, 0, mp.mpf(-1))
+                brackets=np.append(brackets, mp.mpf(1))
+                n_+=1
+
+            abscissa=self._roots[n-self.bisectRootFindingIx-1]
+            abscissa=self.polish_roots(self.p[n].coef[::-1].tolist(), abscissa, n_iters)
+
+        # using formula given in Numerical Recipes
+        weights=self.innerprod[n-1] / (self.p[n-1](abscissa) * self.p[n].deriv()(abscissa))
+
+        return abscissa, weights
+
+    def quad(self, f, tol=1e-15, return_error=False, max_precision=1000, apply_transform=True, **kwargs):
+        """Perform integration. Increase precision til required tolerence is met.
+
+        Parameters
+        ----------
+        f : function
+        tol : float,1e-15
+        return_error : bool,False
+        max_precision : int,1000
+        apply_transform : bool,True
+        n_iters : int
+        eps : float,1e-10
+        iprint : bool,False
+
+        Returns
+        -------
+        val : mp.mpf
+        """
+        
+        # map the variable from [0, inf] to -1,1
+        if apply_transform:
+            transformed_f=lambda x:f(-2/(x-1)-1)
+        else:
+            transformed_f=lambda x:f(x)
+        max_degree=self.n
+        done=False
+
+        while not done and self.dps<max_precision:
+            try:
+                # first try integration with default starting degree and degree-1
+                abscissa, weights=self.gauss_quad(self.bisectRootFindingIx-1, **kwargs)
+                prevval=transformed_f(abscissa).dot(weights)
+                
+                abscissa, weights=self.gauss_quad(self.bisectRootFindingIx, **kwargs)
+                val=transformed_f(abscissa).dot(weights)
+                
+                # keep increasing acurracy while outside tolerance and below max degree
+                if abs(prevval-val)>tol:
+                    prevval=val 
+                    withinTol=False
+                    deg=self.bisectRootFindingIx+1
+
+                    while not withinTol and deg<max_degree:
+                        abscissa, weights=self.gauss_quad(deg, **kwargs)
+                        val=transformed_f(abscissa).dot(weights)
+
+                        if abs(prevval-val)>tol:
+                            prevval=val 
+                            deg+=1
+                        else:
+                            withinTol=True
+                done=True
+            except BisectionError:
+                self.raise_precision(40)
+
+        if self.dps>max_precision:
+            raise Exception("Max precision reached without convergence.")
+        
+        if return_error:
+            return val, abs(val-prevval)
+        return val
+
+    def raise_precision(self, delta_dps=20):
+        """gauss_quad will fail when precision is not high enough. To raise precision, we must reinitialize
+        everything.
+
+        Parameters
+        ----------
+        delta_dps : int,20
+        """
+        
+        self.__init__(self.n, self.theta,
+                      dps=self.dps+delta_dps,
+                      bisect_root_finding_ix=self.bisectRootFindingIx)
+
+    def __getstate__(self):
+        """To deal with bugs with pickling mpmath objects."""
+        toPickle=self.__dict__.copy()
+        for k in toPickle.keys():
+            if type(toPickle[k]) is mp.mpf:
+                toPickle[k]=str(toPickle[k])
+        return toPickle
+    
+    def __setstate__(self, unpickled):
+        for k in unpickled.keys():
+            if type(unpickled[k]) is str:
+                unpickled[k]=mp.mpf(unpickled[k])
+        self.__init__( unpickled['n'],
+                       unpickled['theta'],
+                       unpickled['dps'],
+                       unpickled['bisectRootFindingIx'] )
+#end FracPolyGaussQuad
 
 
 class QuadGauss():
