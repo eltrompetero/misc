@@ -13,7 +13,7 @@ class LevyGaussQuad():
     
     See Numerical Recipes for details about how this works.
     """
-    def __init__(self, n, x0, x1, mu, dps=15):
+    def __init__(self, n, x0, x1, mu, dps=15, manual_root_finding_ix=17):
         """
         Parameters
         ----------
@@ -25,6 +25,9 @@ class LevyGaussQuad():
             Upper cutoff for Levy distribution.
         mu : float
             Exponent for Levy distribution x^{-mu-1}
+        dps : int,15
+        manual_root_finding_ix : int,17
+            Last index at which numpy root finding will be used as the starting point.
         """
         
         # check args
@@ -45,6 +48,7 @@ class LevyGaussQuad():
         assert np.isclose( float(quad(self.K, [x0,x1])), .5 )
 
         self.n=n  # degree of polynomial
+        self.manualRootFindingIx=manual_root_finding_ix
         
         self.construct_polynomials()
         
@@ -196,11 +200,11 @@ class LevyGaussQuad():
             # since the roots are interleaved, we can build them up
             # start with base root
             if len(self._roots)==0:
-                n_=17
+                n_=self.manualRootFindingIx
                 brackets=Polynomial(self.p[n_].coef.astype(float)).roots().real
                 brackets=self.polish_roots(self.p[n_].coef[::-1].tolist(), brackets, n_iters)
             else:
-                n_=17+len(self._roots)
+                n_=self.manualRootFindingIx+len(self._roots)
                 brackets=self._roots[-1]
             brackets=np.insert(brackets, 0, self.x0)
             brackets=np.append(brackets, self.x1)
