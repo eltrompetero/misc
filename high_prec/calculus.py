@@ -3,10 +3,12 @@ import dill
 import pickle
 import os
 import mpmath as mp
-from mpmath import quad,polyroots
 from numpy.polynomial.polynomial import Polynomial
 TMP_DR=os.path.expanduser('~')+'/tmp/eddie'
 
+
+class BisectionError(Exception):
+    pass
 
 class LevyGaussQuad():
     """Construct Gaussian quadrature for Levy integral used in the Bethe lattice model for mean-field
@@ -152,7 +154,7 @@ class LevyGaussQuad():
         signa=np.sign(self.mp.polyval(coeffs, a))
         signb=np.sign(self.mp.polyval(coeffs, b))
         if signa==signb:
-            raise Exception("Bisection will fail to find root.")
+            raise BisectionError("Bisection will fail to find root.")
         assert a<b
 
         found=False
