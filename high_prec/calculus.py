@@ -149,7 +149,8 @@ class LevyGaussQuad():
 
         signa=np.sign(mp.polyval(coeffs, a))
         signb=np.sign(mp.polyval(coeffs, b))
-        assert signa!=signb, "Bisection will fail to find root."
+        if signa==signb:
+            raise Exception("Bisection will fail to find root.")
         assert a<b
 
         found=False
@@ -209,7 +210,7 @@ class LevyGaussQuad():
             if len(self._roots)==0:
                 n_=self.manualRootFindingIx
                 brackets=Polynomial(self.p[n_].coef.astype(float)).roots().real
-                #brackets=self.polish_roots(self.p[n_].coef[::-1].tolist(), brackets, n_iters)
+                brackets=self.polish_roots(self.p[n_].coef[::-1].tolist(), brackets, n_iters)
             else:
                 n_=self.manualRootFindingIx+len(self._roots)
                 brackets=self._roots[-1]
@@ -235,6 +236,14 @@ class LevyGaussQuad():
         weights=self.innerprod[n-1] / (self.p[n-1](abscissa) * self.p[n].deriv()(abscissa))
 
         return abscissa, weights
+
+    def raise_precision(self, delta_dps=20):
+        """levy_quad will fail when precision is not high enough. To raise precision, we must reinitialize
+        everything.
+        """
+        self.__init__(self.n, self.x0, self.x1, self.mu,
+                      dps=mp.dps+delta_dps,
+                      manual_root_finding_ix=self.manualRootFindingIx)
 #end LevyGaussQuad
 
 
