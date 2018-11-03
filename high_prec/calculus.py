@@ -74,6 +74,8 @@ class LevyGaussQuad():
 
     def polish_roots(self, coeffs, roots, n_iters):
         """
+        Wrapper for using self.polish_one_root on many roots.
+
         Parameters
         ----------
         coeffs: list of mpf
@@ -89,13 +91,80 @@ class LevyGaussQuad():
         
         polishedRoots=roots[:]
         for i,r in enumerate(roots):
-            for j in range(n_iters):
-                x0=polishedRoots[i]
-                p, pp=mp.polyval(coeffs, x0, derivative=1)
-                polishedRoots[i]=x0 - p/pp
+            polishedRoots[i]=self.polish_one_root(coeffs, polishedRoots[i], n_iters) 
         return polishedRoots
 
-    def levy_quad(self, n, polish=True, n_iters=10):
+    def polish_one_root(self, coeffs, root, n_iters):
+        """
+        Use Newton-Raphson method to polish root.
+        TODO: add termination condition
+
+        Parameters
+        ----------
+        coeffs: list of mpf
+            Coefficient to use in mp.polyval. NOTE that these are in the reverse order of numpy.polyval!
+        root : mp.mpf
+            Initial guess for roots.
+        n_iters : int
+
+        Returns
+        -------
+        polished_root : mp.mpf
+        """
+        
+        prevdx=np.inf
+        for i in range(n_iters):
+            p, pp=mp.polyval(coeffs, root, derivative=1)
+            dx=p/pp
+            if abs(dx)>abs(prevdx) and abs(dx)>1e-2:
+                raise Exception(prevdx,dx)
+            root -= dx
+            prevdx=dx
+        return root
+
+    def bisection(self, coeffs, a, b, tol=1e-6, n_iters=10):
+        """Use bisection to find roots of function. Then polish off with Newton-Raphson method.
+
+        Parameters
+        ----------
+        coeffs : list of mp.mpf
+            This will be passed to mpmath.polyval. Remember that the order of coeffs go from highest to lowest
+            degree polynomial!
+        a : mp.mpf
+            Lower bound on bracket.
+        b : mp.mpf
+            Upper bound on bracket.
+        tol : float,1e-6
+            Difference b-a when the Newton-Raphson method is called.
+
+        Returns
+        -------
+        root : mp.mpf
+            Estimate of root.
+        """
+
+        signa=np.sign(mp.polyval(coeffs, a))
+        signb=np.sign(mp.polyval(coeffs, b))
+        assert signa!=signb, "Bisection will fail to find root."
+        assert a<b
+
+        found=False
+        # keep bisecting the interval
+        while not found:
+            # using the fact that the sign of the function must change when crossing the root, we can
+            # repeatedly bisect and know which side the root must be on
+            signa=np.sign(mp.polyval(coeffs, a))
+            signmid=np.sign(mp.polyval(coeffs, (a+b)/2))
+            if signa==signmid:
+                a=(a+b)/2
+            else:
+                b=(a+b)/2
+            if (b-a)<tol:
+                found=True
+                root=(a+b)/2
+        return self.polish_one_root(coeffs, root, n_iters)
+
+    def levy_quad(self, n, polish=True, n_iters=10, eps=1e-10):
         """
         Parameters
         ----------
@@ -113,10 +182,43 @@ class LevyGaussQuad():
         if n>len(self.p):
             raise Exception
         assert n>1
+        
+        # numpy works fine for small polynomials
+        if n<18:
+            # find roots of polynomial
+            abscissa=np.array([mp.mpf(i) for i in Polynomial(self.p[n].coef.astype(float)).roots().real])
+            abscissa=self.polish_roots(self.p[n].coef[::-1].tolist(), abscissa, n_iters)
+        # otherwise must find the roots manually
+        else:
+            if not '_roots' in self.__dict__.keys():
+                self._roots=[]
 
-        # find roots of polynomial
-        abscissa=np.array([mp.mpf(i) for i in Polynomial(self.p[n].coef.astype(float)).roots().real])
-        abscissa=self.polish_roots(self.p[n].coef[::-1].tolist(), abscissa, n_iters)
+            # since the roots are interleaved, we can build them up
+            # start with base root
+            if len(self._roots)==0:
+                n_=17
+                brackets=Polynomial(self.p[n_].coef.astype(float)).roots().real
+                brackets=self.polish_roots(self.p[n_].coef[::-1].tolist(), brackets, n_iters)
+            else:
+                n_=17+len(self._roots)
+                brackets=self._roots[-1]
+            brackets=np.insert(brackets, 0, self.x0)
+            brackets=np.append(brackets, self.x1)
+
+            while n_<n:
+                newroots=[]
+                for i in range(len(brackets)-1):
+                    newroots.append( self.bisection(self.p[n_+1].coef[::-1].tolist(),
+                                                    brackets[i]+eps,
+                                                    brackets[i+1]-eps) )
+                self._roots.append(np.array( newroots ))
+                brackets=self._roots[-1]
+                brackets=np.insert(brackets, 0, self.x0)
+                brackets=np.append(brackets, self.x1)
+                n_+=1
+
+            abscissa=self._roots[n-18]
+            abscissa=self.polish_roots(self.p[n].coef[::-1].tolist(), abscissa, n_iters)
 
         # using formula given in Numerical Recipes
         weights=self.innerprod[n-1] / (self.p[n-1](abscissa) * self.p[n].deriv()(abscissa))
