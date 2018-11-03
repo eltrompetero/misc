@@ -13,7 +13,7 @@ class LevyGaussQuad():
     
     See Numerical Recipes for details about how this works.
     """
-    def __init__(self, n, x0, x1, mu, dps=15, manual_root_finding_ix=17):
+    def __init__(self, n, x0, x1, mu, dps=15, manual_root_finding_ix=17, iprint=False):
         """
         Parameters
         ----------
@@ -27,7 +27,8 @@ class LevyGaussQuad():
             Exponent for Levy distribution x^{-mu-1}
         dps : int,15
         manual_root_finding_ix : int,17
-            Last index at which numpy root finding will be used as the starting point.
+            Last index at which numpy root finding will be used as the starting point
+        iprint : bool,False
         """
         
         # check args
@@ -126,7 +127,7 @@ class LevyGaussQuad():
             prevdx=dx
         return root
 
-    def bisection(self, coeffs, a, b, tol=1e-6, n_iters=10):
+    def bisection(self, coeffs, a, b, tol=1e-6, n_iters=10, iprint=False):
         """Use bisection to find roots of function. Then polish off with Newton-Raphson method.
 
         Parameters
@@ -138,8 +139,9 @@ class LevyGaussQuad():
             Lower bound on bracket.
         b : mp.mpf
             Upper bound on bracket.
-        tol : float,1e-6
+        tol : float,1e-10
             Difference b-a when the Newton-Raphson method is called.
+        iprint : bool,False
 
         Returns
         -------
@@ -194,7 +196,8 @@ class LevyGaussQuad():
             abscissa=self.polish_roots(self.p[n].coef[::-1].tolist(), abscissa, n_iters)
         # otherwise must find the roots slow way by using bisection
         else:
-            print("Starting bisection algorithm for finding roots.")
+            if iprint:
+                print("Starting bisection algorithm for finding roots.")
             if not '_roots' in self.__dict__.keys():
                 self._roots=[]
 
