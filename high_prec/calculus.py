@@ -188,21 +188,22 @@ class LevyGaussQuad():
         assert n>1
         
         # numpy works fine for small polynomials
-        if n<18:
+        if n<(self.manualRootFindingIx+1):
             # find roots of polynomial
             abscissa=np.array([mp.mpf(i) for i in Polynomial(self.p[n].coef.astype(float)).roots().real])
             abscissa=self.polish_roots(self.p[n].coef[::-1].tolist(), abscissa, n_iters)
-        # otherwise must find the roots manually
+        # otherwise must find the roots slow way by using bisection
         else:
+            print("Starting bisection algorithm for finding roots.")
             if not '_roots' in self.__dict__.keys():
                 self._roots=[]
 
             # since the roots are interleaved, we can build them up
-            # start with base root
+            # start with base root found by using numpy's root finding
             if len(self._roots)==0:
                 n_=self.manualRootFindingIx
                 brackets=Polynomial(self.p[n_].coef.astype(float)).roots().real
-                brackets=self.polish_roots(self.p[n_].coef[::-1].tolist(), brackets, n_iters)
+                #brackets=self.polish_roots(self.p[n_].coef[::-1].tolist(), brackets, n_iters)
             else:
                 n_=self.manualRootFindingIx+len(self._roots)
                 brackets=self._roots[-1]
@@ -221,7 +222,7 @@ class LevyGaussQuad():
                 brackets=np.append(brackets, self.x1)
                 n_+=1
 
-            abscissa=self._roots[n-18]
+            abscissa=self._roots[n-self.manualRootFindingIx-1]
             abscissa=self.polish_roots(self.p[n].coef[::-1].tolist(), abscissa, n_iters)
 
         # using formula given in Numerical Recipes
