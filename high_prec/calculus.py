@@ -273,7 +273,7 @@ class LevyGaussQuad():
                 abscissa, weights=self.gauss_quad(self.bisectRootFindingIx, **kwargs)
                 val=f(abscissa).dot(weights)
                 
-                # keep increasing acurracy while outside tolerance and below max degree
+                # keep increasing accuracy while outside tolerance and below max degree
                 if abs(prevval-val)>tol:
                     prevval=val 
                     withinTol=False
@@ -289,10 +289,11 @@ class LevyGaussQuad():
                         else:
                             withinTol=True
                 done=True
+            # increase precision if roots cannot be found
             except BisectionError:
                 self.raise_precision(40)
 
-        if self.dps>max_precision:
+        if self.dps>=max_precision:
             raise Exception("Max precision reached without convergence.")
         
         if return_error:
