@@ -334,6 +334,7 @@ class LevyGaussQuad():
 #end LevyGaussQuad
 
 
+
 class FracPolyGaussQuad(LevyGaussQuad):
     """Construct Gaussian quadrature for fractional power law integral used in the Bethe lattice model for
     mean-field dislocation avalanches.
@@ -561,6 +562,110 @@ class FracPolyGaussQuad(LevyGaussQuad):
                        unpickled['dps'],
                        unpickled['bisectRootFindingIx'] )
 #end FracPolyGaussQuad
+
+
+class FracPolyGaussQuadReverse(FracPolyGaussQuad):
+    """Construct Gaussian quadrature for fractional power law integral used in the Bethe lattice model for
+    mean-field dislocation avalanches.
+    
+    See Numerical Recipes for details about how this works.
+    """
+    def __init__(self, n, theta, dps=15, bisect_root_finding_ix=17):
+        """
+        Maps integration over semi-infinite interval [0,inf] mapped to [-1,1].
+
+        Parameters
+        ----------
+        n : int
+            Degree of polynomial expansion.
+        theta : float
+            Exponent x^theta
+        dps : int,15
+            Precision for the context of this instance. Uses mp.to store particular dps environment.
+        bisect_root_finding_ix : int,17
+            Last index at which numpy root finding will be used as the starting point
+        """
+        
+        # check args
+        assert theta>0 and n>2 and bisect_root_finding_ix>3
+        self.dps=dps
+        mp.mp.dps=dps
+        if not type(theta) is mpf:
+            theta=mp.mpf(theta)
+        
+        self.theta=theta
+        def K(x, theta=self.theta):
+            if x==-1: return mp.inf
+            return (2/(x+1)-1)**theta
+        self.K=K
+
+        self.n=n  # degree of polynomial
+        self.bisectRootFindingIx=bisect_root_finding_ix
+        
+        self.construct_polynomials()
+
+    def quad(self, f, tol=1e-15, return_error=False, max_precision=1000, apply_transform=True, **kwargs):
+        """Perform integration. Increase precision til required tolerence is met.
+
+        Parameters
+        ----------
+        f : function
+        tol : float,1e-15
+        return_error : bool,False
+        max_precision : int,1000
+        apply_transform : bool,True
+        n_iters : int
+        eps : float,1e-10
+        iprint : bool,False
+
+        Returns
+        -------
+        val : mp.mpf
+        """
+        
+        # map the variable from [0, inf] to 1,-1
+        if apply_transform:
+            transformed_f=lambda x:f(2/(x+1)-1)
+        else:
+            transformed_f=lambda x:f(x)
+        max_degree=self.n
+        done=False
+
+        while not done and self.dps<max_precision:
+            try:
+                # first try integration with default starting degree and degree-1
+                abscissa, weights=self.gauss_quad(self.bisectRootFindingIx-1, **kwargs)
+                prevval=transformed_f(abscissa).dot(weights)
+                
+                abscissa, weights=self.gauss_quad(self.bisectRootFindingIx, **kwargs)
+                val=transformed_f(abscissa).dot(weights)
+                
+                # keep increasing acurracy while outside tolerance and below max degree
+                if abs(prevval-val)>tol:
+                    prevval=val 
+                    withinTol=False
+                    deg=self.bisectRootFindingIx+1
+
+                    while not withinTol and deg<max_degree:
+                        abscissa, weights=self.gauss_quad(deg, **kwargs)
+                        val=transformed_f(abscissa).dot(weights)
+
+                        if abs(prevval-val)>tol:
+                            prevval=val 
+                            deg+=1
+                        else:
+                            withinTol=True
+                done=True
+            except BisectionError:
+                self.raise_precision(40)
+
+        if self.dps>max_precision:
+            raise Exception("Max precision reached without convergence.")
+        
+        if return_error:
+            return val, abs(val-prevval)
+        return val
+#end FracPolyGaussQuadReverse
 
 
 class QuadGauss():
