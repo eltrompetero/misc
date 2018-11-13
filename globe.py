@@ -109,13 +109,14 @@ class PoissonDiscSphere():
                                                          self.coarseGrid))[:self.kCoarse+1].tolist() )
         self.coarseNeighbors=coarseNeighbors
 
-    def get_neighbours(self, xy, top_n=None):
+    def get_neighbours(self, xy, top_n=None, apply_dist_threshold=False):
         """Return top_n neighbors according to the fast Euclidean distance calculation.
 
         Parameters
         ----------
         xy : ndarray 
         top_n : int,None
+        apply_dist_threshold : bool,False
 
         Returns
         -------
@@ -134,13 +135,21 @@ class PoissonDiscSphere():
                 neighbors=[]
                 for ix in allSurroundingGridIx:
                     neighbors+=self.samplesByGrid[ix]
+                if apply_dist_threshold:
+                    neighbors=[neighbors[i] for i,d in enumerate(self.dist(self.samples[neighbors],xy))
+                                if d<=(2*self.r)]
                 return neighbors
             return []
 
         if len(self.samples)>0:
             # find the closest point by fast search
             d=self.fast_dist(xy, self.samples)
-            return np.argsort(d)[:top_n].tolist()
+            neighbors=np.argsort(d)[:top_n].tolist()
+            if apply_dist_threshold:
+                    neighbors=[neighbors[i] for i,d in enumerate(self.dist(self.samples[neighbors],xy))
+                                if d<=(2*self.r)]
+            return neighbors
+
         return []
 
     def _get_closest_neighbor(self, pt, ignore_zero=1e-9):
@@ -246,6 +255,24 @@ class PoissonDiscSphere():
 
     def assign_grid_point(self, pt):
         return np.argmin( self.fast_dist(pt, self.coarseGrid) )
+
+    def find_grid_point(self, sampleix):
+        """Given the index of a sample, find the coarse grained grid that it belongs to.
+
+        Parameters
+        ----------
+        sampleix : int
+
+        Returns
+        -------
+        coarseGridIx : int
+        """
+        
+        assert 0<=sampleix<=len(self.samples), "Given sample index is invalid."
+        for i,samplesInPixel in enumerate(self.samplesByGrid):
+            if sampleix in samplesInPixel:
+                return i
+        raise Exception
 
     def sample(self):
         """Poisson disc random sampling in 2D.

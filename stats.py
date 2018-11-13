@@ -567,7 +567,7 @@ class PowerLaw():
         """
 
         if lower_bound is None:
-            lower_bound=cls._default_lower_bound
+            lower_bound=x.min()
         assert (x>=lower_bound).all()
         n=len(x)
 
@@ -584,9 +584,9 @@ class PowerLaw():
         return soln['x']
 
     @classmethod
-    def log_likelihood(cls, x, alpha, lower_bound, upper_bound=np.inf, normalized=False):
+    def log_likelihood(cls, x, alpha, lower_bound, upper_bound=np.inf, normalize=False):
         assert alpha>1
-        if normalized:
+        if normalize:
             Z=( lower_bound**(1-alpha)-upper_bound**(1-alpha) )/(alpha-1)
             return -alpha*np.log(x).sum() - len(x) * np.log(Z)
         return -alpha*np.log(x).sum()
