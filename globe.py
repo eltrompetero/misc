@@ -39,8 +39,24 @@ def haversine(x, y, r=1):
     dist : float
     """
 
-    return r * 2 * arcsin(np.sqrt( sin((x[1]-y[1])/2)**2 +
+    return r * 2. * arcsin(np.sqrt( sin((x[1]-y[1])/2)**2 +
                                    cos(x[1])*cos(y[1])*sin((x[0]-y[0])/2)**2 ))
+
+@njit
+def jithaversine(x, y):
+    """
+    Parameters
+    ----------
+    x,y : tuple
+        (phi, theta)
+
+    Returns
+    -------
+    dist : float
+    """
+
+    return 2. * arcsin(np.sqrt( sin((x[1]-y[1])/2)**2 +
+                                cos(x[1])*cos(y[1])*sin((x[0]-y[0])/2)**2 ))
 
 class PoissonDiscSphere():
     """A class for generating two-dimensional Possion (blue) noise) modified from: 
@@ -363,7 +379,7 @@ class PoissonDiscSphere():
 
 
 class SphereCoordinate():
-    """Coordinate on a spherical surface. Contains methods for easy manipulation and movement 
+    """Coordinate on a spherical surface. Contains methods for easy manipulation and translation
     of points. Sphere is normalized to unit sphere.
     """
 
@@ -407,7 +423,7 @@ class SphereCoordinate():
     def random_shift(self,return_angle=True,bds=[0,1]):
         """
         Return a vector that is randomly shifted away from this coordinate. This is done by
-        imagining that hte north pole is aligned along this vector and then adding a random angle
+        imagining that the north pole is aligned along this vector and then adding a random angle
         and then rotating the north pole to align with this vector.
 
         Angles are given relative to the north pole; that is, theta in [0,pi] and phi in [0,2*pi].
@@ -465,6 +481,33 @@ class SphereCoordinate():
             # move back to south pole
             newvec[-1]*=-1
         return newvec
+
+    def rotate(self, rotvec, d):
+        """
+        Parameters
+        ----------
+        vec : ndarray
+            Rotation axis
+        d : float
+            Rotation angle
+
+        Returns
+        -------
+        newphi : float
+        newtheta : float
+        """
+
+        rotvec/=np.sqrt(rotvec[0]**2 + rotvec[1]**2 + rotvec[2]**2)
+        a, b=cos(d/2), sin(d/2)
+        rotq=Quaternion(a, b*rotvec[0], b*rotvec[1], b*rotvec[2])
+
+        vec=self._angle_to_vec(self.phi, self.theta)
+        vecq=Quaternion(0, vec[0], vec[1], vec[2])
+        
+        newvec=vecq.rotate(rotq).vec
+        newphi, newtheta=self._vec_to_angle( newvec[0], newvec[1], newvec[2] )
+
+        return SphereCoordinate(newphi%(2*pi), newtheta)
 #end SphereCoordinate
 
 
@@ -475,7 +518,7 @@ spec=[
      ]
 @jitclass(spec)
 class jitSphereCoordinate():
-    """Coordinate on a spherical surface. Contains methods for easy manipulation and movement 
+    """Coordinate on a spherical surface. Contains methods for easy manipulation and translation
     of points. Sphere is normalized to unit sphere.
     """
 
@@ -490,13 +533,16 @@ class jitSphereCoordinate():
         self.update_xy(phi, theta)
             
     def update_xy(self, phi, theta):
+        assert 0<=phi<=(2*pi)
+        assert 0<=theta<=pi
         self.vec=np.array([cos(phi)*sin(theta),sin(phi)*sin(theta),cos(theta)])
-        self.phi,self.theta=phi,theta
+        self.phi, self.theta=phi, theta
     
     def _angle_to_vec(self,phi,theta):
         return np.array([cos(phi)*sin(theta), sin(phi)*sin(theta), cos(theta)])
     
     def _vec_to_angle(self,x,y,z):
+        #print(y,x)
         return arctan2(y,x)%(2*pi), arccos(z)
            
     def random_shift(self, bds):
@@ -509,8 +555,6 @@ class jitSphereCoordinate():
 
         Parameters
         ----------
-        return_angle : bool,False
-            If True, return random vector in form of a (phi,theta) pair.
         bds : tuple,[0,1]
             Bounds on uniform number generator to only sample between fixed limits of theta. This
             can be calculated using the formula
@@ -519,7 +563,8 @@ class jitSphereCoordinate():
 
         Returns
         -------
-        randvec : ndarray
+        newphi : float
+        newtheta : float
         """
 
         # setup rotation operation
@@ -555,6 +600,92 @@ class jitSphereCoordinate():
             # move back to south pole
             newtheta=pi-newtheta
         return newphi, newtheta
+
+    def rotate(self, rotvec, d):
+        """
+        Parameters
+        ----------
+        vec : ndarray
+            Rotation axis
+        d : float
+            Rotation angle
+
+        Returns
+        -------
+        newphi : float
+        newtheta : float
+        """
+
+        rotvec=rotvec/np.sqrt(rotvec[0]**2 + rotvec[1]**2 + rotvec[2]**2)
+        a, b=cos(d/2), sin(d/2)
+        rotq=jitQuaternion(a, b*rotvec[0], b*rotvec[1], b*rotvec[2])
+
+        vec=self._angle_to_vec(self.phi, self.theta)
+        vecq=jitQuaternion(0, vec[0], vec[1], vec[2])
+        
+        newvec=vecq.rotate(rotq).vec
+        newphi, newtheta=self._vec_to_angle( newvec[0], newvec[1], newvec[2] )
+
+        return jitSphereCoordinate(newphi%(2*pi), newtheta)
+
+    def shift(self, dphi, dtheta):
+        """
+        Return a vector that is randomly shifted away from this coordinate. This is done by
+        imagining that hte north pole is aligned along this vector and then adding a random angle
+        and then rotating the north pole to align with this vector.
+
+        Angles are given relative to the north pole; that is, theta in [0,pi] and phi in [0,2*pi].
+
+        Parameters
+        ----------
+        dphi : float
+            Change to azimuthal angle.
+        dtheta : float
+            Change to polar angle.
+
+        Returns
+        -------
+        newphi : float
+        newtheta : float
+        """
+        raise NotImplementedError
+        # setup rotation operation
+        if self.vec[-1]<-.5:
+            # when vector is near south pole, numerical erros are dominant for the rotation and so we
+            # move it to the northern hemisphere before doing any calculation
+            vec=self.vec.copy()
+            # move vector to the north pole
+            vec[-1]*=-1
+            theta=pi-self.theta
+            inSouthPole=True
+        else:
+            vec=self.vec.copy()
+            theta=self.theta
+            inSouthPole=False
+        
+        # rotation axis given by cross product with (0,0,1)
+        rotvec=np.array([vec[1], -vec[0], 0])
+        rotvec/=np.sqrt(rotvec[0]**2 + rotvec[1]**2)
+        a, b=cos(theta/2), sin(theta/2)
+        rotq=jitQuaternion(a, b*rotvec[0], b*rotvec[1], b*rotvec[2])
+
+        # Add random shift to north pole
+        dvec=self._angle_to_vec(dphi, dtheta)
+        randq=jitQuaternion(0, dvec[0], dvec[1], dvec[2])
+        
+        # Rotate north pole to this vector's orientation
+        vec=randq.rotate(rotq.inv()).vec
+        newphi, newtheta=self._vec_to_angle( vec[0], vec[1], vec[2] )
+        if inSouthPole:
+            # move back to south pole
+            newtheta=pi-newtheta
+        return jitSphereCoordinate(newphi%(2*pi), self.unwrap_theta(newtheta))
+
+    def unwrap_theta(self, theta):
+        theta=theta%(2*pi)
+        if theta>pi:
+            return pi-theta%pi
+        return theta
 #end jitSphereCoordinate
 
 
