@@ -805,30 +805,31 @@ def stack_dict(list,name,axis=0):
     else:
         return np.vstack(_l)
 
-def unique_rows(mat,return_inverse=False):
+def unique_rows(mat, return_inverse=False):
     """
     Return unique rows indices of a numpy array.
 
-    Params:
-    -------
-    mat (ndarray)
+    Parameters
+    ----------
+    mat : ndarray
     **kwargs
-    return_inverse (bool)
+    return_inverse : bool
         If True, return inverse that returns back indices of unique array that
         would return the original array 
 
-    Returns:
-    --------
-    u (ndarray)
+    Returns
+    -------
+    u : ndarray
         Unique elements of matrix.
-    idx (ndarray)
-        row indices of given mat that will give unique array
+    idx : ndarray
+        Row indices of given mat that will give unique array.
     """
-    b = numpy.ascontiguousarray(mat).view(numpy.dtype((numpy.void, mat.dtype.itemsize * mat.shape[1])))
+
+    b = np.ascontiguousarray(mat).view(np.dtype((np.void, mat.dtype.itemsize * mat.shape[1])))
     if not return_inverse:
-        _, idx = numpy.unique(b, return_index=True)
+        _, idx = np.unique(b, return_index=True)
     else:
-        _, idx = numpy.unique(b, return_inverse=True)
+        _, idx = np.unique(b, return_inverse=True)
     
     return idx
 

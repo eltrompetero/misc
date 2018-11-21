@@ -132,7 +132,8 @@ class PoissonDiscSphere():
         ----------
         xy : ndarray 
         top_n : int,None
-        apply_dist_threshold : bool,False
+        apply_dist_threshold : bool or float, False
+            If it is a float, that value will be multiplied to the distance window 2*self.r.
 
         Returns
         -------
@@ -153,7 +154,7 @@ class PoissonDiscSphere():
                     neighbors+=self.samplesByGrid[ix]
                 if apply_dist_threshold:
                     neighbors=[neighbors[i] for i,d in enumerate(self.dist(self.samples[neighbors],xy))
-                                if d<=(2*self.r)]
+                                if d<=(2*self.r*apply_dist_threshold)]
                 return neighbors
             return []
 
@@ -163,7 +164,7 @@ class PoissonDiscSphere():
             neighbors=np.argsort(d)[:top_n].tolist()
             if apply_dist_threshold:
                     neighbors=[neighbors[i] for i,d in enumerate(self.dist(self.samples[neighbors],xy))
-                                if d<=(2*self.r)]
+                                if d<=(2*self.r*apply_dist_threshold)]
             return neighbors
 
         return []

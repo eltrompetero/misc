@@ -3,6 +3,10 @@ from numpy import pi
 import numpy as np
 
 
+def test_haversine():
+    assert haversine([0,0],[0,0])==0
+    assert np.isclose(haversine([0,0],[2*pi,0]),0)
+
 def test_PoissonDiscSphere():
     poissd=PoissonDiscSphere(pi/50,
                              fast_sample_size=5,

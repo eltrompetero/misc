@@ -5,6 +5,7 @@ import numpy as np
 from numpy import fft
 from scipy.optimize import minimize
 from scipy.special import zeta
+from multiprocess import Pool,cpu_count
 
 
 def acf(x,axis=-1,return_power=False):
@@ -162,128 +163,83 @@ class DiscretePowerLaw():
     @classmethod
     def max_likelihood(cls, X,
                        initial_guess=2.,
+                       lower_bound_range=None,
                        lower_bound=1,
                        upper_bound=np.inf,
                        minimize_kw={},
                        full_output=False):
         """
-        Find the best fit power law exponent for a discrete power law distribution. 
+        Find the best fit power law exponent and min threshold for a discrete power law distribution. 
 
         Parameters
         ----------
         X : ndarray
-        initial_guess : float,2.
-            Guess for power law exponent alpha.
-        lower_bound : int,1
-        upper_bound : float,np.inf
-        minimize_kw : dict,{}
+        initial_guess : float, 2.
+            Guess for power law exponent alpha
+        lower_bound_range : duple, None
+            If not None, then select the lower bound with max likelihood over the given range
+            (inclusive).
+        lower_bound : int, 1
+        upper_bound : float, np.inf
+        minimize_kw : dict, {}
 
         Returns
         -------
-        soln : scipy.optimize.minimize or list thereof
-        """
-
-        from scipy.optimize import minimize
-        if type(X) is list:
-            X=np.array(X)
-        assert ((X>=lower_bound)&(X<=upper_bound)).all(),"All elements must be within bounds."
-
-        def f(alpha):
-            if alpha<=1: return 1e30
-            return -cls.log_likelihood(X, alpha, lower_bound, upper_bound, normalize=True)
-
-        soln=minimize(f, initial_guess, **minimize_kw)
-        if full_output:
-            return soln['x'], soln
-        return soln['x']
-       
-    @classmethod
-    def pipeline_max_likelihood_alpha(cls,X,
-                                      initial_guess=2.,
-                                      lower_bound=1,
-                                      upper_bound=np.inf,
-                                      minimize_kw={}):
-        """Find optimal exponential alpha for a set of different lower and upper bounds.
-
-        Parameters
-        ----------
-        X : ndarray
-        initial_guess : float,2.
-        lower_bound : int or list,1
-            If list, then list of solns will be returned for each lower bound.
-        upper_bound : int or list,np.inf
-            If list, then list of solns will be returned for each lower bound.
-        minimize_kw : dict,{}
-        
-        Returns
-        -------
-        logL : list
-            Log likelihood per data point for the given upper and lower bound combinations. First
-            tuple in each element is the lower and upper bound for that solution. Then the log
-            likelihood value is given.
-        soln : list 
-            Returns what came from scipy.optimize.minimize.
-        """
-        # If only one of the bounds is a list, make the other a list of the same length.
-        if type(lower_bound) is list and not type(upper_bound) is list:
-            upper_bound=[upper_bound]*len(lower_bound)
-        elif type(lower_bound) is int and type(upper_bound) is list:
-            lower_bound=[lower_bound]*len(upper_bound)
-        elif not (type(lower_bound) is list and type(upper_bound) is list):
-            upper_bound=[upper_bound]
-            lower_bound=[lower_bound]
-
-        soln=[]
-        logL=[]
-        for lower_bound_,upper_bound_ in zip(lower_bound,upper_bound):
-            withinbdsIx=(X>=lower_bound_)&(X<=upper_bound_)
-            soln.append( cls.max_likelihood_alpha( X[withinbdsIx],
-                                                   initial_guess,
-                                                   lower_bound_,
-                                                   upper_bound_,
-                                                   minimize_kw ) )
-            logL.append( ((lower_bound_,upper_bound_),-soln[-1]['fun']/withinbdsIx.sum()) )
-        return logL,soln
-    
-    @classmethod
-    def max_likelihood_lower_bound(cls,X,alpha,
-                                   initial_guess=2.,
-                                   upper_bound=np.inf,
-                                   minimize_kw={}):
-        """
-        This doesn't work. 
-
-        Find the best fit power law exponent for a discrete power law distribution. Use full expression
-        for finding the exponent alpha where X=X^-alpha that involves solving a transcendental equation.
-
-        Parameters
-        ----------
-        X : ndarray
         alpha : float
-            Value for power law exponent.
-        initial_guess : float,2.
-            Guess for lower cutoff.
-        upper_bound : int,np.inf
-        minimize_kw : dict,{}
-
-        Returns
-        -------
-        soln : dict from scipy.optimize.minimize
+        xmin : int, optional
+            Only returned if the lower_bound_range is given.
+        scipy.optimize.minimize or list thereof
         """
-        from scipy.special import zeta
+
         from scipy.optimize import minimize
-        
-        def f(lower_bound):
-            withinbdsIx=(X>=lower_bound)&(X<=upper_bound)
-            if not 1<=lower_bound<=upper_bound: return 1e30
-            return ( alpha*(zeta(alpha+1,lower_bound)-zeta(alpha+1,upper_bound+1)) /
-                     (zeta(alpha,lower_bound)-zeta(alpha,upper_bound+1))+np.log(X[withinbdsIx]).mean() )**2
-        return minimize(f,initial_guess)
-    
+
+        if lower_bound_range is None:
+            if type(X) is list:
+                X=np.array(X)
+            assert ((X>=lower_bound)&(X<=upper_bound)).all(),"All elements must be within bounds."
+
+            def f(alpha):
+                if alpha<=1: return 1e30
+                return -cls.log_likelihood(X, alpha, lower_bound, upper_bound, normalize=True)
+
+            soln=minimize(f, initial_guess, **minimize_kw)
+            if full_output:
+                return soln['x'], soln
+            return soln['x']
+
+        else:
+            assert lower_bound_range[0]>0 and lower_bound_range[0]<(upper_bound-1)
+            lower_bound_range=np.arange(lower_bound_range[0], lower_bound_range[1]+1)
+
+            # set up pool to evaluate likelihood for entire range of lower bounds
+            # calls cls.max_likelihood to find best alpha for the given lower bound
+            def solve_one_lower_bound(lower_bound):
+                if not (X>=lower_bound).any():
+                    raise Exception("Lower bound is too large.")
+                alpha, soln = cls.max_likelihood(X[X>=lower_bound],
+                                                  initial_guess=initial_guess,
+                                                  lower_bound=lower_bound,
+                                                  upper_bound=upper_bound,
+                                                  minimize_kw=minimize_kw,
+                                                  full_output=True)
+                # return normalized log likelihood
+                return alpha, soln['fun']/(X>=lower_bound).sum()
+
+            pool = Pool(cpu_count()-1)
+            alpha, negloglik = zip(*pool.map(solve_one_lower_bound, lower_bound_range))
+            pool.close()
+            
+            if full_output:
+                return (alpha[np.argmin(negloglik)],
+                        lower_bound_range[np.argmin(negloglik)],
+                        negloglik[np.argmin(negloglik)])
+            return alpha[np.argmin(negloglik)], lower_bound_range[np.argmin(negloglik)]
+       
     @classmethod
     def log_likelihood(cls, X, alpha, 
                        lower_bound=1, upper_bound=np.inf, 
-                       normalize=False):
+                       normalize=False,
+                       return_sum=True):
         """Log likelihood of the discrete power law with exponent X^-alpha.
 
         Parameters
@@ -301,8 +257,12 @@ class DiscretePowerLaw():
         from scipy.special import zeta
         assert ((X>=lower_bound) & (X<=upper_bound)).all()
         if not normalize:
+            if return_sum:
+                return -alpha*np.log(X).sum()
             return -alpha*np.log(X).sum()
-        return ( -alpha*np.log(X) - np.log(zeta(alpha, lower_bound)-zeta(alpha, upper_bound+1))).sum()
+        if return_sum:
+            return ( -alpha*np.log(X) - np.log(zeta(alpha, lower_bound)-zeta(alpha, upper_bound+1))).sum()
+        return -alpha*np.log(X) - np.log(zeta(alpha, lower_bound)-zeta(alpha, upper_bound+1))
 
     @classmethod
     def alpha_range(cls, x, alpha, dL, lower_bound=None, upper_bound=np.inf):
