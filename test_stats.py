@@ -32,3 +32,12 @@ def test_normalization():
                                                    return_sum=False,
                                                    normalize=True)).sum()
     assert np.isclose(totalp, 1), totalp
+
+    # check normalization of pdf
+    X=np.arange(10,1001)
+    totalp=DiscretePowerLaw.pdf(1.5,
+                               lower_bound=10,
+                               upper_bound=1000)(X).sum()
+    assert np.isclose(totalp, 1), totalp
+
+

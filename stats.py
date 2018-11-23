@@ -185,9 +185,10 @@ class DiscretePowerLaw():
 
         Returns
         -------
-        alpha : float
-        xmin : int, optional
-            Only returned if the lower_bound_range is given.
+        float
+            alpha
+        int, optional
+            xmin, Only returned if the lower_bound_range is given.
         scipy.optimize.minimize or list thereof
         """
 
@@ -261,8 +262,8 @@ class DiscretePowerLaw():
                 return -alpha*np.log(X).sum()
             return -alpha*np.log(X).sum()
         if return_sum:
-            return ( -alpha*np.log(X) - np.log(zeta(alpha, lower_bound)-zeta(alpha, upper_bound+1))).sum()
-        return -alpha*np.log(X) - np.log(zeta(alpha, lower_bound)-zeta(alpha, upper_bound+1))
+            return ( -alpha*np.log(X) - np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))).sum()
+        return -alpha*np.log(X) - np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))
 
     @classmethod
     def alpha_range(cls, x, alpha, dL, lower_bound=None, upper_bound=np.inf):
@@ -512,33 +513,67 @@ class PowerLaw():
                            (lower_bound**(1-alpha) - upper_bound**(1-alpha)) )
 
     @classmethod
-    def max_likelihood(cls, x, lower_bound=None, upper_bound=None, full_output=False):
+    def max_likelihood(cls, x,
+                       lower_bound=None,
+                       upper_bound=None,
+                       lower_bound_range=None,
+                       initial_guess=None,
+                       full_output=False):
         """
         Parameters
         ----------
         x : ndarray
-        lower_bound : float,None
-        upper_bound : float,None
-        full_output : bool,False
+        lower_bound : float, None
+        upper_bound : float, None
+        lower_bound_range : duple, None
+        initial_guess : tuple, None
+        full_output : bool, False
 
         Returns
         -------
-        alpha : float
+        float
+            alpha
+        dict
+            Solution returned from scipy.optimize.minimize.
         """
-
-        if lower_bound is None:
-            lower_bound=x.min()
-        assert (x>=lower_bound).all()
-        n=len(x)
-
-        if upper_bound is None:
-            return 1+n/np.log(x/lower_bound).sum()
         
-        assert (x<=upper_bound).all()
-        def cost(alpha):
-            return -cls.log_likelihood(x, alpha, lower_bound, upper_bound, True)
+        if lower_bound_range is None:
+            if lower_bound is None:
+                lower_bound=x.min()
+            assert (x>=lower_bound).all()
+            n=len(x)
+            
+            # analytic solution if lower bound is given and upper bound is at inf
+            if upper_bound is None:
+                return 1+n/np.log(x/lower_bound).sum()
+            
+            assert (x<=upper_bound).all()
+            def cost(alpha):
+                return -cls.log_likelihood(x, alpha, lower_bound, upper_bound, True)
 
-        soln=minimize(cost, cls._default_alpha, bounds=[(1+1e-10,np.inf)])
+            soln=minimize(cost, cls._default_alpha, bounds=[(1+1e-10,np.inf)])
+            if full_output:
+                return soln['x'], soln
+            return soln['x']
+        
+        # if lower_bound_range is given
+        if upper_bound is None:
+            upper_bound = np.inf
+        else:
+            assert (x<=upper_bound).all()
+        if initial_guess is None:
+            initial_guess = (cls._default_alpha, cls._default_lower_bound)
+
+        def cost(args):
+            alpha, lower_bound = args
+            return -cls.log_likelihood(x[x>=lower_bound],
+                                       alpha,
+                                       lower_bound,
+                                       upper_bound,
+                                       True)/(x>=lower_bound).sum()
+
+        soln = minimize(cost, initial_guess,
+                        bounds=[(1+1e-10,np.inf),lower_bound_range])
         if full_output:
             return soln['x'], soln
         return soln['x']
