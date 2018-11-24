@@ -302,6 +302,33 @@ class DiscretePowerLaw():
         alphabds[1]=minimize( f, alpha-.1, method='nelder-mead' )['x']
 
         return alphabds
+
+    @classmethod
+    def mean_scaling(cls, X, upper_cutoff_range, full_output=False):
+        """Use scaling of the mean with the cutoff to estimate the exponent.
+
+        Parameters
+        ----------
+        X : ndarray
+        upper_cutoff_range : ndarray
+        full_output : bool, False
+
+        Returns
+        -------
+        float
+            alpha
+        duple of ndarrays
+            Set of x and y used to find the exponent.
+        """
+        
+        m = np.zeros(len(upper_cutoff_range))
+        for i,cut in enumerate(upper_cutoff_range):
+            m[i] = X[X<=cut].mean()
+
+        alpha = -loglog_fit(upper_cutoff_range, m)[0] + 2
+        if full_output:
+            return alpha, (upper_cutoff_range, m)
+        return alpha
 #end DiscretePowerLaw
 
 
@@ -622,6 +649,63 @@ class PowerLaw():
         alphabds[1]=minimize( f, alpha-.1, method='nelder-mead' )['x']
 
         return alphabds
+
+    @classmethod
+    def mean_scaling(cls, X, upper_cutoff_range, full_output=False):
+        """Use scaling of the mean with the cutoff to estimate the exponent.
+
+        Parameters
+        ----------
+        X : ndarray
+        upper_cutoff_range : ndarray
+        full_output : bool, False
+
+        Returns
+        -------
+        float
+            alpha
+        duple of ndarrays
+            Set of x and y used to find the exponent.
+        """
+        
+        m = np.zeros(len(upper_cutoff_range))
+        for i,cut in enumerate(upper_cutoff_range):
+            m[i] = X[X<=cut].mean()
+
+        alpha = -loglog_fit(upper_cutoff_range, m)[0] + 2
+        if full_output:
+            return alpha, (upper_cutoff_range, m)
+        return alpha
+
+    @classmethod
+    def clauset_test(cls, X, ksstat, alpha, lower_bound, upper_bound=np.inf, boostrap_samples=1000):
+        """
+        Run bootstrapped test for significance of the max deviation from a power law fit to the
+        sample distribution X.
+
+        Parameters
+        ----------
+        X : ndarray
+            Samples from the distribution.
+        ksstat : float
+            The max deviation from the empirical cdf of X given the model specified.
+        alpha : float
+        lower_bound : float
+        upper_bound : float, np.inf
+        bootstrap_samples : int, 1000
+
+        Returns
+        -------
+        float
+        """
+        
+        # generate random samples from best fit power law
+
+        # fit each random sample to a power law
+
+        # calculate ks stat from each fit
+
+        return
 #end PowerLaw
 
 
@@ -714,3 +798,25 @@ class ExpTruncPowerLaw():
             return -alpha*np.log(x).sum() - el*x.sum() - len(x) * np.log(Z)
         return -alpha*np.log(x).sum() -el*x.sum()
 #end ExpTruncPowerLaw
+
+def loglog_fit(x, y, p=2, iprint=False, full_output=False, symmetric=True):
+    """Symmetric log-log fit."""
+
+    from scipy.optimize import minimize
+
+    if symmetric:
+        def cost(params):
+            a,b=params
+            return (np.abs(a*np.log(x)+b-np.log(y))**p).sum()+(np.abs(np.log(x)+b/a-np.log(y)/a)**p).sum()
+    else:
+        def cost(params):
+            a,b=params
+            return (np.abs(a*np.log(x)+b-np.log(y))**p).sum()
+
+    soln=minimize(cost, [1,0])
+    if iprint and not soln['success']:
+        print("loglog_fit did not converge on a solution.")
+        print(soln['message'])
+    if full_output:
+        return soln['x'], soln
+    return soln['x']

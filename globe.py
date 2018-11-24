@@ -126,7 +126,7 @@ class PoissonDiscSphere():
         self.coarseNeighbors=coarseNeighbors
 
     def get_neighbours(self, xy, top_n=None, apply_dist_threshold=False):
-        """Return top_n neighbors according to the fast Euclidean distance calculation.
+        """Return top_n neighbors in the grid according to the fast Euclidean distance calculation.
 
         Parameters
         ----------
@@ -171,15 +171,18 @@ class PoissonDiscSphere():
 
     def _get_closest_neighbor(self, pt, ignore_zero=1e-9):
         """
+        Get closest grid point index for a single point.
+
         Parameters
         ----------
         pt : tuple
-        ignore_zero : float,1e-9
+        ignore_zero : float, 1e-9
             Distances smaller than this are ignored for returning the min distance.
 
         Returns
         -------
-        ix : int 
+        int 
+            Index.
         """
 
         neighborix=np.array(self.get_neighbours(pt))
@@ -195,15 +198,18 @@ class PoissonDiscSphere():
 
     def get_closest_neighbor(self, pt, ignore_zero=1e-9):
         """
+        Get closest grid point index for all points given.
+
         Parameters
         ----------
         pt : tuple
-        ignore_zero : float,1e-9
+        ignore_zero : float, 1e-9
             Distances smaller than this are ignored for returning the min distance.
 
         Returns
         -------
-        ix : int 
+        list of ints
+            Indices of closest points.
         """
 
         if pt.ndim==1:
