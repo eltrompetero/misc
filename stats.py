@@ -421,7 +421,8 @@ class DiscretePowerLaw():
             cdf = self.cdf(alpha=alpha,
                            lower_bound=self.lower_bound,
                            upper_bound=self.upper_bound)(np.arange(X.min(), X.max()+1))
-            ecdf = np.bincount(X, minlength=X.max()+1)[:X.min()]
+            ecdf = np.cumsum(np.bincount(X, minlength=X.max()+1)[X.min():])
+            ecdf = ecdf/ecdf[-1]
 
         else:
             fraction_below_cutoff = len(samples_below_cutoff)/(len(samples_below_cutoff)+K)
@@ -429,7 +430,7 @@ class DiscretePowerLaw():
             K2 = K-K1
             
             if K1==0:
-                return self.ks_resample(K, samples_below_cutoff)
+                return self.ks_resample(K)
             # NOTE: not handling cases with K2==0
             assert K2>0
 
@@ -458,8 +459,8 @@ class DiscretePowerLaw():
             # generate cdf for random realization
             ecdf = np.cumsum(np.bincount(np.concatenate((Xlow,X)), minlength=X.max()+1)[Xrange[0]:])
             ecdf = ecdf/ecdf[-1]
-            assert len(ecdf)==len(cdf), (len(cdf), len(ecdf))
 
+        assert len(ecdf)==len(cdf)
         return np.abs(ecdf-cdf).max()
 
     def ksval(self, X):
