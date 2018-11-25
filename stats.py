@@ -125,10 +125,11 @@ class DiscretePowerLaw():
     _default_upper_bound=np.inf
     _default_alpha=2.
 
-    def __init__(self,alpha,lower_bound=1,upper_bound=np.inf):
-        self.alpha=alpha
-        self.lower_bound=lower_bound
-        self.upper_bound=upper_bound
+    def __init__(self, alpha, lower_bound=1, upper_bound=np.inf, data=None):
+        self.alpha = alpha
+        self.lower_bound = lower_bound
+        self.upper_bound = upper_bound
+        self.data = data
 
     @classmethod
     def pdf(cls, alpha, lower_bound=None, upper_bound=None):
@@ -329,6 +330,98 @@ class DiscretePowerLaw():
         if full_output:
             return alpha, (upper_cutoff_range, m)
         return alpha
+
+    def clauset_test(self, X, ksstat,
+                     bootstrap_samples=1000,
+                     sample_below_cutoff=None,
+                     n_cpus=None):
+        """
+        Run bootstrapped test for significance of the max deviation from a power law fit to the
+        sample distribution X. If there is a non-power law region part of the distribution, you need
+        to define the sample_below_cutoff kwarg to draw samples from that part of the distribution.
+
+        Parameters
+        ----------
+        X : ndarray
+            Samples from the distribution.
+        ksstat : float
+            The max deviation from the empirical cdf of X given the model specified.
+        sample_below_cutoff : function, None
+            Pass integer number of samples n and return n samples.
+
+        Returns
+        -------
+        float
+        """
+        
+        if n_cpus is None:
+            n_cpus = cpu_count()-1
+        
+        if n_cpus<=1:
+            ksdistribution = np.zeros(bootstrap_samples)
+            for i in range(bootstrap_samples):
+                ksdistribution[i] = self.resample(len(X))
+        else:
+            pool = Pool(n_cpus)
+            ksdistribution = np.array(pool.map( self.resample, [len(X)]*bootstrap_samples ))
+            pool.close()
+
+        return (ksstat<=ksdistribution).mean(), ksdistribution
+
+    def ks_resample(self, K):
+        """Generate a random sample from and fit to random distribution  given by specified power
+        law model. This is used to generate a KS statistic.
+        
+        Parameters
+        ----------
+        K : int
+            Sample size.
+
+        Returns
+        -------
+        float
+            KS statistic
+        """
+
+        from statsmodels.distributions import ECDF
+
+        # generate random samples from best fit power law
+        X = self.rvs(alpha=self.alpha,
+                     size=K,
+                     lower_bound=self.lower_bound,
+                     upper_bound=self.upper_bound)
+
+        # fit each random sample to a power law
+        alpha = self.max_likelihood(X, lower_bound=self.lower_bound, upper_bound=self.upper_bound)
+
+        # calculate ks stat from each fit
+        cdf = self.cdf(alpha=alpha,
+                       lower_bound=self.lower_bound,
+                       upper_bound=self.upper_bound)(np.arange(X.min(), X.max()+1))
+        ecdf = ECDF(X)(np.arange(X.min(), X.max()+1))
+
+        return np.abs(ecdf-cdf).max()
+
+    def ksval(self, X):
+        """Build CDF from given data and compare with model.
+
+        Parameters
+        ----------
+        X : ndarray
+
+        Returns
+        -------
+        float
+            KS statistic
+        """
+        from statsmodels.distributions import ECDF
+
+        ecdf = ECDF(X)(np.arange(X.min(), X.max()+1))
+        cdf = self.cdf(alpha=self.alpha,
+                       lower_bound=self.lower_bound,
+                       upper_bound=self.upper_bound)(np.arange(X.min(), X.max()+1))
+
+        return np.abs(ecdf-cdf).max()
 #end DiscretePowerLaw
 
 
@@ -417,15 +510,16 @@ class ExpTruncDiscretePowerLaw(DiscretePowerLaw):
         Parameters
         ----------
         X : ndarray
-        initial_guess : twople,(2.,1.)
+        initial_guess : twople, (2.,1.)
             Guess for power law exponent alpha and cutoff el.
-        lower_bound : int,1
-        upper_bound : float,np.inf
-        minimize_kw : dict,{}
+        lower_bound : int, 1
+        upper_bound : float, np.inf
+        minimize_kw : dict, {}
 
         Returns
         -------
-        soln : scipy.optimize.minimize or list thereof
+        dict
+            scipy.optimize.minimize or list thereof.
         """
 
         if type(X) is list:
@@ -436,7 +530,7 @@ class ExpTruncDiscretePowerLaw(DiscretePowerLaw):
             alpha, el=params
             return -cls.log_likelihood(X, alpha, el, lower_bound, upper_bound, normalize=True)
 
-        soln=minimize(f, initial_guess, **minimize_kw, bounds=[(1+1e-10,np.inf), (1e-6,np.inf)])
+        soln = minimize(f, initial_guess, **minimize_kw, bounds=[(1+1e-10,np.inf), (1e-6,np.inf)])
         if full_output:
             return soln['x'], soln
         return soln['x']
@@ -678,10 +772,14 @@ class PowerLaw():
         return alpha
 
     @classmethod
-    def clauset_test(cls, X, ksstat, alpha, lower_bound, upper_bound=np.inf, boostrap_samples=1000):
+    def clauset_test(cls, X, ksstat, alpha, lower_bound,
+                     upper_bound=np.inf,
+                     boostrap_samples=1000,
+                     sample_below_cutoff=None):
         """
         Run bootstrapped test for significance of the max deviation from a power law fit to the
-        sample distribution X.
+        sample distribution X. If there is a non-power law region part of the distribution, you need
+        to define the sample_below_cutoff kwarg to draw samples from that part of the distribution.
 
         Parameters
         ----------
@@ -693,6 +791,8 @@ class PowerLaw():
         lower_bound : float
         upper_bound : float, np.inf
         bootstrap_samples : int, 1000
+        sample_below_cutoff : function, None
+            Pass integer number of samples n and return n samples.
 
         Returns
         -------
