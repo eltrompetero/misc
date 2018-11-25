@@ -799,8 +799,33 @@ class ExpTruncPowerLaw():
         return -alpha*np.log(x).sum() -el*x.sum()
 #end ExpTruncPowerLaw
 
+
 def loglog_fit(x, y, p=2, iprint=False, full_output=False, symmetric=True):
-    """Symmetric log-log fit."""
+    """Symmetric log-log fit.
+    
+    Parameters
+    ----------
+    x : ndarray
+        Independent variable.
+    y : ndarray
+        Dependent variable.
+    p : float, 2
+        Exponent on cost function.
+    iprint : bool, False
+        If True, also print helpful messages.
+    full_output : bool, False
+        If True, also return output from scipy.optimize.minimize.
+    symmetric : bool, True
+        If True, use symmetrized cost function, otherwise use regular linear regression on log
+        scale.
+
+    Returns
+    -------
+    duple
+        Exponent and offset (slope and intercept on log scale).
+    dict
+        Result from scipy.optimize.minimize.
+    """
 
     from scipy.optimize import minimize
 
@@ -813,7 +838,7 @@ def loglog_fit(x, y, p=2, iprint=False, full_output=False, symmetric=True):
             a,b=params
             return (np.abs(a*np.log(x)+b-np.log(y))**p).sum()
 
-    soln=minimize(cost, [1,0])
+    soln = minimize(cost, [1,0])
     if iprint and not soln['success']:
         print("loglog_fit did not converge on a solution.")
         print(soln['message'])
