@@ -394,8 +394,6 @@ class DiscretePowerLaw():
             KS statistic
         """
 
-        from statsmodels.distributions import ECDF
-        
         if samples_below_cutoff is None:
             # generate random samples from best fit power law
             X = self.rvs(alpha=self.alpha,
@@ -462,9 +460,7 @@ class DiscretePowerLaw():
         float
             KS statistic
         """
-        from statsmodels.distributions import ECDF
-
-        ecdf = ECDF(X)(np.arange(X.min(), X.max()+1))
+        ecdf = np.bincount(X, minlength=X.max()+1)[X.min():]
         cdf = self.cdf(alpha=self.alpha,
                        lower_bound=self.lower_bound,
                        upper_bound=self.upper_bound)(np.arange(X.min(), X.max()+1))
