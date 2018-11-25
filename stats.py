@@ -125,11 +125,11 @@ class DiscretePowerLaw():
     _default_upper_bound=np.inf
     _default_alpha=2.
 
-    def __init__(self, alpha, lower_bound=1, upper_bound=np.inf, data=None):
+    def __init__(self, alpha, lower_bound=1, upper_bound=np.inf, data=None, rng=None):
         self.alpha = alpha
         self.lower_bound = lower_bound
         self.upper_bound = upper_bound
-        self.data = data
+        self.rng = rng
 
     @classmethod
     def pdf(cls, alpha, lower_bound=None, upper_bound=None):
@@ -152,14 +152,19 @@ class DiscretePowerLaw():
         return np.vectorize(lambda x,x0=x0,x1=x1: pdf(np.arange(x0, int(x)+1)).sum())
 
     @classmethod
-    def rvs(cls, alpha, size=(1,), lower_bound=None, upper_bound=None):
+    def rvs(cls, alpha, size=(1,), lower_bound=None, upper_bound=None, rng=None):
         x0=lower_bound or cls._default_lower_bound
         x1=upper_bound or cls._default_upper_bound
         assert x1<np.inf,"Must define upper bound."
         
-        return np.random.choice(range(x0,x1+1),
-                    size=size,
-                    p=cls.pdf(alpha,x0,x1)(np.arange(x0,x1+1)))
+        if rng is None:
+            return np.random.choice(range(x0,x1+1),
+                                    size=size,
+                                    p=cls.pdf(alpha,x0,x1)(np.arange(x0,x1+1)))
+        return rng.choice(range(x0,x1+1),
+                          size=size,
+                          p=cls.pdf(alpha,x0,x1)(np.arange(x0,x1+1)))
+
 
     @classmethod
     def max_likelihood(cls, X,
@@ -372,9 +377,13 @@ class DiscretePowerLaw():
                                                      samples_below_cutoff)
         else:
             assert (samples_below_cutoff<X.min()).all()
+            def f(args):
+                self.rng = np.random.RandomState()
+                print(self.rng.rand())
+                return self.ks_resample(*args)
 
             pool = Pool(n_cpus)
-            ksdistribution = np.array(pool.map( lambda args:self.ks_resample(*args),
+            ksdistribution = np.array(pool.map( f,
                                                 [(len(X),samples_below_cutoff)]*bootstrap_samples ))
             pool.close()
 
@@ -403,7 +412,8 @@ class DiscretePowerLaw():
             X = self.rvs(alpha=self.alpha,
                          size=K,
                          lower_bound=self.lower_bound,
-                         upper_bound=self.upper_bound)
+                         upper_bound=self.upper_bound,
+                         rng=self.rng)
 
             # fit each random sample to a power law
             alpha = self.max_likelihood(X, lower_bound=self.lower_bound, upper_bound=self.upper_bound)
@@ -416,7 +426,7 @@ class DiscretePowerLaw():
 
         else:
             fraction_below_cutoff = len(samples_below_cutoff)/(len(samples_below_cutoff)+K)
-            K1 = np.random.binomial(K, fraction_below_cutoff)
+            K1 = self.rng.binomial(K, fraction_below_cutoff)
             K2 = K-K1
             
             if K1==0:
@@ -425,11 +435,12 @@ class DiscretePowerLaw():
             assert K2>0
 
             # generate random samples from best fit power law and include samples below cutoff
-            Xlow = np.random.choice(samples_below_cutoff, size=K1)
+            Xlow = self.rng.choice(samples_below_cutoff, size=K1)
             X = self.rvs(alpha=self.alpha,
                          size=K2,
                          lower_bound=self.lower_bound,
-                         upper_bound=self.upper_bound)
+                         upper_bound=self.upper_bound,
+                         rng=self.rng)
             assert (len(X)+len(Xlow))==K
 
             # fit random sample to a power law
