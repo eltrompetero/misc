@@ -429,7 +429,7 @@ class DiscretePowerLaw():
             K2 = K-K1
             
             if K1==0:
-                return self.ks_sample(K, samples_below_cutoff)
+                return self.ks_resample(K, samples_below_cutoff)
             # NOTE: not handling cases with K2==0
             assert K2>0
 
