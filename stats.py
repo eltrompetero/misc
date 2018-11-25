@@ -198,7 +198,8 @@ class DiscretePowerLaw():
         if lower_bound_range is None:
             if type(X) is list:
                 X=np.array(X)
-            assert ((X>=lower_bound)&(X<=upper_bound)).all(),"All elements must be within bounds."
+            msg = "All elements must be within bounds. Given array includes range (%d, %d)."%(X.min(),X.max())
+            assert ((X>=lower_bound)&(X<=upper_bound)).all(), msg
 
             def f(alpha):
                 if alpha<=1: return 1e30
@@ -333,7 +334,7 @@ class DiscretePowerLaw():
 
     def clauset_test(self, X, ksstat,
                      bootstrap_samples=1000,
-                     sample_below_cutoff=None,
+                     samples_below_cutoff=None,
                      n_cpus=None):
         """
         Run bootstrapped test for significance of the max deviation from a power law fit to the
@@ -346,8 +347,12 @@ class DiscretePowerLaw():
             Samples from the distribution.
         ksstat : float
             The max deviation from the empirical cdf of X given the model specified.
-        sample_below_cutoff : function, None
+        bootstrap_samples : int, 1000
+            Number of times to bootstrap to calculate p-value.
+        samples_below_cutoff : ndarray, None
             Pass integer number of samples n and return n samples.
+        n_cpus : int, None
+            For multiprocessing.
 
         Returns
         -------
@@ -360,15 +365,19 @@ class DiscretePowerLaw():
         if n_cpus<=1:
             ksdistribution = np.zeros(bootstrap_samples)
             for i in range(bootstrap_samples):
-                ksdistribution[i] = self.resample(len(X))
+                ksdistribution[i] = self.ks_resample(len(X),
+                                                     samples_below_cutoff)
         else:
+            assert (samples_below_cutoff<X.min()).all()
+
             pool = Pool(n_cpus)
-            ksdistribution = np.array(pool.map( self.resample, [len(X)]*bootstrap_samples ))
+            ksdistribution = np.array(pool.map( lambda args:self.ks_resample(*args),
+                                                [(len(X),samples_below_cutoff)]*bootstrap_samples ))
             pool.close()
 
         return (ksstat<=ksdistribution).mean(), ksdistribution
 
-    def ks_resample(self, K):
+    def ks_resample(self, K, samples_below_cutoff=None):
         """Generate a random sample from and fit to random distribution  given by specified power
         law model. This is used to generate a KS statistic.
         
@@ -376,6 +385,8 @@ class DiscretePowerLaw():
         ----------
         K : int
             Sample size.
+        samples_below_cutoff : function, None
+            If provided, these are included as part of the random cdf (by bootstrap sampling) and in the model.
 
         Returns
         -------
@@ -384,21 +395,58 @@ class DiscretePowerLaw():
         """
 
         from statsmodels.distributions import ECDF
+        
+        if samples_below_cutoff is None:
+            # generate random samples from best fit power law
+            X = self.rvs(alpha=self.alpha,
+                         size=K,
+                         lower_bound=self.lower_bound,
+                         upper_bound=self.upper_bound)
 
-        # generate random samples from best fit power law
-        X = self.rvs(alpha=self.alpha,
-                     size=K,
-                     lower_bound=self.lower_bound,
-                     upper_bound=self.upper_bound)
+            # fit each random sample to a power law
+            alpha = self.max_likelihood(X, lower_bound=self.lower_bound, upper_bound=self.upper_bound)
 
-        # fit each random sample to a power law
-        alpha = self.max_likelihood(X, lower_bound=self.lower_bound, upper_bound=self.upper_bound)
+            # calculate ks stat from each fit
+            cdf = self.cdf(alpha=alpha,
+                           lower_bound=self.lower_bound,
+                           upper_bound=self.upper_bound)(np.arange(X.min(), X.max()+1))
+            ecdf = np.bincount(X, minlength=X.max()+1)[:X.min()]
 
-        # calculate ks stat from each fit
-        cdf = self.cdf(alpha=alpha,
-                       lower_bound=self.lower_bound,
-                       upper_bound=self.upper_bound)(np.arange(X.min(), X.max()+1))
-        ecdf = ECDF(X)(np.arange(X.min(), X.max()+1))
+        else:
+            fraction_below_cutoff = len(samples_below_cutoff)/(len(samples_below_cutoff)+K)
+            K1 = np.random.binomial(K, fraction_below_cutoff)
+            K2 = K-K1
+            
+            if K1==0:
+                return self.ks_sample(K, samples_below_cutoff)
+            # NOTE: not handling cases with K2==0
+            assert K2>0
+
+            # generate random samples from best fit power law and include samples below cutoff
+            Xlow = np.random.choice(samples_below_cutoff, size=K1)
+            X = self.rvs(alpha=self.alpha,
+                         size=K2,
+                         lower_bound=self.lower_bound,
+                         upper_bound=self.upper_bound)
+            assert (len(X)+len(Xlow))==K
+
+            # fit random sample to a power law
+            alpha = self.max_likelihood(X, lower_bound=self.lower_bound, upper_bound=self.upper_bound)
+
+            # calculate ks stat from each fit
+            Xrange = np.arange(Xlow.min(), X.max()+1)
+            # calculate cdf for all values in X
+            cdf = self.cdf(alpha=alpha,
+                           lower_bound=self.lower_bound,
+                           upper_bound=self.upper_bound)(Xrange)*(1-fraction_below_cutoff)+fraction_below_cutoff
+            # calculate cdf for all samples below cutoff
+            toaddtocdf = np.cumsum(np.bincount(samples_below_cutoff, minlength=X.min())[Xrange[0]:self.lower_bound])
+            cdf[Xrange<self.lower_bound] += toaddtocdf/toaddtocdf[-1] * fraction_below_cutoff
+
+            # generate cdf for random realization
+            ecdf = np.cumsum(np.bincount(np.concatenate((Xlow,X)), minlength=X.max()+1)[Xrange[0]:])
+            ecdf = ecdf/ecdf[-1]
+            assert len(ecdf)==len(cdf), (len(cdf), len(ecdf))
 
         return np.abs(ecdf-cdf).max()
 
