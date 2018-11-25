@@ -357,6 +357,9 @@ class DiscretePowerLaw():
         Returns
         -------
         float
+            p-value
+        ndarray
+            Distribution of KS statistics used to measure p-value.
         """
         
         if n_cpus is None:
@@ -385,8 +388,9 @@ class DiscretePowerLaw():
         ----------
         K : int
             Sample size.
-        samples_below_cutoff : function, None
-            If provided, these are included as part of the random cdf (by bootstrap sampling) and in the model.
+        samples_below_cutoff : ndarray, None
+            If provided, these are included as part of the random cdf (by bootstrap sampling) and in the model
+            as specified in Clauset 2007.
 
         Returns
         -------
@@ -460,10 +464,12 @@ class DiscretePowerLaw():
         float
             KS statistic
         """
+
         ecdf = np.bincount(X, minlength=X.max()+1)[X.min():]
         cdf = self.cdf(alpha=self.alpha,
                        lower_bound=self.lower_bound,
                        upper_bound=self.upper_bound)(np.arange(X.min(), X.max()+1))
+        assert len(ecdf)==len(cdf)
 
         return np.abs(ecdf-cdf).max()
 #end DiscretePowerLaw
