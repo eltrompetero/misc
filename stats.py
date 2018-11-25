@@ -379,7 +379,6 @@ class DiscretePowerLaw():
             assert (samples_below_cutoff<X.min()).all()
             def f(args):
                 self.rng = np.random.RandomState()
-                print(self.rng.rand())
                 return self.ks_resample(*args)
 
             pool = Pool(n_cpus)
