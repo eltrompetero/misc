@@ -475,12 +475,12 @@ class DiscretePowerLaw():
             KS statistic
         """
 
-        ecdf = np.bincount(X, minlength=X.max()+1)[X.min():]
+        ecdf = np.cumsum(np.bincount(X, minlength=X.max()+1)[X.min():])
+        ecdf = ecdf/ecdf[-1]
         cdf = self.cdf(alpha=self.alpha,
                        lower_bound=self.lower_bound,
                        upper_bound=self.upper_bound)(np.arange(X.min(), X.max()+1))
         assert len(ecdf)==len(cdf)
-
         return np.abs(ecdf-cdf).max()
 #end DiscretePowerLaw
 
