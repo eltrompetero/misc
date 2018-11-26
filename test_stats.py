@@ -39,5 +39,9 @@ def test_normalization():
                                lower_bound=10,
                                upper_bound=1000)(X).sum()
     assert np.isclose(totalp, 1), totalp
-
-
+    
+    X=np.arange(10,100001)
+    totalp=DiscretePowerLaw.pdf(1.5,
+                               lower_bound=10,
+                               upper_bound=X.max())(X).sum()
+    assert np.isclose(totalp, 1), totalp

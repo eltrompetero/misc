@@ -139,7 +139,11 @@ class DiscretePowerLaw():
 
         if x1==np.inf:
             return lambda x,x0=x0,x1=x1,alpha=alpha: x**(1.*-alpha) / (zeta(alpha,x0)-zeta(alpha,x1+1))
-        Z=( np.arange(x0, x1+1)**(1.*-alpha) ).sum()
+        elif (x1-x0)<1e6:
+            Z = ( np.arange(x0, x1+1)**(1.*-alpha) ).sum()
+        else:
+            Z = zeta(alpha, x0) - zeta(alpha, x1+1)
+
         return lambda x,alpha=alpha: x**(1.*-alpha)/Z
 
     @classmethod
@@ -153,18 +157,34 @@ class DiscretePowerLaw():
 
     @classmethod
     def rvs(cls, alpha, size=(1,), lower_bound=None, upper_bound=None, rng=None):
+        """Sample from distribution."""
         x0=lower_bound or cls._default_lower_bound
         x1=upper_bound or cls._default_upper_bound
-        assert x1<np.inf,"Must define upper bound."
-        
+        assert type(size) is int or type(size) is tuple, "Size must be an int or tuple."
+        if not type(size) is tuple:
+            size = (size,)
         if rng is None:
-            return np.random.choice(range(x0,x1+1),
-                                    size=size,
-                                    p=cls.pdf(alpha,x0,x1)(np.arange(x0,x1+1)))
-        return rng.choice(range(x0,x1+1),
-                          size=size,
-                          p=cls.pdf(alpha,x0,x1)(np.arange(x0,x1+1)))
+            rng = np.random
 
+        if x1<np.inf:
+            return rng.choice(range(x0,x1+1),
+                              size=size,
+                              p=cls.pdf(alpha,x0,x1)(np.arange(x0,x1+1)))
+
+        # when upper bound is inf, use continuum approximation for tail
+        xRange = np.arange(x0, 1_000_001)
+        p = cls.pdf(alpha, x0, x1)(xRange)
+        # trim p by threshold
+        p = p[:len(p)-np.searchsorted(p[::-1], 1e-6)]
+        xRange = xRange[:len(p)]
+        assert p[-1]>1e-6, "Sampling is impossible for very heavy-tails."
+        ptail = 1-p.sum()
+
+        X = rng.choice(xRange, p=p/p.sum(), size=size)  # random sample
+        tailix = rng.rand(*size)<ptail
+        if tailix.any():
+            X[tailix] = PowerLaw.rvs(alpha=alpha, lower_bound=xRange[-1], size=int(tailix.sum()))
+        return X
 
     @classmethod
     def max_likelihood(cls, X,
@@ -176,18 +196,21 @@ class DiscretePowerLaw():
                        full_output=False,
                        n_cpus=None):
         """
-        Find the best fit power law exponent and min threshold for a discrete power law distribution. 
+        Find the best fit power law exponent and min threshold for a discrete power law distribution. Lower
+        bound is the one that gives the highest likelihood over the range specified.
 
         Parameters
         ----------
         X : ndarray
+            Data sample.
         initial_guess : float, 2.
             Guess for power law exponent alpha
         lower_bound_range : duple, None
-            If not None, then select the lower bound with max likelihood over the given range
-            (inclusive).
+            If not None, then select the lower bound with max likelihood over the given range (inclusive).
         lower_bound : int, 1
+            Lower cutoff inclusive.
         upper_bound : float, np.inf
+            Upper cutoff inclusive.
         minimize_kw : dict, {}
         full_output : bool, False
         n_cpus : int, None
@@ -391,7 +414,8 @@ class DiscretePowerLaw():
                                                      lower_bound_range,
                                                      samples_below_cutoff)
         else:
-            assert (samples_below_cutoff<X.min()).all()
+            if not samples_below_cutoff is None:
+                assert (samples_below_cutoff<X.min()).all()
             def f(args):
                 self.rng = np.random.RandomState()
                 return self.ks_resample(*args)
