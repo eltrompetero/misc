@@ -220,7 +220,9 @@ class DiscretePowerLaw():
 
         else:
             assert lower_bound_range[0]>0 and lower_bound_range[0]<(upper_bound-1)
-            lower_bound_range=np.arange(lower_bound_range[0], lower_bound_range[1]+1)
+            # lower bound cannot exceed the values of the elements of X, here's a not-very-well constrained
+            # range
+            lower_bound_range=np.arange(lower_bound_range[0], min(lower_bound_range[1]+1, X.max()+1))
 
             # set up pool to evaluate likelihood for entire range of lower bounds
             # calls cls.max_likelihood to find best alpha for the given lower bound
@@ -447,8 +449,6 @@ class DiscretePowerLaw():
             
             if K1==0:
                 return self.ks_resample(K, lower_bound_range)
-            # NOTE: not handling cases with K2==0
-            assert K2>0
 
             # generate random samples from best fit power law and include samples below cutoff
             X = np.concatenate((self.rng.choice(samples_below_cutoff, size=K1),
