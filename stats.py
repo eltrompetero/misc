@@ -222,7 +222,8 @@ class DiscretePowerLaw():
             assert lower_bound_range[0]>0 and lower_bound_range[0]<(upper_bound-1)
             # lower bound cannot exceed the values of the elements of X, here's a not-very-well constrained
             # range
-            lower_bound_range=np.arange(lower_bound_range[0], min(lower_bound_range[1]+1, X.max()+1))
+            lower_bound_range = np.arange(lower_bound_range[0], min(lower_bound_range[1]+1, X.max()+1),
+                                          dtype=int)
 
             # set up pool to evaluate likelihood for entire range of lower bounds
             # calls cls.max_likelihood to find best alpha for the given lower bound
