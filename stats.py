@@ -173,7 +173,8 @@ class DiscretePowerLaw():
                        lower_bound=1,
                        upper_bound=np.inf,
                        minimize_kw={},
-                       full_output=False):
+                       full_output=False,
+                       n_cpus=None):
         """
         Find the best fit power law exponent and min threshold for a discrete power law distribution. 
 
@@ -188,6 +189,8 @@ class DiscretePowerLaw():
         lower_bound : int, 1
         upper_bound : float, np.inf
         minimize_kw : dict, {}
+        full_output : bool, False
+        n_cpus : int, None
 
         Returns
         -------
@@ -232,10 +235,16 @@ class DiscretePowerLaw():
                                                   full_output=True)
                 # return normalized log likelihood
                 return alpha, soln['fun']/(X>=lower_bound).sum()
-
-            pool = Pool(cpu_count()-1)
-            alpha, negloglik = zip(*pool.map(solve_one_lower_bound, lower_bound_range))
-            pool.close()
+            
+            if n_cpus is None or n_cpus>1:
+                pool = Pool(cpu_count()-1)
+                alpha, negloglik = zip(*pool.map(solve_one_lower_bound, lower_bound_range))
+                pool.close()
+            else:
+                alpha = np.zeros(len(lower_bound_range))
+                negloglik = np.zeros(len(lower_bound_range))
+                for i,lb in enumerate(lower_bound_range):
+                    alpha[i], negloglik[i] = solve_one_lower_bound(lb)
             
             if full_output:
                 return (alpha[np.argmin(negloglik)],
@@ -337,7 +346,7 @@ class DiscretePowerLaw():
             return alpha, (upper_cutoff_range, m)
         return alpha
 
-    def clauset_test(self, X, ksstat,
+    def clauset_test(self, X, ksstat, lower_bound_range,
                      bootstrap_samples=1000,
                      samples_below_cutoff=None,
                      n_cpus=None):
@@ -352,6 +361,7 @@ class DiscretePowerLaw():
             Samples from the distribution.
         ksstat : float
             The max deviation from the empirical cdf of X given the model specified.
+        lower_bound_range : duple
         bootstrap_samples : int, 1000
             Number of times to bootstrap to calculate p-value.
         samples_below_cutoff : ndarray, None
@@ -371,9 +381,11 @@ class DiscretePowerLaw():
             n_cpus = cpu_count()-1
         
         if n_cpus<=1:
+            self.rng = np.random.RandomState()
             ksdistribution = np.zeros(bootstrap_samples)
             for i in range(bootstrap_samples):
                 ksdistribution[i] = self.ks_resample(len(X),
+                                                     lower_bound_range,
                                                      samples_below_cutoff)
         else:
             assert (samples_below_cutoff<X.min()).all()
@@ -383,12 +395,12 @@ class DiscretePowerLaw():
 
             pool = Pool(n_cpus)
             ksdistribution = np.array(pool.map( f,
-                                                [(len(X),samples_below_cutoff)]*bootstrap_samples ))
+                                [(len(X),lower_bound_range,samples_below_cutoff)]*bootstrap_samples ))
             pool.close()
 
         return (ksstat<=ksdistribution).mean(), ksdistribution
 
-    def ks_resample(self, K, samples_below_cutoff=None):
+    def ks_resample(self, K, lower_bound_range, samples_below_cutoff=None):
         """Generate a random sample from and fit to random distribution  given by specified power
         law model. This is used to generate a KS statistic.
         
@@ -396,6 +408,7 @@ class DiscretePowerLaw():
         ----------
         K : int
             Sample size.
+        lower_bound_range : duple
         samples_below_cutoff : ndarray, None
             If provided, these are included as part of the random cdf (by bootstrap sampling) and in the model
             as specified in Clauset 2007.
@@ -415,13 +428,16 @@ class DiscretePowerLaw():
                          rng=self.rng)
 
             # fit each random sample to a power law
-            alpha = self.max_likelihood(X, lower_bound=self.lower_bound, upper_bound=self.upper_bound)
-
+            alpha, lb = self.max_likelihood(X,
+                                            lower_bound_range=lower_bound_range,
+                                            upper_bound=self.upper_bound,
+                                            n_cpus=1)
+            
             # calculate ks stat from each fit
             cdf = self.cdf(alpha=alpha,
-                           lower_bound=self.lower_bound,
-                           upper_bound=self.upper_bound)(np.arange(X.min(), X.max()+1))
-            ecdf = np.cumsum(np.bincount(X, minlength=X.max()+1)[X.min():])
+                           lower_bound=lb,
+                           upper_bound=self.upper_bound)(np.arange(lb, X.max()+1))
+            ecdf = np.cumsum(np.bincount(X)[lb:])
             ecdf = ecdf/ecdf[-1]
 
         else:
@@ -430,34 +446,33 @@ class DiscretePowerLaw():
             K2 = K-K1
             
             if K1==0:
-                return self.ks_resample(K)
+                return self.ks_resample(K, lower_bound_range)
             # NOTE: not handling cases with K2==0
             assert K2>0
 
             # generate random samples from best fit power law and include samples below cutoff
-            Xlow = self.rng.choice(samples_below_cutoff, size=K1)
-            X = self.rvs(alpha=self.alpha,
-                         size=K2,
-                         lower_bound=self.lower_bound,
-                         upper_bound=self.upper_bound,
-                         rng=self.rng)
-            assert (len(X)+len(Xlow))==K
+            X = np.concatenate((self.rng.choice(samples_below_cutoff, size=K1),
+                                self.rvs(alpha=self.alpha,
+                                         size=K2,
+                                         lower_bound=self.lower_bound,
+                                         upper_bound=self.upper_bound,
+                                         rng=self.rng)))
 
             # fit random sample to a power law
-            alpha = self.max_likelihood(X, lower_bound=self.lower_bound, upper_bound=self.upper_bound)
+            alpha, lb = self.max_likelihood(X,
+                                            lower_bound_range=lower_bound_range,
+                                            upper_bound=self.upper_bound,
+                                            n_cpus=1)
 
             # calculate ks stat from each fit
-            Xrange = np.arange(Xlow.min(), X.max()+1)
-            # calculate cdf for all values in X
+            Xrange = np.arange(lb, X.max()+1)
+            # calculate cdf for all values in Xrange
             cdf = self.cdf(alpha=alpha,
-                           lower_bound=self.lower_bound,
-                           upper_bound=self.upper_bound)(Xrange)*(1-fraction_below_cutoff)+fraction_below_cutoff
-            # calculate cdf for all samples below cutoff
-            toaddtocdf = np.cumsum(np.bincount(samples_below_cutoff, minlength=X.min())[Xrange[0]:self.lower_bound])
-            cdf[Xrange<self.lower_bound] += toaddtocdf/toaddtocdf[-1] * fraction_below_cutoff
+                           lower_bound=lb,
+                           upper_bound=self.upper_bound)(Xrange)
 
             # generate cdf for random realization
-            ecdf = np.cumsum(np.bincount(np.concatenate((Xlow,X)), minlength=X.max()+1)[Xrange[0]:])
+            ecdf = np.cumsum(np.bincount(X[X>=lb]))[lb:]
             ecdf = ecdf/ecdf[-1]
 
         assert len(ecdf)==len(cdf)
