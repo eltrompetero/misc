@@ -235,7 +235,7 @@ class DiscretePowerLaw():
             def f(alpha):
                 return -cls.log_likelihood(X, alpha, lower_bound, upper_bound, normalize=True)
             
-            soln = minimize(f, initial_guess, bounds=[(1+1e-10,np.inf)], **minimize_kw)
+            soln = minimize(f, initial_guess, bounds=[(1+1e-10,10)], tol=1e-4, **minimize_kw)
             if full_output:
                 return soln['x'], soln
             return soln['x']
@@ -297,11 +297,14 @@ class DiscretePowerLaw():
         log_likelihood : ndarray
         """
         from scipy.special import zeta
+        assert lower_bound<upper_bound
         assert ((X>=lower_bound) & (X<=upper_bound)).all()
+
         if not normalize:
             if return_sum:
                 return -alpha*np.log(X).sum()
             return -alpha*np.log(X).sum()
+
         if return_sum:
             return ( -alpha*np.log(X) - np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))).sum()
         return -alpha*np.log(X) - np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))
@@ -364,7 +367,16 @@ class DiscretePowerLaw():
         
         m = np.zeros(len(upper_cutoff_range))
         for i,cut in enumerate(upper_cutoff_range):
-            m[i] = X[X<=cut].mean()
+            ix = X<=cut
+            if ix.any():
+                m[i] = X[ix].mean()
+            else:
+                m[i] = np.nan
+
+        if np.isnan(m).any():
+            if full_output:
+                return np.nan, (upper_cutoff_range, m)
+            return np.nan
 
         alpha = -loglog_fit(upper_cutoff_range, m)[0] + 2
         if full_output:
