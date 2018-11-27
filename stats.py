@@ -233,10 +233,9 @@ class DiscretePowerLaw():
             assert ((X>=lower_bound)&(X<=upper_bound)).all(), msg
 
             def f(alpha):
-                if alpha<=1: return 1e30
                 return -cls.log_likelihood(X, alpha, lower_bound, upper_bound, normalize=True)
-
-            soln=minimize(f, initial_guess, **minimize_kw)
+            
+            soln = minimize(f, initial_guess, bounds=[(1+1e-10,np.inf)], **minimize_kw)
             if full_output:
                 return soln['x'], soln
             return soln['x']
@@ -485,7 +484,7 @@ class DiscretePowerLaw():
 
             # fit random sample to a power law
             alpha, lb = self.max_likelihood(X,
-                                            lower_bound_range=lower_bound_range,
+                                            lower_bound_range=(X.min(),lower_bound_range[1]),
                                             upper_bound=self.upper_bound,
                                             n_cpus=1)
 
