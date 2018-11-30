@@ -132,28 +132,85 @@ class DiscretePowerLaw():
         self.rng = rng
 
     @classmethod
-    def pdf(cls, alpha, lower_bound=None, upper_bound=None):
+    def pdf(cls, alpha, lower_bound=None, upper_bound=None, normalize=True):
         """Return PDF function."""
         x0=lower_bound or cls._default_lower_bound
         x1=upper_bound or cls._default_upper_bound
+        
+        if normalize:
+            if x1==np.inf:
+                return lambda x,x0=x0,x1=x1,alpha=alpha: x**(1.*-alpha) / (zeta(alpha,x0)-zeta(alpha,x1+1))
+            elif (x1-x0)<1e6:
+                Z = ( np.arange(x0, x1+1)**(1.*-alpha) ).sum()
+            else:
+                Z = zeta(alpha, x0) - zeta(alpha, x1+1)
+
+            return lambda x,alpha=alpha: x**(1.*-alpha)/Z
+
+        return lambda x,x0=x0,x1=x1,alpha=alpha: x**(1.*-alpha)
+
+    @classmethod
+    def Z(cls, alpha, lower_bound, upper_bound):
+        """Return normalization."""
+        x0=lower_bound
+        x1=upper_bound
 
         if x1==np.inf:
-            return lambda x,x0=x0,x1=x1,alpha=alpha: x**(1.*-alpha) / (zeta(alpha,x0)-zeta(alpha,x1+1))
+            return zeta(alpha,x0)-zeta(alpha,x1+1)
         elif (x1-x0)<1e6:
-            Z = ( np.arange(x0, x1+1)**(1.*-alpha) ).sum()
+            return ( np.arange(x0, x1+1)**(1.*-alpha) ).sum()
         else:
-            Z = zeta(alpha, x0) - zeta(alpha, x1+1)
+            return zeta(alpha, x0) - zeta(alpha, x1+1)
 
-        return lambda x,alpha=alpha: x**(1.*-alpha)/Z
+    @classmethod
+    def pdf_as_generator(cls, alpha, lower_bound=None, upper_bound=None, normalize=True):
+        """Return PDF generator."""
+        x0=lower_bound or cls._default_lower_bound
+        x1=upper_bound or cls._default_upper_bound
+        
+        if normalize:
+            if x1==np.inf:
+                return lambda x,x0=x0,x1=x1,alpha=alpha: x**(1.*-alpha) / (zeta(alpha,x0)-zeta(alpha,x1+1))
+            elif (x1-x0)<1e6:
+                Z = ( np.arange(x0, x1+1)**(1.*-alpha) ).sum()
+            else:
+                Z = zeta(alpha, x0) - zeta(alpha, x1+1)
+            
+            x = x0
+            while x<=x1:
+                yield x**(1.*-alpha)/Z
+                x += 1
+        else:
+            x = x0 
+            while x<=x1:
+                yield x**(1.*-alpha)
+                x += 1
 
+        while True:
+            yield 0.
+
+    @classmethod
+    def cdf_as_generator(cls, alpha, lower_bound=None, upper_bound=None):
+        """Return CDF generator."""
+        x0=lower_bound or cls._default_lower_bound
+        x1=upper_bound or cls._default_upper_bound
+        
+        pdf = cls.pdf_as_generator(alpha, x0, x1)
+        cump = 0
+        while True:
+            cump += next(pdf)
+            yield cump
+        
     @classmethod
     def cdf(cls, alpha, lower_bound=None, upper_bound=None):
         """Return CDF function."""
         x0=lower_bound or cls._default_lower_bound
         x1=upper_bound or cls._default_upper_bound
         
-        pdf=cls.pdf(alpha, x0, x1)
-        return np.vectorize(lambda x,x0=x0,x1=x1: pdf(np.arange(x0, int(x)+1)).sum())
+        pdf = cls.pdf(alpha, x0, x1, normalize=False)
+        Z = cls.Z(alpha, x0, x1)
+        _pdf = lambda x,x0=x0,x1=x1,Z=Z: pdf(np.arange(x0, int(x)+1)).sum()/Z
+        return np.vectorize(_pdf)
 
     @classmethod
     def rvs(cls, alpha, size=(1,), lower_bound=None, upper_bound=None, rng=None):
@@ -241,7 +298,8 @@ class DiscretePowerLaw():
             return soln['x']
 
         else:
-            assert lower_bound_range[0]>0 and lower_bound_range[0]<(upper_bound-1)
+            assert lower_bound_range[0]>0
+            assert lower_bound_range[0]<(upper_bound-1)
             # lower bound cannot exceed the values of the elements of X, here's a not-very-well constrained
             # range
             lower_bound_range = np.arange(lower_bound_range[0], min(lower_bound_range[1]+1, X.max()+1),
@@ -515,7 +573,8 @@ class DiscretePowerLaw():
         return np.abs(ecdf-cdf).max()
 
     def ksval(self, X):
-        """Build CDF from given data and compare with model.
+        """Build CDF from given data and compare with model. Return largest distance between the empirical and
+        model CDFs (the Kolmogorov-Smirnov statistic for discrete data).
 
         Parameters
         ----------
@@ -524,11 +583,13 @@ class DiscretePowerLaw():
         Returns
         -------
         float
-            KS statistic
+            KS statistic for a discrete distribution.
         """
-
+        
+        print("calculateing ksval")
         ecdf = np.cumsum(np.bincount(X, minlength=X.max()+1)[X.min():])
         ecdf = ecdf/ecdf[-1]
+        print("starting to calculate cdf")
         cdf = self.cdf(alpha=self.alpha,
                        lower_bound=self.lower_bound,
                        upper_bound=self.upper_bound)(np.arange(X.min(), X.max()+1))
