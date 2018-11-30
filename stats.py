@@ -530,9 +530,10 @@ class DiscretePowerLaw():
                                             n_cpus=1)
             
             # calculate ks stat from each fit
-            cdf = self.cdf(alpha=alpha,
-                           lower_bound=lb,
-                           upper_bound=self.upper_bound)(np.arange(lb, X.max()+1))
+            cdfgen = self.cdf_as_generator(alpha=alpha,
+                                          lower_bound=lb,
+                                          upper_bound=self.upper_bound)
+            cdf = [next(cdfgen) for i in range(lb, X.max()+1)]
             ecdf = np.cumsum(np.bincount(X)[lb:])
             ecdf = ecdf/ecdf[-1]
 
@@ -561,9 +562,10 @@ class DiscretePowerLaw():
             # calculate ks stat from each fit
             Xrange = np.arange(lb, X.max()+1)
             # calculate cdf for all values in Xrange
-            cdf = self.cdf(alpha=alpha,
-                           lower_bound=lb,
-                           upper_bound=self.upper_bound)(Xrange)
+            cdfgen = self.cdf_as_generator(alpha=alpha,
+                                           lower_bound=lb,
+                                           upper_bound=self.upper_bound)
+            cdf = [next(cdfgen) for i in Xrange]
 
             # generate cdf for random realization
             ecdf = np.cumsum(np.bincount(X[X>=lb]))[lb:]
@@ -586,13 +588,12 @@ class DiscretePowerLaw():
             KS statistic for a discrete distribution.
         """
         
-        print("calculateing ksval")
         ecdf = np.cumsum(np.bincount(X, minlength=X.max()+1)[X.min():])
         ecdf = ecdf/ecdf[-1]
-        print("starting to calculate cdf")
-        cdf = self.cdf(alpha=self.alpha,
-                       lower_bound=self.lower_bound,
-                       upper_bound=self.upper_bound)(np.arange(X.min(), X.max()+1))
+        cdfgen = self.cdf_as_generator(alpha=self.alpha,
+                                       lower_bound=self.lower_bound,
+                                       upper_bound=self.upper_bound)
+        cdf = [next(cdfgen) for i in range(X.min(), X.max()+1)]
         assert len(ecdf)==len(cdf)
         return np.abs(ecdf-cdf).max()
 #end DiscretePowerLaw
