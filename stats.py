@@ -846,7 +846,7 @@ class PowerLaw():
             def cost(alpha):
                 return -cls.log_likelihood(x, alpha, lower_bound, upper_bound, True)
 
-            soln=minimize(cost, cls._default_alpha, bounds=[(1+1e-10,np.inf)])
+            soln=minimize(cost, cls._default_alpha, bounds=[(1+1e-10,10)])
             if full_output:
                 return soln['x'], soln
             return soln['x']
@@ -868,7 +868,7 @@ class PowerLaw():
                                        True)/(x>=lower_bound).sum()
 
         soln = minimize(cost, initial_guess,
-                        bounds=[(1+1e-10,np.inf),lower_bound_range])
+                        bounds=[(1+1e-10,10),lower_bound_range])
         if full_output:
             return soln['x'], soln
         return soln['x']
