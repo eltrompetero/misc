@@ -223,15 +223,15 @@ class DiscretePowerLaw():
         if rng is None:
             rng = np.random
 
-        if x1<np.inf:
-            return rng.choice(range(x0,x1+1),
+        if x1<=1e6:
+            return rng.choice(range(x0,int(x1)+1),
                               size=size,
                               p=cls.pdf(alpha,x0,x1)(np.arange(x0,x1+1)))
-
-        # when upper bound is inf, use continuum approximation for tail
+        
+        # when upper bound is large, use continuum approximation for tail
         xRange = np.arange(x0, 1_000_001)
         p = cls.pdf(alpha, x0, x1)(xRange)
-        # trim p by threshold
+        # only consider discretely p larger than some threshold
         p = p[:len(p)-np.searchsorted(p[::-1], 1e-6)]
         xRange = xRange[:len(p)]
         assert p[-1]>1e-6, "Sampling is impossible for very heavy-tails."
@@ -240,7 +240,10 @@ class DiscretePowerLaw():
         X = rng.choice(xRange, p=p/p.sum(), size=size)  # random sample
         tailix = rng.rand(*size)<ptail
         if tailix.any():
-            X[tailix] = PowerLaw.rvs(alpha=alpha, lower_bound=xRange[-1], size=int(tailix.sum()))
+            X[tailix] = PowerLaw.rvs(alpha=alpha, lower_bound=xRange[-1], upper_bound=x1, size=int(tailix.sum()))
+
+        if (X<0).any():
+            print("Some samples exceeded range for int.")
         return X
 
     @classmethod
