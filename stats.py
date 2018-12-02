@@ -204,13 +204,20 @@ class DiscretePowerLaw():
     @classmethod
     def cdf(cls, alpha, lower_bound=None, upper_bound=None):
         """Return CDF function."""
-        x0=lower_bound or cls._default_lower_bound
-        x1=upper_bound or cls._default_upper_bound
+        x0 = lower_bound or cls._default_lower_bound
+        x1 = upper_bound or cls._default_upper_bound
         
-        pdf = cls.pdf(alpha, x0, x1, normalize=False)
-        Z = cls.Z(alpha, x0, x1)
-        _pdf = lambda x,x0=x0,x1=x1,Z=Z: pdf(np.arange(x0, int(x)+1)).sum()/Z
-        return np.vectorize(_pdf)
+        if x1==np.inf:
+            Z = zeta(alpha, x0)
+        else:
+            Z = zeta(alpha, x0) - zeta(alpha, x1+1)
+        
+        z0 = zeta(alpha, x0)
+        def cdf(x, x1=x1, alpha=alpha, z0=z0, Z=Z):
+            if not all(x<=x1):
+                raise Exception
+            return (z0 - zeta(alpha,x+1))/Z
+        return cdf
 
     @classmethod
     def rvs(cls, alpha, size=(1,), lower_bound=None, upper_bound=None, rng=None):

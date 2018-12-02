@@ -1,4 +1,5 @@
 from .stats import *
+ALPHA=1.5
 
 
 def test_normalization():
@@ -45,3 +46,12 @@ def test_normalization():
                                lower_bound=10,
                                upper_bound=X.max())(X).sum()
     assert np.isclose(totalp, 1), totalp
+
+def test_cdf_with_pdf():
+    x = np.array(list(range(1,501)))
+    cdfFromPdf = np.cumsum(DiscretePowerLaw.pdf(alpha=ALPHA, lower_bound=1, upper_bound=500)(x))
+    cdf = DiscretePowerLaw.cdf(alpha=ALPHA, lower_bound=1, upper_bound=500)(x)
+    cdfFromGen = [i for i in DiscretePowerLaw.cdf_as_generator(alpha=ALPHA, lower_bound=1, upper_bound=500)]
+    assert np.isclose(cdfFromPdf, cdf).all()
+    assert np.isclose(cdfFromPdf, cdfFromGen).all()
+
