@@ -169,12 +169,7 @@ class DiscretePowerLaw():
         x1=upper_bound or cls._default_upper_bound
         
         if normalize:
-            if x1==np.inf:
-                return lambda x,x0=x0,x1=x1,alpha=alpha: x**(1.*-alpha) / (zeta(alpha,x0)-zeta(alpha,x1+1))
-            elif (x1-x0)<1e6:
-                Z = ( np.arange(x0, x1+1)**(1.*-alpha) ).sum()
-            else:
-                Z = zeta(alpha, x0) - zeta(alpha, x1+1)
+            Z = zeta(alpha, x0) - zeta(alpha, x1+1)
             
             x = x0
             while x<=x1:

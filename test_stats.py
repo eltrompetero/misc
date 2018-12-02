@@ -51,7 +51,8 @@ def test_cdf_with_pdf():
     x = np.array(list(range(1,501)))
     cdfFromPdf = np.cumsum(DiscretePowerLaw.pdf(alpha=ALPHA, lower_bound=1, upper_bound=500)(x))
     cdf = DiscretePowerLaw.cdf(alpha=ALPHA, lower_bound=1, upper_bound=500)(x)
-    cdfFromGen = [i for i in DiscretePowerLaw.cdf_as_generator(alpha=ALPHA, lower_bound=1, upper_bound=500)]
+    gen = DiscretePowerLaw.cdf_as_generator(alpha=ALPHA, lower_bound=1, upper_bound=500)
+    cdfFromGen = [next(gen) for i in x]
+
     assert np.isclose(cdfFromPdf, cdf).all()
     assert np.isclose(cdfFromPdf, cdfFromGen).all()
-
