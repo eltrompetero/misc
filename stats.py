@@ -297,7 +297,7 @@ class DiscretePowerLaw():
 
             logXsum = np.log(X).sum()
             def f(alpha):
-                return alpha*logXsum + np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))
+                return alpha*logXsum + len(X)*np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))
                 #return -cls._log_likelihood(X, alpha, lower_bound, upper_bound)
             
             soln = minimize(f, initial_guess, bounds=[(1+1e-10,7)], tol=1e-3, **minimize_kw)
@@ -372,7 +372,8 @@ class DiscretePowerLaw():
             return -alpha*np.log(X).sum()
 
         if return_sum:
-            return -alpha*np.log(X).sum() - np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))
+            return ( -alpha*np.log(X).sum() -
+                      np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))*len(X) )
         return -alpha*np.log(X) - np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))
 
     @staticmethod
@@ -392,7 +393,7 @@ class DiscretePowerLaw():
             Log likelihood.
         """
 
-        return -alpha * np.log(X).sum() - np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))
+        return -alpha * np.log(X).sum() - np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))*len(X)
 
     @classmethod
     def alpha_range(cls, x, alpha, dL, lower_bound=None, upper_bound=np.inf):

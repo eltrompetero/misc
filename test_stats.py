@@ -47,6 +47,21 @@ def test_normalization():
                                upper_bound=X.max())(X).sum()
     assert np.isclose(totalp, 1), totalp
 
+    # log likelihood: compare pdf calculation with log_likelihood and _log_likelihood
+    logp=np.log( DiscretePowerLaw.pdf(1.5,
+                                      lower_bound=10,
+                                      upper_bound=X.max())(X) )
+    logL=DiscretePowerLaw.log_likelihood(X, 1.5,
+                                         lower_bound=10,
+                                         upper_bound=X.max(),
+                                         normalize=True,
+                                         return_sum=False)
+    logLquick=DiscretePowerLaw._log_likelihood(X, 1.5,
+                                         10,
+                                         X.max())
+    assert np.isclose(logp, logL).all()
+    assert np.isclose(logLquick, logL.sum())
+
 def test_cdf_with_pdf():
     x = np.array(list(range(1,501)))
     cdfFromPdf = np.cumsum(DiscretePowerLaw.pdf(alpha=ALPHA, lower_bound=1, upper_bound=500)(x))
