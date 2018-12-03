@@ -559,71 +559,60 @@ class DiscretePowerLaw():
                                             n_cpus=1)
             
             # calculate ks stat from each fit
-            cdfgen = self.cdf_as_generator(alpha=alpha,
-                                           lower_bound=lb,
-                                           upper_bound=self.upper_bound)
-            cdf = [next(cdfgen) for i in range(lb, X.max()+1)]
-            ecdf = np.cumsum(np.bincount(X)[lb:])
-            ecdf = ecdf/ecdf[-1]
-
-        else:
-            fraction_below_cutoff = len(samples_below_cutoff)/(len(samples_below_cutoff)+K)
-            K1 = self.rng.binomial(K, fraction_below_cutoff)
-            K2 = K-K1
+            return self.ksval(X, alpha, lb, self.upper_bound)
             
-            if K1==0:
-                return self.ks_resample(K, lower_bound_range)
+        fraction_below_cutoff = len(samples_below_cutoff)/(len(samples_below_cutoff)+K)
+        K1 = self.rng.binomial(K, fraction_below_cutoff)
+        K2 = K-K1
+        
+        if K1==0:
+            return self.ks_resample(K, lower_bound_range)
 
-            # generate random samples from best fit power law and include samples below cutoff
-            X = np.concatenate((self.rng.choice(samples_below_cutoff, size=K1),
-                                self.rvs(alpha=self.alpha,
-                                         size=K2,
-                                         lower_bound=self.lower_bound,
-                                         upper_bound=self.upper_bound,
-                                         rng=self.rng)))
+        # generate random samples from best fit power law and include samples below cutoff to repeat
+        # entire sampling process
+        X = np.concatenate((self.rng.choice(samples_below_cutoff, size=K1),
+                            self.rvs(alpha=self.alpha,
+                                     size=K2,
+                                     lower_bound=self.lower_bound,
+                                     upper_bound=self.upper_bound,
+                                     rng=self.rng)))
 
-            # fit random sample to a power law
-            alpha, lb = self.max_likelihood(X,
-                                            lower_bound_range=(X.min(),lower_bound_range[1]),
-                                            upper_bound=self.upper_bound,
-                                            initial_guess=self.alpha,
-                                            n_cpus=1)
+        # fit random sample to a power law
+        alpha, lb = self.max_likelihood(X,
+                                        lower_bound_range=(X.min(),lower_bound_range[1]),
+                                        upper_bound=self.upper_bound,
+                                        initial_guess=self.alpha,
+                                        n_cpus=1)
 
-            # calculate ks stat from each fit
-            Xrange = np.arange(lb, X.max()+1)
-            # calculate cdf for all values in Xrange
-            cdfgen = self.cdf_as_generator(alpha=alpha,
-                                           lower_bound=lb,
-                                           upper_bound=self.upper_bound)
-            cdf = [next(cdfgen) for i in Xrange]
+        # calculate ks stat from each fit
+        return self.ksval(X[X>=lb], alpha, lb, self.upper_bound)
 
-            # generate cdf for random realization
-            ecdf = np.cumsum(np.bincount(X[X>=lb]))[lb:]
-            ecdf = ecdf/ecdf[-1]
-
-        assert len(ecdf)==len(cdf)
-        return np.abs(ecdf-cdf).max()
-
-    def ksval(self, X):
+    def ksval(self, X, alpha=None, lower_bound=None, upper_bound=None):
         """Build CDF from given data and compare with model. Return largest distance between the empirical and
         model CDFs (the Kolmogorov-Smirnov statistic for discrete data).
 
         Parameters
         ----------
         X : ndarray
+        alpha : float, None
+        lower_bound : int, None
+        upper_bound : int, None
 
         Returns
         -------
         float
             KS statistic for a discrete distribution.
         """
+
+        alpha = alpha or self.alpha
+        lower_bound = lower_bound or self.lower_bound
+        upper_bound = upper_bound or self.upper_bound
         
         ecdf = np.cumsum(np.bincount(X, minlength=X.max()+1)[X.min():])
         ecdf = ecdf/ecdf[-1]
-        cdfgen = self.cdf_as_generator(alpha=self.alpha,
-                                       lower_bound=self.lower_bound,
-                                       upper_bound=self.upper_bound)
-        cdf = [next(cdfgen) for i in range(X.min(), X.max()+1)]
+        cdf = self.cdf(alpha=alpha,
+                       lower_bound=lower_bound,
+                       upper_bound=upper_bound)(np.arange(X.min(), X.max()+1))
         assert len(ecdf)==len(cdf)
         return np.abs(ecdf-cdf).max()
 #end DiscretePowerLaw
@@ -774,7 +763,7 @@ class ExpTruncDiscretePowerLaw(DiscretePowerLaw):
 #end ExpTruncDiscretePowerLaw
 
 
-class PowerLaw():
+class PowerLaw(DiscretePowerLaw):
     """With upper and lower bounds."""
     _default_alpha=2.
     _default_lower_bound=1.
@@ -786,7 +775,11 @@ class PowerLaw():
         self.upper_bound=upper_bound
 
     @classmethod
-    def rvs(cls,alpha=None,lower_bound=None,upper_bound=None,size=(1,)):
+    def rvs(cls, alpha=None,
+            lower_bound=None,
+            upper_bound=None,
+            size=(1,),
+            rng=None):
         """
         Parameters
         ----------
@@ -794,12 +787,14 @@ class PowerLaw():
         lower_bound : float,None
         upper_bound : float,None
         size : tuple,(1,)
+        rng : numpy.random.RandomState
 
         Returns
         -------
         X : ndarray
             Sample of dimensions size.
         """
+
         # Input checking.
         if alpha is None:
             alpha=cls._default_alpha
@@ -810,6 +805,7 @@ class PowerLaw():
             size=(size,)
         assert all([type(s) is int for s in size])
         alpha*=1.
+        rng = rng or np.random
 
         if upper_bound is None:
             if 'self.upper_bound' in vars():
@@ -824,7 +820,7 @@ class PowerLaw():
 
 
         return ( lower_bound**(1-alpha)-(lower_bound**(1-alpha) -
-                 upper_bound**(1-alpha))*np.random.rand(*size) )**(1/(1-alpha))
+                 upper_bound**(1-alpha))*rng.rand(*size) )**(1/(1-alpha))
     
     @classmethod
     def cdf(cls, alpha=None, lower_bound=None, upper_bound=None):
@@ -842,7 +838,8 @@ class PowerLaw():
                        upper_bound=None,
                        lower_bound_range=None,
                        initial_guess=None,
-                       full_output=False):
+                       full_output=False,
+                       n_cpus=None):
         """
         Parameters
         ----------
@@ -852,6 +849,8 @@ class PowerLaw():
         lower_bound_range : duple, None
         initial_guess : tuple, None
         full_output : bool, False
+        n_cpus : None
+            Dummy argument to standardize input across classes.
 
         Returns
         -------
@@ -875,7 +874,7 @@ class PowerLaw():
             def cost(alpha):
                 return -cls.log_likelihood(x, alpha, lower_bound, upper_bound, True)
 
-            soln=minimize(cost, cls._default_alpha, bounds=[(1+1e-10,10)])
+            soln=minimize(cost, cls._default_alpha, bounds=[(1+1e-10,7)])
             if full_output:
                 return soln['x'], soln
             return soln['x']
@@ -887,7 +886,11 @@ class PowerLaw():
             assert (x<=upper_bound).all()
         if initial_guess is None:
             initial_guess = (cls._default_alpha, cls._default_lower_bound)
-
+        if hasattr(initial_guess, '__len__'): 
+            assert len(initial_guess)==2
+        else:
+            initial_guess = (initial_guess, x.min())
+        
         def cost(args):
             alpha, lower_bound = args
             return -cls.log_likelihood(x[x>=lower_bound],
@@ -897,7 +900,7 @@ class PowerLaw():
                                        True)/(x>=lower_bound).sum()
 
         soln = minimize(cost, initial_guess,
-                        bounds=[(1+1e-10,10),lower_bound_range])
+                        bounds=[(1+1e-10,7),lower_bound_range])
         if full_output:
             return soln['x'], soln
         return soln['x']
@@ -974,41 +977,34 @@ class PowerLaw():
             return alpha, (upper_cutoff_range, m)
         return alpha
 
-    @classmethod
-    def clauset_test(cls, X, ksstat, alpha, lower_bound,
-                     upper_bound=np.inf,
-                     boostrap_samples=1000,
-                     sample_below_cutoff=None):
-        """
-        Run bootstrapped test for significance of the max deviation from a power law fit to the
-        sample distribution X. If there is a non-power law region part of the distribution, you need
-        to define the sample_below_cutoff kwarg to draw samples from that part of the distribution.
+    def ksval(self, X, alpha=None, lower_bound=None, upper_bound=None):
+        """Build CDF from given data and compare with model. Return largest distance between the empirical and
+        model CDFs (the Kolmogorov-Smirnov statistic for discrete data).
 
         Parameters
         ----------
         X : ndarray
-            Samples from the distribution.
-        ksstat : float
-            The max deviation from the empirical cdf of X given the model specified.
-        alpha : float
-        lower_bound : float
-        upper_bound : float, np.inf
-        bootstrap_samples : int, 1000
-        sample_below_cutoff : function, None
-            Pass integer number of samples n and return n samples.
+        alpha : float, None
+        lower_bound : int, None
+        upper_bound : int, None
 
         Returns
         -------
         float
+            KS statistic for a discrete distribution.
         """
+
+        alpha = alpha or self.alpha
+        lower_bound = lower_bound or self.lower_bound
+        upper_bound = upper_bound or self.upper_bound
         
-        # generate random samples from best fit power law
-
-        # fit each random sample to a power law
-
-        # calculate ks stat from each fit
-
-        return
+        uniqX, ecdf = np.unique(X, return_counts=True)
+        ecdf = np.cumsum(ecdf)/len(X)
+        cdf = self.cdf(alpha=alpha,
+                       lower_bound=lower_bound,
+                       upper_bound=upper_bound)(uniqX)
+        assert len(ecdf)==len(cdf)
+        return np.abs(ecdf-cdf).max()
 #end PowerLaw
 
 
