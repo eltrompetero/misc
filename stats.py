@@ -5,6 +5,7 @@ import numpy as np
 from numpy import fft
 from scipy.optimize import minimize
 from scipy.special import zeta
+from mpmath import zeta as mpzeta
 from multiprocess import Pool,cpu_count
 
 
@@ -294,10 +295,12 @@ class DiscretePowerLaw():
             msg = "All elements must be within bounds. Given array includes range (%d, %d)."%(X.min(),X.max())
             assert ((X>=lower_bound)&(X<=upper_bound)).all(), msg
 
+            logXsum = np.log(X).sum()
             def f(alpha):
-                return -cls.log_likelihood(X, alpha, lower_bound, upper_bound, normalize=True)
+                return alpha*logXsum + np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))
+                #return -cls._log_likelihood(X, alpha, lower_bound, upper_bound)
             
-            soln = minimize(f, initial_guess, bounds=[(1+1e-10,10)], tol=1e-4, **minimize_kw)
+            soln = minimize(f, initial_guess, bounds=[(1+1e-10,7)], tol=1e-3, **minimize_kw)
             if full_output:
                 return soln['x'], soln
             return soln['x']
@@ -359,7 +362,6 @@ class DiscretePowerLaw():
         -------
         log_likelihood : ndarray
         """
-        from scipy.special import zeta
         assert lower_bound<upper_bound
         assert ((X>=lower_bound) & (X<=upper_bound)).all()
 
@@ -371,6 +373,25 @@ class DiscretePowerLaw():
         if return_sum:
             return ( -alpha*np.log(X) - np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))).sum()
         return -alpha*np.log(X) - np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))
+
+    @staticmethod
+    def _log_likelihood(X, alpha, lower_bound, upper_bound):
+        """Faster log likelihood.
+
+        Parameters
+        ----------
+        X : ndarray
+        alpha : float
+        lower_bound : int, 1
+        upper_bound : int, np.inf
+
+        Returns
+        -------
+        float
+            Log likelihood.
+        """
+
+        return -alpha * np.log(X).sum() - np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))
 
     @classmethod
     def alpha_range(cls, x, alpha, dL, lower_bound=None, upper_bound=np.inf):
@@ -532,12 +553,13 @@ class DiscretePowerLaw():
             alpha, lb = self.max_likelihood(X,
                                             lower_bound_range=lower_bound_range,
                                             upper_bound=self.upper_bound,
+                                            initial_guess=self.alpha,
                                             n_cpus=1)
             
             # calculate ks stat from each fit
             cdfgen = self.cdf_as_generator(alpha=alpha,
-                                          lower_bound=lb,
-                                          upper_bound=self.upper_bound)
+                                           lower_bound=lb,
+                                           upper_bound=self.upper_bound)
             cdf = [next(cdfgen) for i in range(lb, X.max()+1)]
             ecdf = np.cumsum(np.bincount(X)[lb:])
             ecdf = ecdf/ecdf[-1]
@@ -562,6 +584,7 @@ class DiscretePowerLaw():
             alpha, lb = self.max_likelihood(X,
                                             lower_bound_range=(X.min(),lower_bound_range[1]),
                                             upper_bound=self.upper_bound,
+                                            initial_guess=self.alpha,
                                             n_cpus=1)
 
             # calculate ks stat from each fit
@@ -734,7 +757,6 @@ class ExpTruncDiscretePowerLaw(DiscretePowerLaw):
         log_likelihood : ndarray
         """
 
-        from scipy.special import zeta
         from mpmath import polylog
         assert ((X>=lower_bound) & (X<=upper_bound)).all()
         assert el>1e-8, "Precision errors occur when el is too small."
