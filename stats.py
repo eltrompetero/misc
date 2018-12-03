@@ -874,7 +874,7 @@ class PowerLaw(DiscretePowerLaw):
             def cost(alpha):
                 return -cls.log_likelihood(x, alpha, lower_bound, upper_bound, True)
 
-            soln=minimize(cost, cls._default_alpha, bounds=[(1+1e-10,7)])
+            soln = minimize(cost, cls._default_alpha, bounds=[(1+1e-10,7)])
             if full_output:
                 return soln['x'], soln
             return soln['x']
@@ -884,14 +884,18 @@ class PowerLaw(DiscretePowerLaw):
             upper_bound = np.inf
         else:
             assert (x<=upper_bound).all()
+        if lower_bound_range[-1]>=x.max():
+            lower_bound_range = (lower_bound_range[0], x.max()/2)
+ 
         if initial_guess is None:
             initial_guess = (cls._default_alpha, cls._default_lower_bound)
         if hasattr(initial_guess, '__len__'): 
             assert len(initial_guess)==2
         else:
-            initial_guess = (initial_guess, x.min()*2)
+            initial_guess = (initial_guess, min( x.min()*2, np.sqrt(x.max()*x.min()) ))
         assert initial_guess[-1]<upper_bound
-        
+
+       
         def cost(args):
             alpha, lower_bound = args
             return -cls.log_likelihood(x[x>=lower_bound],
@@ -899,7 +903,7 @@ class PowerLaw(DiscretePowerLaw):
                                        lower_bound,
                                        upper_bound,
                                        True)/(x>=lower_bound).sum()
-
+        
         soln = minimize(cost, initial_guess,
                         bounds=[(1+1e-10,7),lower_bound_range])
         if full_output:
@@ -908,7 +912,7 @@ class PowerLaw(DiscretePowerLaw):
 
     @classmethod
     def log_likelihood(cls, x, alpha, lower_bound, upper_bound=np.inf, normalize=False):
-        assert alpha>1
+        assert alpha>1, alpha
         if normalize:
             Z=( lower_bound**(1-alpha)-upper_bound**(1-alpha) )/(alpha-1)
             return -alpha*np.log(x).sum() - len(x) * np.log(Z)
