@@ -354,14 +354,15 @@ class DiscretePowerLaw():
         ----------
         X : ndarray
         alpha : float
-        lower_bound : int,1
-        upper_bound : int,np.inf
-        normalize : bool,False
+        lower_bound : int, 1
+        upper_bound : int, np.inf
+        normalize : bool, False
 
         Returns
         -------
         log_likelihood : ndarray
         """
+
         assert lower_bound<upper_bound
         assert ((X>=lower_bound) & (X<=upper_bound)).all()
 
@@ -371,7 +372,7 @@ class DiscretePowerLaw():
             return -alpha*np.log(X).sum()
 
         if return_sum:
-            return ( -alpha*np.log(X) - np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))).sum()
+            return -alpha*np.log(X).sum() - np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))
         return -alpha*np.log(X) - np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))
 
     @staticmethod
@@ -382,8 +383,8 @@ class DiscretePowerLaw():
         ----------
         X : ndarray
         alpha : float
-        lower_bound : int, 1
-        upper_bound : int, np.inf
+        lower_bound : int
+        upper_bound : int
 
         Returns
         -------
