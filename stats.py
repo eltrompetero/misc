@@ -889,7 +889,8 @@ class PowerLaw(DiscretePowerLaw):
         if hasattr(initial_guess, '__len__'): 
             assert len(initial_guess)==2
         else:
-            initial_guess = (initial_guess, x.min())
+            initial_guess = (initial_guess, x.min()*2)
+        assert initial_guess[-1]<upper_bound
         
         def cost(args):
             alpha, lower_bound = args
