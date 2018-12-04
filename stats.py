@@ -240,13 +240,16 @@ class DiscretePowerLaw():
         assert p[-1]>1e-6, "Sampling is impossible for very heavy-tails."
         ptail = 1-p.sum()
 
-        X = rng.choice(xRange, p=p/p.sum(), size=size)  # random sample
+        X = rng.choice(xRange, p=p/p.sum(), size=size).astype(int)  # random sample
         tailix = rng.rand(*size)<ptail
         if tailix.any():
-            X[tailix] = PowerLaw.rvs(alpha=alpha, lower_bound=xRange[-1], upper_bound=x1, size=int(tailix.sum()))
+            X[tailix] = np.around( PowerLaw.rvs(alpha=alpha,
+                                                lower_bound=xRange[-1],
+                                                upper_bound=x1,
+                                                size=int(tailix.sum())) ).astype(int)
 
         if (X<0).any():
-            print("Some samples exceeded range for int.")
+            print("Some samples exceeded numerical precision range for int.")
         return X
 
     @classmethod
@@ -783,10 +786,10 @@ class PowerLaw(DiscretePowerLaw):
         """
         Parameters
         ----------
-        alpha : float,None
-        lower_bound : float,None
-        upper_bound : float,None
-        size : tuple,(1,)
+        alpha : float, None
+        lower_bound : float, None
+        upper_bound : float, None
+        size : tuple, (1,)
         rng : numpy.random.RandomState
 
         Returns
@@ -794,7 +797,7 @@ class PowerLaw(DiscretePowerLaw):
         X : ndarray
             Sample of dimensions size.
         """
-
+        
         # Input checking.
         if alpha is None:
             alpha=cls._default_alpha
@@ -808,19 +811,17 @@ class PowerLaw(DiscretePowerLaw):
         rng = rng or np.random
 
         if upper_bound is None:
-            if 'self.upper_bound' in vars():
-                upper_bound=self.upper_bound
+            if 'upper_bound' in self.__dict__.keys():
+                upper_bound = self.upper_bound
             else:
-                upper_bound=cls._default_upper_bound
+                upper_bound = cls._default_upper_bound
         if lower_bound is None:
             if 'self.lower_bound' in vars():
-                lower_bound=self.lower_bound
+                lower_bound = self.lower_bound
             else:
-                lower_bound=cls._default_lower_bound
+                lower_bound = cls._default_lower_bound
 
-
-        return ( lower_bound**(1-alpha)-(lower_bound**(1-alpha) -
-                 upper_bound**(1-alpha))*rng.rand(*size) )**(1/(1-alpha))
+        return lower_bound * ( 1 - (1-(upper_bound/lower_bound)**(1.-alpha))*rng.rand(*size) )**(1./(1-alpha))
     
     @classmethod
     def cdf(cls, alpha=None, lower_bound=None, upper_bound=None):
@@ -861,16 +862,17 @@ class PowerLaw(DiscretePowerLaw):
         """
         
         if lower_bound_range is None:
+            n=len(x)
             if lower_bound is None:
                 lower_bound=x.min()
-            assert (x>=lower_bound).all()
-            n=len(x)
+            else:
+                assert (x>=lower_bound).all(), "Lower bound violated."
             
             # analytic solution if lower bound is given and upper bound is at inf
             if upper_bound is None:
                 return 1+n/np.log(x/lower_bound).sum()
             
-            assert (x<=upper_bound).all()
+            assert (x<=upper_bound).all(), "Upper bound violated."
             def cost(alpha):
                 return -cls.log_likelihood(x, alpha, lower_bound, upper_bound, True)
 
@@ -883,18 +885,19 @@ class PowerLaw(DiscretePowerLaw):
         if upper_bound is None:
             upper_bound = np.inf
         else:
-            assert (x<=upper_bound).all()
+            assert (x<=upper_bound).all(), "Upper bound is violated."
         if lower_bound_range[-1]>=x.max():
+            #print("Shrinking lower_bound_range.")
             lower_bound_range = (lower_bound_range[0], x.max()/2)
  
         if initial_guess is None:
             initial_guess = (cls._default_alpha, cls._default_lower_bound)
         if hasattr(initial_guess, '__len__'): 
-            assert len(initial_guess)==2
+            assert len(initial_guess)==2, "Initial guess can only provide up to two args."
+        # handle case where only a guess for alpha is given
         else:
             initial_guess = (initial_guess, min( x.min()*2, np.sqrt(x.max()*x.min()) ))
-        assert initial_guess[-1]<upper_bound
-
+        assert initial_guess[-1]<upper_bound, "Guess for lower bound cannot be >= upper bound."
        
         def cost(args):
             alpha, lower_bound = args
