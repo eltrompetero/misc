@@ -1,6 +1,9 @@
+# ========================================================================================================= #
 # Module for helper functions with statistical analysis of data.
-# Author: Eddie Lee
-# 2017-01-17
+# Author: Eddie Lee, edlee@alumni.princeton.edu
+# NOTES:
+# 2018-12-05 : only DiscretePowerLaw and PowerLaw are updated most recently
+# ========================================================================================================= #
 import numpy as np
 from numpy import fft
 from scipy.optimize import minimize

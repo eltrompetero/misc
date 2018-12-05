@@ -1,3 +1,7 @@
+# ========================================================================================================= #
+# Module for helper functions with statistical analysis of data.
+# Author: Eddie Lee, edlee@alumni.princeton.edu
+# ========================================================================================================= #
 from .stats import *
 ALPHA=1.5
 
