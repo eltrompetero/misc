@@ -609,11 +609,11 @@ class DiscretePowerLaw():
         lower_bound = lower_bound or self.lower_bound
         upper_bound = upper_bound or self.upper_bound
         
-        _,ecdf = np.cumsum(np.unique(X, return_counts=True)[X.min():])
-        ecdf = ecdf/ecdf[-1]
+        Xuniq, ecdf = np.unique(X, return_counts=True)
+        ecdf = np.cumsum(ecdf)/len(X)
         cdf = self.cdf(alpha=alpha,
                        lower_bound=lower_bound,
-                       upper_bound=upper_bound)(np.arange(X.min(), X.max()+1))
+                       upper_bound=upper_bound)(Xuniq)
         assert len(ecdf)==len(cdf)
         return np.abs(ecdf-cdf).max()
 #end DiscretePowerLaw
