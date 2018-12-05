@@ -229,9 +229,13 @@ class DiscretePowerLaw():
             rng = np.random
 
         if x1<=1e6:
-            return rng.choice(range(x0,int(x1)+1),
-                              size=size,
-                              p=cls.pdf(alpha,x0,x1)(np.arange(x0,x1+1)))
+            try:
+                return rng.choice(range(x0,int(x1)+1),
+                                  size=size,
+                                  p=cls.pdf(alpha,x0,x1)(np.arange(x0,x1+1)))
+            except ValueError:
+                print(cls.pdf(alpha,x0,x1)(np.arange(x0,x1+1)).sum())
+                raise Exception("Probabilities do not sum to 1.")
         
         # when upper bound is large, use continuum approximation for tail
         xRange = np.arange(x0, 1_000_001)
