@@ -157,9 +157,7 @@ class DiscretePowerLaw():
         x1=upper_bound
 
         if x1==np.inf:
-            return zeta(alpha,x0)-zeta(alpha,x1+1)
-        elif (x1-x0)<1e6:
-            return ( np.arange(x0, x1+1)**(1.*-alpha) ).sum()
+            return zeta(alpha,x0)
         else:
             return zeta(alpha, x0) - zeta(alpha, x1+1)
 
