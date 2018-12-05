@@ -10,6 +10,8 @@ from scipy.optimize import minimize
 from scipy.special import zeta
 from mpmath import zeta as mpzeta
 from multiprocess import Pool,cpu_count
+import numpy.distutils.system_info as sysinfo
+assert sysinfo.platform_bits==64
 
 
 def acf(x,axis=-1,return_power=False):
@@ -249,8 +251,8 @@ class DiscretePowerLaw():
                                                 size=int(tailix.sum())) ).astype(int)
 
         if (X<0).any():
-            print("Some samples exceeded numerical precision range for int. Bounding them to 2^63.")
-            X[X<0] = 2**63-1
+            print("Some samples exceeded numerical precision range for int. Bounding them to 2^62.")
+            X[X<0] = 2**62
         return X
 
     @classmethod
