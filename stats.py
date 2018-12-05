@@ -234,7 +234,8 @@ class DiscretePowerLaw():
                                                 size=int(tailix.sum())) ).astype(int)
 
         if (X<0).any():
-            print("Some samples exceeded numerical precision range for int.")
+            print("Some samples exceeded numerical precision range for int. Bounding them to 2^63.")
+            X[X<0] = 2**63-1
         return X
 
     @classmethod
