@@ -21,7 +21,8 @@ def test_normalization():
                                                    upper_bound=1000,
                                                    return_sum=False,
                                                    normalize=True)).sum(), 1)
-
+    
+    # alpha=3/2
     X=np.arange(1,1001)
     totalp=np.exp(DiscretePowerLaw.log_likelihood(X, 1.5,
                                                    lower_bound=1,
@@ -29,7 +30,7 @@ def test_normalization():
                                                    return_sum=False,
                                                    normalize=True)).sum()
     assert np.isclose(totalp, 1), totalp
-
+    # change lower bound
     X=np.arange(10,1001)
     totalp=np.exp(DiscretePowerLaw.log_likelihood(X, 1.5,
                                                    lower_bound=10,
@@ -39,6 +40,12 @@ def test_normalization():
     assert np.isclose(totalp, 1), totalp
 
     # check normalization of pdf
+    # don't specify lower bound (None gets passed to zeta function equivalent to passing 1)
+    X=np.arange(1,1001)
+    totalp=DiscretePowerLaw.pdf(1.5,
+                                upper_bound=1000)(X).sum()
+    assert np.isclose(totalp, 1), totalp
+
     X=np.arange(10,1001)
     totalp=DiscretePowerLaw.pdf(1.5,
                                lower_bound=10,

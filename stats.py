@@ -138,17 +138,10 @@ class DiscretePowerLaw():
     @classmethod
     def pdf(cls, alpha, lower_bound=None, upper_bound=None, normalize=True):
         """Return PDF function."""
-        x0=lower_bound or cls._default_lower_bound
-        x1=upper_bound or cls._default_upper_bound
+        upper_bound = upper_bound or cls._default_upper_bound
         
         if normalize:
-            if x1==np.inf:
-                return lambda x,x0=x0,x1=x1,alpha=alpha: x**(1.*-alpha) / zeta(alpha,x0)
-            elif (x1-x0)<1e6:
-                Z = ( np.arange(x0, x1+1)**(1.*-alpha) ).sum()
-            else:
-                Z = zeta(alpha, x0) - zeta(alpha, x1+1)
-
+            Z = cls.Z(alpha, lower_bound, upper_bound)
             return lambda x,alpha=alpha: x**(1.*-alpha)/Z
 
         return lambda x,x0=x0,x1=x1,alpha=alpha: x**(1.*-alpha)
@@ -156,30 +149,25 @@ class DiscretePowerLaw():
     @classmethod
     def Z(cls, alpha, lower_bound, upper_bound):
         """Return normalization."""
-        x0=lower_bound
-        x1=upper_bound
-
-        if x1==np.inf:
-            return zeta(alpha,x0)
+        if upper_bound==np.inf:
+            return zeta(alpha,lower_bound)
         else:
-            return zeta(alpha, x0) - zeta(alpha, x1+1)
+            return zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1)
 
     @classmethod
     def pdf_as_generator(cls, alpha, lower_bound=None, upper_bound=None, normalize=True):
         """Return PDF generator."""
-        x0=lower_bound or cls._default_lower_bound
-        x1=upper_bound or cls._default_upper_bound
         
         if normalize:
-            Z = zeta(alpha, x0) - zeta(alpha, x1+1)
+            Z = cls.Z(alpha, lower_bound, upper_bound)
             
-            x = x0
-            while x<=x1:
+            x = lower_bound
+            while x<=upper_bound:
                 yield x**(1.*-alpha)/Z
                 x += 1
         else:
-            x = x0 
-            while x<=x1:
+            x = lower_bound
+            while x<=upper_bound:
                 yield x**(1.*-alpha)
                 x += 1
 
@@ -204,11 +192,7 @@ class DiscretePowerLaw():
         x0 = lower_bound or cls._default_lower_bound
         x1 = upper_bound or cls._default_upper_bound
         
-        if x1==np.inf:
-            Z = zeta(alpha, x0)
-        else:
-            Z = zeta(alpha, x0) - zeta(alpha, x1+1)
-        
+        Z = cls.Z(alpha, x0, x1) 
         z0 = zeta(alpha, x0)
         def cdf(x, x1=x1, alpha=alpha, z0=z0, Z=Z):
             if not all(x<=x1):
