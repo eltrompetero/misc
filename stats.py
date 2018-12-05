@@ -8,7 +8,6 @@ import numpy as np
 from numpy import fft
 from scipy.optimize import minimize
 from scipy.special import zeta
-from mpmath import zeta as mpzeta
 from multiprocess import Pool,cpu_count
 import numpy.distutils.system_info as sysinfo
 assert sysinfo.platform_bits==64
@@ -144,15 +143,17 @@ class DiscretePowerLaw():
         
         if normalize:
             Z = cls.Z(alpha, lower_bound, upper_bound)
-            return lambda x,alpha=alpha: x**(1.*-alpha)/Z
+            return lambda x,alpha=alpha,Z=Z: x**(1.*-alpha)/Z
 
-        return lambda x,x0=x0,x1=x1,alpha=alpha: x**(1.*-alpha)
+        return lambda x,alpha=alpha: x**(1.*-alpha)
 
     @classmethod
     def Z(cls, alpha, lower_bound, upper_bound):
         """Return normalization."""
+
+        assert alpha>1.00001, "alpha cannot be too close to 1."
         if upper_bound==np.inf:
-            return zeta(alpha,lower_bound)
+            return zeta(alpha, lower_bound)
         else:
             return zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1)
 
@@ -222,6 +223,7 @@ class DiscretePowerLaw():
 
         x0=lower_bound or cls._default_lower_bound
         x1=upper_bound or cls._default_upper_bound
+        assert x0<=x1
         assert type(size) is int or type(size) is tuple, "Size must be an int or tuple."
         if not type(size) is tuple:
             size = (size,)
@@ -234,7 +236,7 @@ class DiscretePowerLaw():
                                   size=size,
                                   p=cls.pdf(alpha,x0,x1)(np.arange(x0,x1+1)))
             except ValueError:
-                print(cls.pdf(alpha,x0,x1)(np.arange(x0,x1+1)).sum())
+                print(cls.pdf(alpha,x0,x1)(np.arange(x0,x1+1)).sum(), alpha, x0, x1)
                 raise Exception("Probabilities do not sum to 1.")
         
         # when upper bound is large, use continuum approximation for tail
@@ -310,7 +312,7 @@ class DiscretePowerLaw():
                 return alpha*logXsum + len(X)*np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))
                 #return -cls._log_likelihood(X, alpha, lower_bound, upper_bound)
             
-            soln = minimize(f, initial_guess, bounds=[(1+1e-10,7)], tol=1e-3, **minimize_kw)
+            soln = minimize(f, initial_guess, bounds=[(1.0001,7)], tol=1e-3, **minimize_kw)
             if full_output:
                 return soln['x'], soln
             return soln['x']
@@ -733,7 +735,7 @@ class ExpTruncDiscretePowerLaw(DiscretePowerLaw):
             alpha, el=params
             return -cls.log_likelihood(X, alpha, el, lower_bound, upper_bound, normalize=True)
 
-        soln = minimize(f, initial_guess, **minimize_kw, bounds=[(1+1e-10,np.inf), (1e-6,np.inf)])
+        soln = minimize(f, initial_guess, **minimize_kw, bounds=[(1.0001,7), (1e-6,np.inf)])
         if full_output:
             return soln['x'], soln
         return soln['x']
@@ -836,9 +838,10 @@ class PowerLaw(DiscretePowerLaw):
         lower_bound=lower_bound or cls._default_lower_bound
         
         if upper_bound is None:
-            return lambda x: -(x**(1-alpha) - lower_bound**(1-alpha)) / lower_bound**(1-alpha)
-        return lambda x: ( -(x**(1-alpha) - lower_bound**(1-alpha)) /
-                           (lower_bound**(1-alpha) - upper_bound**(1-alpha)) )
+            return lambda x,alpha=alpha,lower_bound=lower_bound: (-(x**(1-alpha) - lower_bound**(1-alpha)) /
+                                                                    lower_bound**(1-alpha))
+        return lambda x,alpha=alpha,lower_bound=lower_bound,upper_bound=upper_bound: ( -(x**(1-alpha)
+                           - lower_bound**(1-alpha)) / (lower_bound**(1-alpha) - upper_bound**(1-alpha)) )
 
     @classmethod
     def max_likelihood(cls, x,
@@ -883,7 +886,7 @@ class PowerLaw(DiscretePowerLaw):
             def cost(alpha):
                 return -cls.log_likelihood(x, alpha, lower_bound, upper_bound, True)
 
-            soln = minimize(cost, cls._default_alpha, bounds=[(1+1e-10,7)])
+            soln = minimize(cost, cls._default_alpha, bounds=[(1.0001,7)])
             if full_output:
                 return soln['x'], soln
             return soln['x']
@@ -915,7 +918,7 @@ class PowerLaw(DiscretePowerLaw):
                                        True)/(x>=lower_bound).sum()
         
         soln = minimize(cost, initial_guess,
-                        bounds=[(1+1e-10,7),lower_bound_range])
+                        bounds=[(1.0001,7),lower_bound_range])
         if full_output:
             return soln['x'], soln
         return soln['x']
