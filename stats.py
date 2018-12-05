@@ -520,7 +520,7 @@ class DiscretePowerLaw():
 
             pool = Pool(n_cpus)
             ksdistribution = np.array(pool.map( f,
-                                [(len(X),lower_bound_range,samples_below_cutoff)]*bootstrap_samples ))
+                                      [(len(X),lower_bound_range,samples_below_cutoff)]*bootstrap_samples ))
             pool.close()
 
         return (ksstat<=ksdistribution).mean(), ksdistribution
@@ -609,7 +609,7 @@ class DiscretePowerLaw():
         lower_bound = lower_bound or self.lower_bound
         upper_bound = upper_bound or self.upper_bound
         
-        ecdf = np.cumsum(np.bincount(X, minlength=X.max()+1)[X.min():])
+        _,ecdf = np.cumsum(np.unique(X, return_counts=True)[X.min():])
         ecdf = ecdf/ecdf[-1]
         cdf = self.cdf(alpha=alpha,
                        lower_bound=lower_bound,
