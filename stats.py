@@ -202,7 +202,22 @@ class DiscretePowerLaw():
 
     @classmethod
     def rvs(cls, alpha, size=(1,), lower_bound=None, upper_bound=None, rng=None):
-        """Sample from distribution."""
+        """Sample from discrete power law distribution and use continuous approximation for tail.
+        
+        Parameters
+        ----------
+        alpha : float
+        size : tuple, (1,)
+        lower_bound : int, None
+        upper_bound : int, None
+        rng : numpy.random.RandomState, None
+
+        Returns
+        -------
+        ndarray
+            Of dimensions size.
+        """
+
         x0=lower_bound or cls._default_lower_bound
         x1=upper_bound or cls._default_upper_bound
         assert type(size) is int or type(size) is tuple, "Size must be an int or tuple."
