@@ -560,7 +560,7 @@ class DiscretePowerLaw():
             (alpha, lb)
         """
 
-        if samples_below_cutoff is None:
+        if samples_below_cutoff is None or len(samples_below_cutoff)==0:
             # generate random samples from best fit power law
             X = self.rvs(alpha=self.alpha,
                          size=K,
@@ -576,7 +576,9 @@ class DiscretePowerLaw():
                                             n_cpus=1)
             
             # calculate ks stat from each fit
-            return self.ksval(X, alpha, lb, self.upper_bound)
+            if return_all:
+                return self.ksval(X[X>=lb], alpha, lb, self.upper_bound), (alpha, lb)
+            return self.ksval(X[X>=lb], alpha, lb, self.upper_bound)
             
         fraction_below_cutoff = len(samples_below_cutoff)/(len(samples_below_cutoff)+K)
         K1 = self.rng.binomial(K, fraction_below_cutoff)
@@ -632,7 +634,6 @@ class DiscretePowerLaw():
         cdf = self.cdf(alpha=alpha,
                        lower_bound=lower_bound,
                        upper_bound=upper_bound)(Xuniq)
-        assert len(ecdf)==len(cdf)
         return np.abs(ecdf-cdf).max()
 #end DiscretePowerLaw
 
