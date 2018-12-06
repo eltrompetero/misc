@@ -536,7 +536,9 @@ class DiscretePowerLaw():
 
         return (ksstat<=ksdistribution).mean(), ksdistribution
 
-    def ks_resample(self, K, lower_bound_range, samples_below_cutoff=None):
+    def ks_resample(self, K, lower_bound_range,
+                    samples_below_cutoff=None,
+                    return_all=False):
         """Generate a random sample from and fit to random distribution  given by specified power
         law model. This is used to generate a KS statistic.
         
@@ -548,11 +550,14 @@ class DiscretePowerLaw():
         samples_below_cutoff : ndarray, None
             If provided, these are included as part of the random cdf (by bootstrap sampling) and in the model
             as specified in Clauset 2007.
+        return_all : bool, False
 
         Returns
         -------
         float
             KS statistic
+        tuple, optional
+            (alpha, lb)
         """
 
         if samples_below_cutoff is None:
@@ -596,7 +601,9 @@ class DiscretePowerLaw():
                                         initial_guess=self.alpha,
                                         n_cpus=1)
 
-        # calculate ks stat from each fit
+        # calculate ks stat from fit
+        if return_all:
+            return self.ksval(X[X>=lb], alpha, lb, self.upper_bound), (alpha, lb)
         return self.ksval(X[X>=lb], alpha, lb, self.upper_bound)
 
     def ksval(self, X, alpha=None, lower_bound=None, upper_bound=None):
