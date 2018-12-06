@@ -483,6 +483,7 @@ class DiscretePowerLaw():
     def clauset_test(self, X, ksstat, lower_bound_range,
                      bootstrap_samples=1000,
                      samples_below_cutoff=None,
+                     return_all=False,
                      n_cpus=None):
         """
         Run bootstrapped test for significance of the max deviation from a power law fit to the
@@ -500,6 +501,7 @@ class DiscretePowerLaw():
             Number of times to bootstrap to calculate p-value.
         samples_below_cutoff : ndarray, None
             Pass integer number of samples n and return n samples.
+        return_all : bool, True
         n_cpus : int, None
             For multiprocessing.
 
@@ -509,6 +511,8 @@ class DiscretePowerLaw():
             p-value
         ndarray
             Distribution of KS statistics used to measure p-value.
+        tuple, optional
+            (alpha, lb) 
         """
         
         if n_cpus is None:
@@ -517,22 +521,34 @@ class DiscretePowerLaw():
         if n_cpus<=1:
             self.rng = np.random.RandomState()
             ksdistribution = np.zeros(bootstrap_samples)
+            alpha = np.zeros(bootstrap_samples)
+            lb = np.zeros(bootstrap_samples)
             for i in range(bootstrap_samples):
-                ksdistribution[i] = self.ks_resample(len(X),
-                                                     lower_bound_range,
-                                                     samples_below_cutoff)
+                ksdistribution[i], (alpha[i],lb[i]) = self.ks_resample(len(X),
+                                                                       lower_bound_range,
+                                                                       samples_below_cutoff,
+                                                                       return_all=True)
         else:
             if not samples_below_cutoff is None:
                 assert (samples_below_cutoff<X.min()).all()
             def f(args):
                 self.rng = np.random.RandomState()
-                return self.ks_resample(*args)
+                return self.ks_resample(*args, return_all=True)
 
             pool = Pool(n_cpus)
-            ksdistribution = np.array(pool.map( f,
-                                      [(len(X),lower_bound_range,samples_below_cutoff)]*bootstrap_samples ))
+            ksdistribution, alphalb = list(zip(*pool.map( f,
+                                      [(len(X),lower_bound_range,samples_below_cutoff)]*bootstrap_samples )))
             pool.close()
 
+            ksdistribution = np.array(ksdistribution)
+            alphalb = np.array(alphalb)
+            alpha = alphalb[:,0]
+            lb = alphalb[:,1]
+        
+        assert (ksdistribution<=1).all() and (ksdistribution>=0).all()
+
+        if return_all:
+            return (ksstat<=ksdistribution).mean(), ksdistribution, (alpha,lb)
         return (ksstat<=ksdistribution).mean(), ksdistribution
 
     def ks_resample(self, K, lower_bound_range,
