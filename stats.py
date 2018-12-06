@@ -381,7 +381,7 @@ class DiscretePowerLaw():
         if not normalize:
             if return_sum:
                 return -alpha*np.log(X).sum()
-            return -alpha*np.log(X).sum()
+            return -alpha*np.log(X)
 
         if return_sum:
             return ( -alpha*np.log(X).sum() -
