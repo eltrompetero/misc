@@ -134,7 +134,7 @@ class DiscretePowerLaw():
         self.alpha = alpha
         self.lower_bound = lower_bound
         self.upper_bound = upper_bound
-        self.rng = rng
+        self.rng = rng or np.random
 
     @classmethod
     def pdf(cls, alpha, lower_bound=None, upper_bound=None, normalize=True):
