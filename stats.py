@@ -852,6 +852,11 @@ class PowerLaw(DiscretePowerLaw):
                        full_output=False,
                        n_cpus=None):
         """
+        Conventional max likelihood fit to the power law when no search for the lower bound is specified. When
+        a lower bound is sought, then the max likelihood per data point is maximized. This can be hard to
+        minimize correctly if the number of small data points is sparse (and thus the likelihood function hard
+        to approximate as continuous)
+
         Parameters
         ----------
         x : ndarray
@@ -910,6 +915,7 @@ class PowerLaw(DiscretePowerLaw):
         assert initial_guess[-1]<upper_bound, "Guess for lower bound cannot be >= upper bound."
        
         def cost(args):
+            # normalize by the number of data points when the lower cutoff is imposed
             alpha, lower_bound = args
             return -cls.log_likelihood(x[x>=lower_bound],
                                        alpha,
@@ -1023,6 +1029,81 @@ class PowerLaw(DiscretePowerLaw):
                        upper_bound=upper_bound)(uniqX)
         assert len(ecdf)==len(cdf)
         return np.abs(ecdf-cdf).max()
+
+    def _posterior(self, X, density=50, sample_size=100_000):
+        """Calculate confidence interval for parameters using joint posterior probability of alpha and lower
+        bound. Uses discrete approximation to the posterior to generate random samples from it.
+
+        Parameters
+        ----------
+        X : ndarray
+            Data samples.
+        alpha : float
+        lb : float
+        density : int
+            Number of points per unit interval. Should add support to do different density along different
+            axes. Lower bound should be spaced logarithmitcally as well....
+        sample_size : int, 100_000
+            Number of random samples to take from posterior to approximate confidence intervals.
+        """
+        
+        from scipy.special import logsumexp
+
+        alpha, lb = self.alpha, self.lower_bound
+        logLfun = np.vectorize(lambda alpha,lb,X=X: self.log_likelihood(X[X>=lb], alpha, lb,
+                                                                      normalize=True)/(X>=lb).sum())
+
+        # mesh grid approx of logLfun
+        udalpha, ldalpha = .1, min(.1,alpha-1.0001)
+        udlb, ldlb = .1, min(.1,lb-1e-4)
+        pThresholdRatio = 1e-1
+
+        changeMade = True
+        lbAlphaReached = False
+        lbReached = False
+        counter = 0
+        maxIter = 8
+        while changeMade and counter<maxIter:
+            # just use a discrete sum to approximate the likelihood integral...should be roughly correct
+            alphaRange = np.linspace(alpha-ldalpha, alpha+udalpha, int((udalpha+ldalpha)*density))
+            lbRange = np.linspace(lb-ldlb, lb+udlb, int((udlb+ldlb)*density))
+            alphaGrid, lbGrid = np.meshgrid(alphaRange, lbRange)
+
+            logLGrid = logLfun(alphaGrid, lbGrid)
+            
+            if counter==0:
+                # make sure that we're at the max likelihood peak
+                mxix = np.argmax(logLGrid)
+                assert (alphaGrid.ravel()[mxix]-alpha)<(2/density) and (lbGrid.ravel()[mxix]-lb)<(2/density)
+            
+            # identify if grid is sufficiently large
+            changeMade = False
+            if (not lbAlphaReached) and (logLGrid[:,0].max()-logLGrid.max())>np.log(pThresholdRatio):
+                ldalpha = min(2*ldalpha, alpha-1.0001)
+                changeMade = True
+                lbAlphaReached = True
+            if (logLGrid[:,-1].max()-logLGrid.max())>np.log(pThresholdRatio):
+                udalpha *= 2
+                changeMade = True
+                
+            if (not lbReached) and (logLGrid[0].max()-logLGrid.max())>np.log(pThresholdRatio):
+                ldlb = min(2*ldlb, lb-1e-4)
+                changeMade = True
+                lbReached = True
+            if (logLGrid[-1].max()-logLGrid.max())>np.log(pThresholdRatio):
+                udlb *= 2
+                changeMade = True
+            print("New interval:", ldalpha, udalpha, ldlb, udlb)
+            counter += 1
+            
+        logZ = logsumexp( logLGrid )
+        p = np.exp(logLGrid-logZ)
+
+        assert abs(np.diff(p,0)).max()<1e-3 and abs(np.diff(p,1)).max()<1e-3, "Bad approximation of probability landscape."
+        randix = np.random.choice(range(alphaGrid.size), size=sample_size, p=p.ravel())
+        alphaConfInterval = np.percentile(alphaGrid.ravel()[randix],5), np.percentile(alphaGrid.ravel()[randix],95)
+        lbConfInterval = np.percentile(lbGrid.ravel()[randix],5), np.percentile(lbGrid.ravel()[randix],95)
+        return alphaConfInterval, lbConfInterval
 #end PowerLaw
 
 
