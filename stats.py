@@ -853,6 +853,7 @@ class PowerLaw(DiscretePowerLaw):
         def cdf(x, alpha=alpha, lower_bound=lower_bound, upper_bound=upper_bound):
             assert all(x>=lower_bound) and all(x<=upper_bound)
             return -(x**(1-alpha) - lower_bound**(1-alpha)) / (lower_bound**(1-alpha) - upper_bound**(1-alpha))
+        return cdf
 
     @classmethod
     def max_likelihood(cls, x,
