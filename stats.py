@@ -197,10 +197,9 @@ class DiscretePowerLaw():
         
         Z = cls.Z(alpha, x0, x1) 
         z0 = zeta(alpha, x0)
-        def cdf(x, x1=x1, alpha=alpha, z0=z0, Z=Z):
-            if not all(x<=x1):
-                raise Exception
-            return (z0 - zeta(alpha,x+1))/Z
+        def cdf(x, x0=x0, x1=x1, alpha=alpha, z0=z0, Z=Z):
+            assert all(x>=x0) and all(x<=x1)
+            return (z0 - zeta(alpha, x+1)) / Z
         return cdf
 
     @classmethod
@@ -846,10 +845,14 @@ class PowerLaw(DiscretePowerLaw):
         lower_bound=lower_bound or cls._default_lower_bound
         
         if upper_bound is None:
-            return lambda x,alpha=alpha,lower_bound=lower_bound: (-(x**(1-alpha) - lower_bound**(1-alpha)) /
-                                                                    lower_bound**(1-alpha))
-        return lambda x,alpha=alpha,lower_bound=lower_bound,upper_bound=upper_bound: ( -(x**(1-alpha)
-                           - lower_bound**(1-alpha)) / (lower_bound**(1-alpha) - upper_bound**(1-alpha)) )
+            def cdf(x, alpha=alpha, lower_bound=lower_bound):
+                assert all(x>=lower_bound) and all(x<=upper_bound)
+                return -(x**(1-alpha) - lower_bound**(1-alpha)) / lower_bound**(1-alpha)
+            return cdf
+
+        def cdf(x, alpha=alpha, lower_bound=lower_bound, upper_bound=upper_bound):
+            assert all(x>=lower_bound) and all(x<=upper_bound)
+            return -(x**(1-alpha) - lower_bound**(1-alpha)) / (lower_bound**(1-alpha) - upper_bound**(1-alpha))
 
     @classmethod
     def max_likelihood(cls, x,
