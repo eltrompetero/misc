@@ -820,7 +820,7 @@ class PowerLaw(DiscretePowerLaw):
         rng = rng or np.random
 
         if upper_bound is None:
-            if 'upper_bound' in self.__dict__.keys():
+            if 'self.upper_bound' in vars():
                 upper_bound = self.upper_bound
             else:
                 upper_bound = cls._default_upper_bound
@@ -880,7 +880,7 @@ class PowerLaw(DiscretePowerLaw):
             
             # analytic solution if lower bound is given and upper bound is at inf
             if upper_bound is None:
-                return 1+n/np.log(x/lower_bound).sum()
+                return 1 + n/np.log(x/lower_bound).sum()
             
             assert (x<=upper_bound).all(), "Upper bound violated."
             def cost(alpha):
