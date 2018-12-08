@@ -6,6 +6,12 @@ from .stats import *
 ALPHA=1.5
 
 
+def test_declaration():
+    pl=PowerLaw(1.5, 1.111, 10.111)
+    assert pl.alpha==1.5 and pl.lower_bound==1.111 and pl.upper_bound==10.111
+    dpl=DiscretePowerLaw(1.5, 1.111, 10.111)
+    assert dpl.alpha==1.5 and dpl.lower_bound==1.111 and dpl.upper_bound==10.111
+
 def test_normalization():
     # check normalization of the log likelihood
     X=np.arange(1,1001)

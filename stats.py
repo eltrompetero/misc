@@ -714,6 +714,7 @@ class PowerLaw(DiscretePowerLaw):
     def cdf(cls, alpha=None, lower_bound=None, upper_bound=None):
         alpha=alpha or cls._default_alpha
         lower_bound=lower_bound or cls._default_lower_bound
+        upper_bound=upper_bound or cls._default_upper_bound
         
         if upper_bound is None:
             def cdf(x, alpha=alpha, lower_bound=lower_bound):
