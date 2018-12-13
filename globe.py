@@ -78,7 +78,7 @@ class PoissonDiscSphere():
         ----------
         coarse_grid : ndarray
             These are used to bin the grid points to make neighbor searching more efficient.
-        k_coarse : int,9
+        k_coarse : int, 9
             Number of nearest neighbors on the coarse grid to use for fast neighbor searching. For
             the spherical surface about 6 should be good enough for the roughly hexagonal tiling,
             but I find that irregular tiling means having more neighbors is a good idea.
