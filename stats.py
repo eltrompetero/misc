@@ -552,7 +552,8 @@ class DiscretePowerLaw():
             return (ksstat<=ksdistribution).mean(), ksdistribution, (alpha,lb)
         return (ksstat<=ksdistribution).mean(), ksdistribution
 
-    def ks_resample(self, K, lower_bound_range,
+    def ks_resample(self, K,
+                    lower_bound_range=None,
                     samples_below_cutoff=None,
                     return_all=False):
         """Generate a random sample from and fit to random distribution  given by specified power
@@ -562,7 +563,7 @@ class DiscretePowerLaw():
         ----------
         K : int
             Sample size.
-        lower_bound_range : duple
+        lower_bound_range : duple, None
             (lb0, lb1)
         samples_below_cutoff : ndarray, None
             If provided, these are included as part of the random cdf (by bootstrap sampling) and in the model
@@ -614,11 +615,17 @@ class DiscretePowerLaw():
                                      rng=self.rng)))
 
         # fit random sample to a power law
-        alpha, lb = self.max_likelihood(X,
-                                        lower_bound_range=(X.min(),lower_bound_range[1]),
-                                        upper_bound=self.upper_bound,
-                                        initial_guess=self.alpha,
-                                        n_cpus=1)
+        if lower_bound_range is None:
+            alpha, lb = self.max_likelihood(X,
+                                            upper_bound=self.upper_bound,
+                                            initial_guess=self.alpha,
+                                            n_cpus=1)
+        else:
+            alpha, lb = self.max_likelihood(X,
+                                            lower_bound_range=(X.min(),lower_bound_range[1]),
+                                            upper_bound=self.upper_bound,
+                                            initial_guess=self.alpha,
+                                            n_cpus=1)
 
         # calculate ks stat from fit
         if return_all:
