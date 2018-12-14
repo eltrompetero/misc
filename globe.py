@@ -131,7 +131,9 @@ class PoissonDiscSphere():
         Parameters
         ----------
         xy : ndarray 
-        top_n : int,None
+            Coordinates for which to find neighbors.
+        top_n : int, None
+            Number of grid points to keep using search with fast distance.
         apply_dist_threshold : bool or float, False
             If it is a float, that value will be multiplied to the distance window 2*self.r.
 

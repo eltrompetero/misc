@@ -508,7 +508,7 @@ class DiscretePowerLaw():
         Returns
         -------
         float
-            Fraction of random samples with deviations larger than the distribution of X
+            Fraction of random samples with deviations larger than the distribution of X.
         ndarray
             Sample of KS statistics used to measure p-value.
         tuple of (ndarray, ndarray), optional
@@ -532,6 +532,7 @@ class DiscretePowerLaw():
             if not samples_below_cutoff is None:
                 assert (samples_below_cutoff<X.min()).all()
             def f(args):
+                # scramble rng for each process
                 self.rng = np.random.RandomState()
                 return self.ks_resample(*args, return_all=True)
 
@@ -562,6 +563,7 @@ class DiscretePowerLaw():
         K : int
             Sample size.
         lower_bound_range : duple
+            (lb0, lb1)
         samples_below_cutoff : ndarray, None
             If provided, these are included as part of the random cdf (by bootstrap sampling) and in the model
             as specified in Clauset 2007.
@@ -596,8 +598,8 @@ class DiscretePowerLaw():
             return self.ksval(X[X>=lb], alpha, lb, self.upper_bound)
             
         fraction_below_cutoff = len(samples_below_cutoff)/(len(samples_below_cutoff)+K)
-        K1 = self.rng.binomial(K, fraction_below_cutoff)
-        K2 = K-K1
+        K1 = int(self.rng.binomial(K, fraction_below_cutoff))
+        K2 = int(K-K1)
         
         if K1==0:
             return self.ks_resample(K, lower_bound_range, return_all=return_all)
