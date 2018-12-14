@@ -580,7 +580,7 @@ class DiscretePowerLaw():
         if samples_below_cutoff is None or len(samples_below_cutoff)==0:
             # generate random samples from best fit power law
             X = self.rvs(alpha=self.alpha,
-                         size=K,
+                         size=int(K),
                          lower_bound=self.lower_bound,
                          upper_bound=self.upper_bound,
                          rng=self.rng)
