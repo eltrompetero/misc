@@ -330,19 +330,24 @@ class DiscretePowerLaw():
                 if not (X>=lower_bound).any():
                     raise Exception("Lower bound is too large.")
                 alpha, soln = cls.max_likelihood(X[X>=lower_bound],
-                                                  initial_guess=initial_guess,
-                                                  lower_bound=lower_bound,
-                                                  upper_bound=upper_bound,
-                                                  minimize_kw=minimize_kw,
-                                                  full_output=True)
+                                                 initial_guess=initial_guess,
+                                                 lower_bound=lower_bound,
+                                                 upper_bound=upper_bound,
+                                                 minimize_kw=minimize_kw,
+                                                 full_output=True)
+                # return CSM approach of KS statistic
+                # print("In max lik lower bound range", alpha, lower_bound)
+                return alpha, cls.ksvalclass(X[X>=lower_bound], alpha, lower_bound, upper_bound)
                 # return normalized log likelihood
                 return alpha, soln['fun']/(X>=lower_bound).sum()
             
             if n_cpus is None or n_cpus>1:
+                # parallelized
                 pool = Pool(cpu_count()-1)
                 alpha, negloglik = zip(*pool.map(solve_one_lower_bound, lower_bound_range))
                 pool.close()
             else:
+                # sequential
                 alpha = np.zeros(len(lower_bound_range))
                 negloglik = np.zeros(len(lower_bound_range))
                 for i,lb in enumerate(lower_bound_range):
@@ -615,6 +620,7 @@ class DiscretePowerLaw():
                                      rng=self.rng)))
 
         # fit random sample to a power law
+        # must set n_cpus=1 because cannot spawn processes within process
         if lower_bound_range is None:
             alpha, lb = self.max_likelihood(X,
                                             upper_bound=self.upper_bound,
@@ -632,7 +638,7 @@ class DiscretePowerLaw():
             return self.ksval(X[X>=lb], alpha, lb, self.upper_bound), (alpha, lb)
         return self.ksval(X[X>=lb], alpha, lb, self.upper_bound)
 
-    def ksval(self, X, alpha=None, lower_bound=None, upper_bound=None):
+    def ksval(self, X, alpha=None, lower_bound=None, upper_bound=None, iprint=False):
         """Build CDF from given data and compare with model. Return largest distance between the empirical and
         model CDFs (the Kolmogorov-Smirnov statistic for discrete data).
 
@@ -653,11 +659,40 @@ class DiscretePowerLaw():
         lower_bound = lower_bound or self.lower_bound
         upper_bound = upper_bound or self.upper_bound
         
+        if iprint:
+            print("In self.ksval", alpha, lower_bound)
         Xuniq, ecdf = np.unique(X, return_counts=True)
         ecdf = np.cumsum(ecdf)/len(X)
         cdf = self.cdf(alpha=alpha,
                        lower_bound=lower_bound,
                        upper_bound=upper_bound)(Xuniq)
+        return np.abs(ecdf-cdf).max()
+    
+    @classmethod
+    def ksvalclass(cls, X, alpha, lower_bound, upper_bound, iprint=False):
+        """Build CDF from given data and compare with model. Return largest distance between the empirical and
+        model CDFs (the Kolmogorov-Smirnov statistic for discrete data).
+
+        Parameters
+        ----------
+        X : ndarray
+        alpha : float, None
+        lower_bound : int, None
+        upper_bound : int, None
+
+        Returns
+        -------
+        float
+            KS statistic for a discrete distribution.
+        """
+
+        if iprint:
+            print("In ksvalclass", alpha, lower_bound)
+        Xuniq, ecdf = np.unique(X, return_counts=True)
+        ecdf = np.cumsum(ecdf)/len(X)
+        cdf = cls.cdf(alpha=alpha,
+                      lower_bound=lower_bound,
+                      upper_bound=upper_bound)(Xuniq)
         return np.abs(ecdf-cdf).max()
 #end DiscretePowerLaw
 
