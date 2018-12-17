@@ -88,3 +88,9 @@ def test_cdf_with_pdf():
 
     assert np.isclose(cdfFromPdf, cdf).all()
     assert np.isclose(cdfFromPdf, cdfFromGen).all()
+
+def test_pdf():
+    # check that pdf decays correctly (relative probabilities)
+    for a in np.arange(1.5,5.5,.5):
+        p = DiscretePowerLaw.pdf(a, 1)(2**np.arange(30))
+        assert np.isclose( np.diff(np.log(p)), np.log(2**-a) ).all()

@@ -137,15 +137,15 @@ class DiscretePowerLaw():
         self.rng = rng or np.random
 
     @classmethod
-    def pdf(cls, alpha, lower_bound=None, upper_bound=None, normalize=True):
+    def pdf(cls, alpha=None, lower_bound=None, upper_bound=None, normalize=True):
         """Return PDF function."""
         upper_bound = upper_bound or cls._default_upper_bound
         
         if normalize:
             Z = cls.Z(alpha, lower_bound, upper_bound)
-            return lambda x,alpha=alpha,Z=Z: x**(1.*-alpha)/Z
+            return lambda x, alpha=alpha, Z=Z: x**(-alpha*1.)/Z
 
-        return lambda x,alpha=alpha: x**(1.*-alpha)
+        return lambda x,alpha=alpha: x**(-alpha*1.)
 
     @classmethod
     def Z(cls, alpha, lower_bound, upper_bound):
@@ -268,7 +268,8 @@ class DiscretePowerLaw():
                        upper_bound=np.inf,
                        minimize_kw={},
                        full_output=False,
-                       n_cpus=None):
+                       n_cpus=None,
+                       max_alpha=7.):
         """
         Find the best fit power law exponent and min threshold for a discrete power law distribution. Lower
         bound is the one that gives the highest likelihood over the range specified.
@@ -288,6 +289,8 @@ class DiscretePowerLaw():
         minimize_kw : dict, {}
         full_output : bool, False
         n_cpus : int, None
+        max_alpha : float, 7.
+            max value allowed for alpha.
 
         Returns
         -------
@@ -311,7 +314,7 @@ class DiscretePowerLaw():
                 return alpha*logXsum + len(X)*np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))
                 #return -cls._log_likelihood(X, alpha, lower_bound, upper_bound)
             
-            soln = minimize(f, initial_guess, bounds=[(1.0001,7)], tol=1e-3, **minimize_kw)
+            soln = minimize(f, initial_guess, bounds=[(1.0001,max_alpha)], tol=1e-3, **minimize_kw)
             if full_output:
                 return soln['x'], soln
             return soln['x']
