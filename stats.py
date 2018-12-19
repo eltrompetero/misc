@@ -310,7 +310,8 @@ class DiscretePowerLaw():
             assert ((X>=lower_bound)&(X<=upper_bound)).all(), msg
 
             logXsum = np.log(X).sum()
-            def f(alpha):
+            def f(alpha): 
+                # faster to eval log likelihood here
                 return alpha*logXsum + len(X)*np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))
                 #return -cls._log_likelihood(X, alpha, lower_bound, upper_bound)
             
@@ -563,7 +564,8 @@ class DiscretePowerLaw():
     def ks_resample(self, K,
                     lower_bound_range=None,
                     samples_below_cutoff=None,
-                    return_all=False):
+                    return_all=False,
+                    correction=None):
         """Generate a random sample from and fit to random distribution  given by specified power
         law model. This is used to generate a KS statistic.
         
@@ -595,12 +597,23 @@ class DiscretePowerLaw():
                          rng=self.rng)
 
             # fit each random sample to a power law
-            alpha, lb = self.max_likelihood(X,
+            if lower_bound_range is None:
+                alpha = self.max_likelihood(X,
                                             lower_bound_range=lower_bound_range,
                                             upper_bound=self.upper_bound,
                                             initial_guess=self.alpha,
                                             n_cpus=1)
+                lb = self.lower_bound
+            else:
+                alpha, lb = self.max_likelihood(X,
+                                                lower_bound_range=lower_bound_range,
+                                                upper_bound=self.upper_bound,
+                                                initial_guess=self.alpha,
+                                                n_cpus=1)
             
+            if correction:
+                alpha += correction(alpha, K)
+
             # calculate ks stat from each fit
             if return_all:
                 return self.ksval(X[X>=lb], alpha, lb, self.upper_bound), (alpha, lb)
@@ -781,7 +794,8 @@ class PowerLaw(DiscretePowerLaw):
                        lower_bound_range=None,
                        initial_guess=None,
                        full_output=False,
-                       n_cpus=None):
+                       n_cpus=None,
+                       max_alpha=7.):
         """
         Conventional max likelihood fit to the power law when no search for the lower bound is specified. When
         a lower bound is sought, then the max likelihood per data point is maximized. This can be hard to
@@ -798,6 +812,7 @@ class PowerLaw(DiscretePowerLaw):
         full_output : bool, False
         n_cpus : None
             Dummy argument to standardize input across classes.
+        max_alpha : float, 7.
 
         Returns
         -------
@@ -822,7 +837,7 @@ class PowerLaw(DiscretePowerLaw):
             def cost(alpha):
                 return -cls.log_likelihood(x, alpha, lower_bound, upper_bound, True)
 
-            soln = minimize(cost, cls._default_alpha, bounds=[(1.0001,7)])
+            soln = minimize(cost, cls._default_alpha, bounds=[(1.0001,max_alpha)])
             if full_output:
                 return soln['x'], soln
             return soln['x']
@@ -855,7 +870,7 @@ class PowerLaw(DiscretePowerLaw):
                                        True)/(x>=lower_bound).sum()
         
         soln = minimize(cost, initial_guess,
-                        bounds=[(1.0001,7),lower_bound_range])
+                        bounds=[(1.0001,max_alpha),lower_bound_range])
         if full_output:
             return soln['x'], soln
         return soln['x']
