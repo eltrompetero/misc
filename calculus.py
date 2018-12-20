@@ -315,21 +315,25 @@ class QuadGaussRadau(QuadGauss):
 #end QuadGaussRadau
 
 
-
-def finite_diff( mat,order,dx=1,**kwargs ):
-    """
-    Front end for calling different finite differencing methods. Will calculate down the first dimension.
-
-    >5x speed up by using Cython
-    2015-09-11
+# ========================= #
+# Numerical differentiation #
+# ========================= #
+def finite_diff( mat, order, dx=1, **kwargs ):
+    """Front end for calling different finite differencing methods. Will calculate down
+    the first dimension.
     
-    Params:
-    -------
-    mat (ndarray)
-    dx (float)
-    order (int=1,2)
+    Parameters
+    ----------
+    mat : ndarray
+    dx : float
+    order : int, 1
         Order of derivative approximation to use.
+
+    Returns
+    -------
+    ndarray
     """
+
     from .calculus import finite_diff_1, finite_diff_2
     if mat.ndim==1:
         mat = mat[:,None]

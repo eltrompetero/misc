@@ -797,22 +797,29 @@ class PowerLaw(DiscretePowerLaw):
                        n_cpus=None,
                        max_alpha=7.):
         """
-        Conventional max likelihood fit to the power law when no search for the lower bound is specified. When
-        a lower bound is sought, then the max likelihood per data point is maximized. This can be hard to
-        minimize correctly if the number of small data points is sparse (and thus the likelihood function hard
-        to approximate as continuous)
+        Conventional max likelihood fit to the power law when no search for the lower
+        bound is specified. When a lower bound is sought, then the max likelihood per data
+        point is maximized. This can be hard to minimize correctly if the number of small
+        data points is sparse (and thus the likelihood function hard to approximate as
+        continuous)
 
         Parameters
         ----------
         x : ndarray
         lower_bound : float, None
+            If no lower_bound_range is specified, then x.min() is set to lower bound.
+            NOTE: Overestimation of the lower bound (which is likely when using this
+            approach) can lead to serious overestimation of the true exponent.
         upper_bound : float, None
+            Default is inf.
         lower_bound_range : duple, None
+            If given, then lower bound is solved for.
         initial_guess : tuple, None
         full_output : bool, False
         n_cpus : None
             Dummy argument to standardize input across classes.
         max_alpha : float, 7.
+            Only used if upper_bound is specified.
 
         Returns
         -------
@@ -823,15 +830,14 @@ class PowerLaw(DiscretePowerLaw):
         """
         
         if lower_bound_range is None:
-            n=len(x)
             if lower_bound is None:
                 lower_bound=x.min()
             else:
                 assert (x>=lower_bound).all(), "Lower bound violated."
             
             # analytic solution if lower bound is given and upper bound is at inf
-            if upper_bound is None:
-                return 1 + n/np.log(x/lower_bound).sum()
+            if upper_bound is None or upper_bound==np.inf:
+                return 1 + 1/np.log(x/lower_bound).mean()
             
             assert (x<=upper_bound).all(), "Upper bound violated."
             def cost(alpha):
