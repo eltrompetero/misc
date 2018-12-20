@@ -1,4 +1,5 @@
 # Module for useful functions.
+# Author : Eddie Lee, edlee@alumni.princeton.edu
 import numpy as np
 import numpy
 import math
@@ -17,6 +18,7 @@ i0pp=(1.192273748120670e-1,1.947452015979746e-1,
 i0qq=(2.962898424533095e-1,4.866115913196384e-1,
       1.938352806477617e-1,2.261671093400046e-2,6.450448095075585e-4,
       1.529835782400450e-6)
+
 
 # ----------------------------------#
 # Useful mathematical calculations. #

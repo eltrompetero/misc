@@ -1,6 +1,9 @@
+# Numerical calculus operations
+# Author : Eddie Lee, edlee@alumni.princeton.edu
 import numpy as np
 from scipy.integrate import quad
 from scipy.special import binom
+
 
 # ========================================================= #
 # Gaussian quadrature techniques
