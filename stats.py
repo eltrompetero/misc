@@ -9,6 +9,7 @@ from numpy import fft
 from scipy.optimize import minimize
 from scipy.special import zeta
 from multiprocess import Pool,cpu_count
+from functools import lru_cache
 import numpy.distutils.system_info as sysinfo
 assert sysinfo.platform_bits==64
 
@@ -269,7 +270,8 @@ class DiscretePowerLaw():
                        minimize_kw={},
                        full_output=False,
                        n_cpus=None,
-                       max_alpha=7.):
+                       max_alpha=7.,
+                       run_check=True):
         """
         Find the best fit power law exponent and min threshold for a discrete power law distribution. Lower
         bound is the one that gives the highest likelihood over the range specified.
@@ -291,6 +293,8 @@ class DiscretePowerLaw():
         n_cpus : int, None
         max_alpha : float, 7.
             max value allowed for alpha.
+        run_check : bool, True
+            If True, run checks. Disable for max speed.
 
         Returns
         -------
@@ -301,20 +305,24 @@ class DiscretePowerLaw():
         scipy.optimize.minimize or list thereof
         """
 
-        from scipy.optimize import minimize
-
         if lower_bound_range is None:
-            if type(X) is list:
-                X=np.array(X)
-            msg = "All elements must be within bounds. Given array includes range (%d, %d)."%(X.min(),X.max())
-            assert ((X>=lower_bound)&(X<=upper_bound)).all(), msg
+            if run_check:
+                if type(X) is list:
+                    X=np.array(X)
+                msg = "All elements must be within bounds. Given array includes range (%d, %d)."%(X.min(),X.max())
+                assert ((X>=lower_bound)&(X<=upper_bound)).all(), msg
 
             logXsum = np.log(X).sum()
-            def f(alpha): 
-                # faster to eval log likelihood here
-                return alpha*logXsum + len(X)*np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))
-                #return -cls._log_likelihood(X, alpha, lower_bound, upper_bound)
-            
+            if upper_bound==np.inf:
+                # don't waste time computing upper bound term of 0.
+                def f(alpha): 
+                    # faster to eval log likelihood here
+                    return alpha*logXsum + X.size*np.log(zeta(alpha, lower_bound))
+            else:
+                def f(alpha): 
+                    # faster to eval log likelihood here
+                    return alpha*logXsum + X.size*np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))
+
             soln = minimize(f, initial_guess, bounds=[(1.0001,max_alpha)], tol=1e-3, **minimize_kw)
             if full_output:
                 return soln['x'], soln
