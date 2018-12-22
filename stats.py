@@ -501,6 +501,7 @@ class DiscretePowerLaw():
                      bootstrap_samples=1000,
                      samples_below_cutoff=None,
                      return_all=False,
+                     correction=None,
                      n_cpus=None):
         """
         Run bootstrapped test for significance of the max deviation from a power law fit to the
@@ -544,14 +545,15 @@ class DiscretePowerLaw():
                 ksdistribution[i], (alpha[i],lb[i]) = self.ks_resample(len(X),
                                                                        lower_bound_range,
                                                                        samples_below_cutoff,
-                                                                       return_all=True)
+                                                                       return_all=True,
+                                                                       correction=correction)
         else:
             if not samples_below_cutoff is None:
                 assert (samples_below_cutoff<X.min()).all()
             def f(args):
                 # scramble rng for each process
                 self.rng = np.random.RandomState()
-                return self.ks_resample(*args, return_all=True)
+                return self.ks_resample(*args, return_all=True, correction=correction)
 
             pool = Pool(n_cpus)
             ksdistribution, alphalb = list(zip(*pool.map( f,
@@ -587,6 +589,7 @@ class DiscretePowerLaw():
             If provided, these are included as part of the random cdf (by bootstrap sampling) and in the model
             as specified in Clauset 2007.
         return_all : bool, False
+        correction : function, None
 
         Returns
         -------
@@ -656,6 +659,8 @@ class DiscretePowerLaw():
                                             upper_bound=self.upper_bound,
                                             initial_guess=self.alpha,
                                             n_cpus=1)
+        if correction:
+            alpha += correction(alpha, K, lb)
 
         # calculate ks stat from fit
         if return_all:
