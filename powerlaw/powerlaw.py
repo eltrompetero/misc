@@ -149,6 +149,7 @@ def discrete_powerlaw_correction_spline():
 
     pl_correction = powerlaw_correction_spline()
     dpl_correction = [_discrete_powerlaw_correction_spline(i) for i in range(1,16)]
+
     def correction(alpha, K, lb=1, pl_correction=pl_correction, dpl_correction=dpl_correction):
         if lb>15:
             return pl_correction(alpha, K)

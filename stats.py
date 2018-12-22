@@ -623,7 +623,7 @@ class DiscretePowerLaw():
                                                 n_cpus=1)
             
             if correction:
-                alpha += correction(alpha, K)
+                alpha += correction(alpha, K, lb)
 
             # calculate ks stat from each fit
             if return_all:
@@ -660,7 +660,7 @@ class DiscretePowerLaw():
                                             initial_guess=self.alpha,
                                             n_cpus=1)
         if correction:
-            alpha += correction(alpha, K, lb)
+            alpha += correction(alpha, (X>=lb).sum(), lb)
 
         # calculate ks stat from fit
         if return_all:
