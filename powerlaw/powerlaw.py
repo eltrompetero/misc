@@ -1,5 +1,9 @@
+# ========================================================================================================= #
 # Module for bias testing of power law.
 # Author : Eddie Lee, edlee@alumni.princeton.edu
+#
+# Cached functions in this module require a cache folder in the working directory.
+# ========================================================================================================= #
 import numpy as np
 from workspace.utils import cached
 from ..stats import PowerLaw, DiscretePowerLaw
@@ -9,7 +13,7 @@ import os
 
 
 @cached(iprint=True, cache_pickle='cache/discrete_powerlaw_correction_spline_cache.p')
-def _discrete_powerlaw_correction_spline(n_iters, alphaRange, Krange, lower_bound):
+def cache_discrete_powerlaw_correction_spline(n_iters, alphaRange, Krange, lower_bound):
     """Returns spline interpolation for landscape (over alpha and K).
     
     Parameters
@@ -30,8 +34,8 @@ def _discrete_powerlaw_correction_spline(n_iters, alphaRange, Krange, lower_boun
         kwargs  to pass into scipy.interpolate.griddata
     """
     
-    if lower_bound>15:
-        return _power_correction_spline(n_iters, alphaRange, Krange)
+    assert lower_bound<=15, "Just use continuous variable approximation for large lower bound."
+    
 
     alphaRange = np.array(alphaRange)
     Krange = np.array(Krange)
@@ -71,16 +75,16 @@ def _discrete_powerlaw_correction_spline(n_iters, alphaRange, Krange, lower_boun
     kwargs = {'method':'linear', 'fill_value':0}
     return args, kwargs
 
-def discrete_powerlaw_correction_spline(lower_bound,
-                                alphaRange=np.arange(1.1, 10, .25),
-                                Krange=np.around(2.**np.arange(2,8.5,.5)).astype(int),
-                                n_iters=10_000,
-                                full_output=False,
-                                cache='w',
-                                cache_file='cache/discrete_powerlaw_correction_spline_cache.p',
-                                run_check=True):
-    """A wrapper for _discrete_powerlaw_correction_spline() that returns the results of
-    sampling.
+@cached(cache_pickle='cache/discrete_powerlaw_correction_spline_cache1.p')
+def _discrete_powerlaw_correction_spline(lower_bound,
+                                         alphaRange=np.arange(1.1, 10, .25),
+                                         Krange=np.around(2.**np.arange(2,8.5,.5)).astype(int),
+                                         n_iters=10_000,
+                                         full_output=False,
+                                         cache_file='cache/discrete_powerlaw_correction_spline_cache.p',
+                                         run_check=True):
+    """A wrapper for cache_discrete_powerlaw_correction_spline() that returns the
+    interpolated results of sampling.
     
     Parameters
     ----------
@@ -105,14 +109,10 @@ def discrete_powerlaw_correction_spline(lower_bound,
     """
 
     from scipy.interpolate import griddata
-    args, kwargs = _discrete_powerlaw_correction_spline(n_iters,
-                                                        tuple(alphaRange),
-                                                        tuple(Krange),
-                                                        lower_bound)
-
-    if cache=='w' or (cache=='r' and not os.path.isdir(cache_file)):
-        pickle.dump({'cache':_discrete_powerlaw_correction_spline.cache},
-                    open(cache_file,'wb'), -1)
+    args, kwargs = cache_discrete_powerlaw_correction_spline(n_iters,
+                                                            tuple(alphaRange),
+                                                            tuple(Krange),
+                                                            lower_bound)
 
     # basically a glorified look up table given the measured alpha to find the true alpha
     # this function takes in coordinates (alpha, K)
@@ -131,8 +131,32 @@ def discrete_powerlaw_correction_spline(lower_bound,
         return correction_fun, (alphaRange, Krange), args
     return correction_fun
 
+def discrete_powerlaw_correction_spline():
+    """A wrapper for _discrete_powerlaw_correction_spline() because that defines a
+    function for each individual lower bound. For many applications, redefining that
+    function repeated will take time so this preloads the splines for lower bounds 1-15.
+
+    This is the nice front end wrapper that doesn't worry about any of the caching behind
+    the scenes. To run that caching, you should call
+    _discrete_powerlaw_correction_spline().
+    
+    Returns
+    -------
+    function
+        Spline fit object from scipy.interpolate.interp2d that automatically handles lower
+        bound info.
+    """
+
+    pl_correction = powerlaw_correction_spline()
+    dpl_correction = [_discrete_powerlaw_correction_spline(i) for i in range(1,16)]
+    def correction(alpha, K, lb=1, pl_correction=pl_correction, dpl_correction=dpl_correction):
+        if lb>15:
+            return pl_correction(alpha, K)
+        return dpl_correction[lb-1](alpha, K)
+    return correction
+
 @cached(iprint=True, cache_pickle='cache/powerlaw_correction_spline_cache.p')
-def _powerlaw_correction_spline(n_iters, alphaRange, Krange):
+def cache_powerlaw_correction_spline(n_iters, alphaRange, Krange):
     """Returns spline interpolation for landscape (over alpha and K).
     
     Parameters
@@ -186,14 +210,14 @@ def _powerlaw_correction_spline(n_iters, alphaRange, Krange):
     kwargs = {'method':'linear', 'fill_value':0}
     return args, kwargs
 
+@cached(cache_pickle='cache/powerlaw_correction_spline_cache1.p')
 def powerlaw_correction_spline(alphaRange=np.arange(1.1, 10, .1),
                                Krange=np.around(2.**np.arange(2,10.5,.5)).astype(int),
                                n_iters=100_000,
                                full_output=False,
-                               cache='w',
                                cache_file='cache/powerlaw_correction_spline_cache.p',
                                run_check=True):
-    """A wrapper for _powerlaw_correction_spline() that returns the results of sampling.
+    """A wrapper for cache_powerlaw_correction_spline() that returns the results of sampling.
     
     Parameters
     ----------
@@ -202,9 +226,6 @@ def powerlaw_correction_spline(alphaRange=np.arange(1.1, 10, .1),
     n_iters : int, 100_000
         Number of samples on which to perform max likelihood procedure.
     full_output : bool, False
-    cache : str, 'r'
-        If 'w', always write cache file. If 'r' only write if there is no cache.
-        Otherwise, do not write any cache file.
     cache_file : str, 'cache/powerlaw_correction_spline_cache.p'
     run_check : bool, True
         Compare fitted landscape with given values.
@@ -216,11 +237,7 @@ def powerlaw_correction_spline(alphaRange=np.arange(1.1, 10, .1),
     """
 
     from scipy.interpolate import griddata
-    args, kwargs = _powerlaw_correction_spline(n_iters, tuple(alphaRange), tuple(Krange))
-
-    if cache=='w' or (cache=='r' and not os.path.isdir(cache_file)):
-        pickle.dump({'cache':_powerlaw_correction_spline.cache},
-                    open(cache_file,'wb'), -1)
+    args, kwargs = cache_powerlaw_correction_spline(n_iters, tuple(alphaRange), tuple(Krange))
 
     # basically a glorified look up table given the measured alpha to find the true alpha
     # this function takes in coordinates (alpha, K)
