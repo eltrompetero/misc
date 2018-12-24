@@ -10,6 +10,7 @@ from ..stats import PowerLaw, DiscretePowerLaw
 from multiprocess import Pool, cpu_count
 import pickle
 import os
+from warnings import warn
 
 
 @cached(iprint=True, cache_pickle='cache/discrete_powerlaw_correction_spline_cache.p')
@@ -153,6 +154,9 @@ def discrete_powerlaw_correction_spline():
     def correction(alpha, K, lb=1, pl_correction=pl_correction, dpl_correction=dpl_correction):
         if lb>15:
             return pl_correction(alpha, K)
+        if not type(lb) is int:
+            warn("lb is not int. Converting explicitly.")
+            lb = int(lb)
         return dpl_correction[lb-1](alpha, K)
     return correction
 
