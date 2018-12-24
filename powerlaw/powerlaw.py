@@ -35,7 +35,7 @@ def cache_discrete_powerlaw_correction_spline(n_iters, alphaRange, Krange, lower
         kwargs  to pass into scipy.interpolate.griddata
     """
     
-    assert lower_bound<=15, "Just use continuous variable approximation for large lower bound."
+    assert lower_bound<=25, "Just use continuous variable approximation for large lower bound."
     
 
     alphaRange = np.array(alphaRange)
@@ -149,10 +149,10 @@ def discrete_powerlaw_correction_spline():
     """
 
     pl_correction = powerlaw_correction_spline()
-    dpl_correction = [_discrete_powerlaw_correction_spline(i) for i in range(1,16)]
+    dpl_correction = [_discrete_powerlaw_correction_spline(i) for i in range(1,26)]
 
     def correction(alpha, K, lb=1, pl_correction=pl_correction, dpl_correction=dpl_correction):
-        if lb>15:
+        if lb>25:
             return pl_correction(alpha, K)
         if not type(lb) is int:
             warn("lb is not int. Converting explicitly.")
@@ -220,7 +220,6 @@ def powerlaw_correction_spline(alphaRange=np.arange(1.1, 10, .1),
                                Krange=np.around(2.**np.arange(2,10.5,.5)).astype(int),
                                n_iters=100_000,
                                full_output=False,
-                               cache_file='cache/powerlaw_correction_spline_cache.p',
                                run_check=True):
     """A wrapper for cache_powerlaw_correction_spline() that returns the results of sampling.
     
@@ -231,7 +230,6 @@ def powerlaw_correction_spline(alphaRange=np.arange(1.1, 10, .1),
     n_iters : int, 100_000
         Number of samples on which to perform max likelihood procedure.
     full_output : bool, False
-    cache_file : str, 'cache/powerlaw_correction_spline_cache.p'
     run_check : bool, True
         Compare fitted landscape with given values.
     
@@ -240,7 +238,7 @@ def powerlaw_correction_spline(alphaRange=np.arange(1.1, 10, .1),
     function
         Spline fit object from scipy.interpolate.interp2d.
     """
-
+    
     from scipy.interpolate import griddata
     args, kwargs = cache_powerlaw_correction_spline(n_iters, tuple(alphaRange), tuple(Krange))
 
