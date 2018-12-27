@@ -230,7 +230,7 @@ class DiscretePowerLaw():
         if rng is None:
             rng = np.random
 
-        if x1<=1e6:
+        if x1<10_001:
             try:
                 return rng.choice(range(x0,int(x1)+1),
                                   size=size,
@@ -240,22 +240,23 @@ class DiscretePowerLaw():
                 raise Exception("Probabilities do not sum to 1.")
         
         # when upper bound is large, use continuum approximation for tail
-        xRange = np.arange(x0, 1_000_001)
-        p = cls.pdf(alpha, x0, x1)(xRange)
-        # only consider discretely p larger than some threshold
-        p = p[:len(p)-np.searchsorted(p[::-1], 1e-6)]
-        xRange = xRange[:len(p)]
-        assert p[-1]>1e-6, "Sampling is impossible for very heavy-tails."
-        ptail = 1-p.sum()
-
-        X = rng.choice(xRange, p=p/p.sum(), size=size).astype(int)  # random sample
-        tailix = rng.rand(*size)<ptail
-        if tailix.any():
-            X[tailix] = np.around( PowerLaw.rvs(alpha=alpha,
-                                                lower_bound=xRange[-1],
-                                                upper_bound=x1,
-                                                size=int(tailix.sum())) ).astype(int)
-
+        if x0<10_001:
+            xRange = np.arange(x0, 10_001)
+            p = cls.pdf(alpha, x0, x1)(xRange)
+            ptail = 1-p.sum()
+            X = rng.choice(xRange, p=p/p.sum(), size=size).astype(int)  # random sample
+            tailix = rng.rand(*size)<ptail
+            if tailix.any():
+                X[tailix] = np.around( PowerLaw.rvs(alpha=alpha,
+                                                    lower_bound=xRange[-1],
+                                                    upper_bound=x1,
+                                                    size=int(tailix.sum())) ).astype(int)
+        else:
+            X = np.around( PowerLaw.rvs(alpha=alpha,
+                                        lower_bound=x0,
+                                        upper_bound=x1,
+                                        size=size ).astype(int) )
+        
         if (X<0).any():
             print("Some samples exceeded numerical precision range for int. Bounding them to 2^62.")
             X[X<0] = 2**62
