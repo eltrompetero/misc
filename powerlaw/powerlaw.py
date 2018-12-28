@@ -148,14 +148,14 @@ def discrete_powerlaw_correction_spline():
         bound info.
     """
 
-    pl_correction = powerlaw_correction_spline()
-    dpl_correction = [_discrete_powerlaw_correction_spline(i) for i in range(1,26)]
+    pl_correction = powerlaw_correction_spline(run_check=False)
+    dpl_correction = [_discrete_powerlaw_correction_spline(i, run_check=False) for i in range(1,26)]
 
     def correction(alpha, K, lb=1, pl_correction=pl_correction, dpl_correction=dpl_correction):
         if lb>25:
             return pl_correction(alpha, K)
         if not type(lb) is int:
-            warn("lb is not int. Converting explicitly.")
+            #warn("lb is not int. Converting explicitly.")
             lb = int(lb)
         return dpl_correction[lb-1](alpha, K)
     return correction
