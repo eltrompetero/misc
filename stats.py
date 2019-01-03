@@ -733,10 +733,11 @@ class PowerLaw(DiscretePowerLaw):
     _default_lower_bound=1.
     _default_upper_bound=np.inf
 
-    def __init__(self,alpha,lower_bound,upper_bound=np.inf):
+    def __init__(self, alpha, lower_bound=1, upper_bound=np.inf, rng=None):
         self.alpha=alpha
         self.lower_bound=lower_bound
         self.upper_bound=upper_bound
+        self.rng = rng or np.random
 
     @classmethod
     def rvs(cls, alpha=None,
