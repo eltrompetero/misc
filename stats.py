@@ -334,8 +334,8 @@ class DiscretePowerLaw():
             assert lower_bound_range[0]<(upper_bound-1)
             # lower bound cannot exceed the values of the elements of X, here's a not-very-well constrained
             # range
-            lower_bound_range = np.arange(lower_bound_range[0], min(lower_bound_range[1]+1, X.max()+1),
-                                          dtype=int)
+            lower_bound_range = max(lower_bound_range[0],X.min()), min(lower_bound_range[1]+1,X.max()+1)
+            uniqLowerBounds = np.unique(X[(X>=lower_bound_range[0])&(X<lower_bound_range[1])]).astype(int)
 
             # set up pool to evaluate likelihood for entire range of lower bounds
             # calls cls.max_likelihood to find best alpha for the given lower bound
@@ -348,29 +348,31 @@ class DiscretePowerLaw():
                                                  upper_bound=upper_bound,
                                                  minimize_kw=minimize_kw,
                                                  full_output=True)
-                # return CSM approach of KS statistic
+                # return CSM approach of using KS statistic
                 # print("In max lik lower bound range", alpha, lower_bound)
-                return alpha, cls.ksvalclass(X[X>=lower_bound], alpha, lower_bound, upper_bound)
+                return alpha, cls.ksvalclass(X[X>=lower_bound], alpha, lower_bound, upper_bound), soln
                 # return normalized log likelihood
                 return alpha, soln['fun']/(X>=lower_bound).sum()
             
             if n_cpus is None or n_cpus>1:
                 # parallelized
                 pool = Pool(cpu_count()-1)
-                alpha, negloglik = zip(*pool.map(solve_one_lower_bound, lower_bound_range))
+                alpha, negloglik, soln = zip(*pool.map(solve_one_lower_bound, uniqLowerBounds))
                 pool.close()
             else:
                 # sequential
-                alpha = np.zeros(len(lower_bound_range))
-                negloglik = np.zeros(len(lower_bound_range))
-                for i,lb in enumerate(lower_bound_range):
-                    alpha[i], negloglik[i] = solve_one_lower_bound(lb)
+                alpha = np.zeros(len(uniqLowerBounds))
+                negloglik = np.zeros(len(uniqLowerBounds))
+                soln = []
+                for i,lb in enumerate(uniqLowerBounds):
+                    alpha[i], negloglik[i], s = solve_one_lower_bound(lb)
+                    soln.append(s)
             
             if full_output:
-                return (alpha[np.argmin(negloglik)],
-                        lower_bound_range[np.argmin(negloglik)],
-                        negloglik[np.argmin(negloglik)])
-            return alpha[np.argmin(negloglik)], lower_bound_range[np.argmin(negloglik)]
+                bestFitIx = np.argmin(negloglik)
+                return ((alpha[bestFitIx], uniqLowerBounds[bestFitIx]),
+                        soln[bestFitIx])
+            return alpha[np.argmin(negloglik)], uniqLowerBounds[np.argmin(negloglik)]
        
     @classmethod
     def log_likelihood(cls, X, alpha, 
@@ -890,34 +892,46 @@ class PowerLaw(DiscretePowerLaw):
         else:
             initial_guess = (initial_guess, min( x.min()*2, np.sqrt(x.max()*x.min()) ))
         assert initial_guess[-1]<upper_bound, "Guess for lower bound cannot be >= upper bound."
+
+        n_cpus = n_cpus or (cpu_count()-1)
        
         def cost(alpha, lower_bound):
-            return cls.ksvalclass( x[x>=lower_bound],
-                                   alpha,
-                                   lower_bound,
-                                   upper_bound )
-            # normalize by the number of data points when the lower cutoff is imposed
-            #return -cls.log_likelihood(x[x>=lower_bound],
-            #                           alpha,
-            #                           lower_bound,
-            #                           upper_bound,
-            #                           True)/(x>=lower_bound).sum()
+            #return cls.ksvalclass( x[x>=lower_bound],
+            #                       alpha,
+            #                       lower_bound,
+            #                       upper_bound )
+            return -cls.log_likelihood(x[x>=lower_bound],
+                                       alpha,
+                                       lower_bound,
+                                       upper_bound,
+                                       True)
         def parallel_wrapper(lower_bound):
             """Wrap minimization for each lower bound to try."""
             soln = minimize(lambda alpha: cost(alpha, lower_bound), initial_guess[0],
                             bounds=[(1.0001,max_alpha)],
                             **minimize_kw)
+            return (soln['x'],
+                    cls.ksvalclass(x[x>=lower_bound], soln['x'], lower_bound, upper_bound),
+                    soln)
             return soln['x'], soln
 
         # try all possible lower bounds in the given range (with some coarse-grained resolution for speed)
         boundix = (x>=lower_bound_range[0])&(x<=lower_bound_range[1])
         uniqLowerBounds = np.unique(np.around(x, decimal_resolution)[boundix])
-        pool = Pool(n_cpus or cpu_count())
-        alpha, soln = list(zip(*pool.map(parallel_wrapper, uniqLowerBounds)))
-        pool.close()
+        if n_cpus>1:
+            pool = Pool(n_cpus or cpu_count())
+            alpha, ksval, soln = list(zip(*pool.map(parallel_wrapper, uniqLowerBounds)))
+            pool.close()
+        else:
+            alpha = np.zeros_like(uniqLowerBounds)
+            ksval = np.zeros_like(uniqLowerBounds)
+            soln = []
+            for i,ulb in enumerate(uniqLowerBounds):
+                alpha[i], ksval[i], s = parallel_wrapper(ulb)
+                soln.append(s)
         
         # select lower bound that minimizes the cost function
-        minCostIx = np.argmin([s['fun'] for s in soln])
+        minCostIx = np.argmin(ksval)
         if full_output:
             return (alpha[minCostIx], uniqLowerBounds[minCostIx]), soln[minCostIx]
         return alpha[minCostIx], uniqLowerBounds[minCostIx]
