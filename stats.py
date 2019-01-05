@@ -669,8 +669,9 @@ class DiscretePowerLaw():
         return self.ksval(X[X>=lb], alpha, lb, self.upper_bound)
 
     def ksval(self, X, alpha=None, lower_bound=None, upper_bound=None, iprint=False):
-        """Build CDF from given data and compare with model. Return largest distance between the empirical and
-        model CDFs (the Kolmogorov-Smirnov statistic for discrete data).
+        """Build CDF from given data and compare with model. Return largest distance
+        between the empirical and model CDFs (the Kolmogorov-Smirnov statistic for
+        discrete data).
 
         Parameters
         ----------
@@ -700,8 +701,9 @@ class DiscretePowerLaw():
     
     @classmethod
     def ksvalclass(cls, X, alpha, lower_bound, upper_bound, iprint=False):
-        """Build CDF from given data and compare with model. Return largest distance between the empirical and
-        model CDFs (the Kolmogorov-Smirnov statistic for discrete data).
+        """Build CDF from given data and compare with model. Return largest distance
+        between the empirical and model CDFs (the Kolmogorov-Smirnov statistic for
+        discrete data).
 
         Parameters
         ----------
@@ -709,6 +711,7 @@ class DiscretePowerLaw():
         alpha : float, None
         lower_bound : int, None
         upper_bound : int, None
+        iprint : bool, False
 
         Returns
         -------
@@ -807,10 +810,12 @@ class PowerLaw(DiscretePowerLaw):
                        lower_bound=None,
                        upper_bound=None,
                        lower_bound_range=None,
+                       decimal_resolution=0,
                        initial_guess=None,
                        full_output=False,
                        n_cpus=None,
-                       max_alpha=7.):
+                       max_alpha=7.,
+                       minimize_kw={}):
         """
         Conventional max likelihood fit to the power law when no search for the lower
         bound is specified. When a lower bound is sought, then the max likelihood per data
@@ -825,16 +830,21 @@ class PowerLaw(DiscretePowerLaw):
             If no lower_bound_range is specified, then x.min() is set to lower bound.
             NOTE: Overestimation of the lower bound (which is likely when using this
             approach) can lead to serious overestimation of the true exponent.
+            Underestimation is likewise an important source of bias.
         upper_bound : float, None
             Default is inf.
         lower_bound_range : duple, None
             If given, then lower bound is solved for.
+        decimal_resolution : int, 0
+            Decimals to which to round the unique values the sample that could be lower
+            bound.
         initial_guess : tuple, None
         full_output : bool, False
         n_cpus : None
             Dummy argument to standardize input across classes.
         max_alpha : float, 7.
             Only used if upper_bound is specified.
+        minimize_kw : dict, {}
 
         Returns
         -------
@@ -881,20 +891,36 @@ class PowerLaw(DiscretePowerLaw):
             initial_guess = (initial_guess, min( x.min()*2, np.sqrt(x.max()*x.min()) ))
         assert initial_guess[-1]<upper_bound, "Guess for lower bound cannot be >= upper bound."
        
-        def cost(args):
+        def cost(alpha, lower_bound):
+            return cls.ksvalclass( x[x>=lower_bound],
+                                   alpha,
+                                   lower_bound,
+                                   upper_bound )
             # normalize by the number of data points when the lower cutoff is imposed
-            alpha, lower_bound = args
-            return -cls.log_likelihood(x[x>=lower_bound],
-                                       alpha,
-                                       lower_bound,
-                                       upper_bound,
-                                       True)/(x>=lower_bound).sum()
-        
-        soln = minimize(cost, initial_guess,
-                        bounds=[(1.0001,max_alpha),lower_bound_range])
-        if full_output:
+            #return -cls.log_likelihood(x[x>=lower_bound],
+            #                           alpha,
+            #                           lower_bound,
+            #                           upper_bound,
+            #                           True)/(x>=lower_bound).sum()
+        def parallel_wrapper(lower_bound):
+            """Wrap minimization for each lower bound to try."""
+            soln = minimize(lambda alpha: cost(alpha, lower_bound), initial_guess[0],
+                            bounds=[(1.0001,max_alpha)],
+                            **minimize_kw)
             return soln['x'], soln
-        return soln['x']
+
+        # try all possible lower bounds in the given range (with some coarse-grained resolution for speed)
+        boundix = (x>=lower_bound_range[0])&(x<=lower_bound_range[1])
+        uniqLowerBounds = np.unique(np.around(x, decimal_resolution)[boundix])
+        pool = Pool(n_cpus or cpu_count())
+        alpha, soln = list(zip(*pool.map(parallel_wrapper, uniqLowerBounds)))
+        pool.close()
+        
+        # select lower bound that minimizes the cost function
+        minCostIx = np.argmin([s['fun'] for s in soln])
+        if full_output:
+            return (alpha[minCostIx], uniqLowerBounds[minCostIx]), soln[minCostIx]
+        return alpha[minCostIx], uniqLowerBounds[minCostIx]
 
     @classmethod
     def log_likelihood(cls, x, alpha, lower_bound, upper_bound=np.inf, normalize=False):
