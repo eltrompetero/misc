@@ -309,7 +309,7 @@ class DiscretePowerLaw():
         """
 
         # if only a single data is given, fitting procedure is not well defined
-        if X.size==1:
+        if X.size<=1:
             if lower_bound_range:
                 if full_output:
                     return (np.nan, np.nan), {}
@@ -342,15 +342,28 @@ class DiscretePowerLaw():
             return soln['x']
 
         else:
-            assert lower_bound_range[0]>0
-            assert lower_bound_range[0]<(upper_bound-1)
+            # setup
             decimal_resolution = decimal_resolution or int(np.log10(X[0])+1)
 
             # lower bound cannot exceed the values of the elements of X, here's a not-very-well constrained
             # range
             lower_bound_range = max(lower_bound_range[0],X.min()), min(lower_bound_range[1],X.max()-1)
-            boundsIx = (X>=lower_bound_range[0])&(X<lower_bound_range[1])
+            assert lower_bound_range[0]>0
+            if lower_bound_range[0]>=lower_bound_range[1]:
+                raise AssertionError("Impossible lower bound range.")
+            assert lower_bound_range[0]<(upper_bound-1)
+            assert X.min()<=lower_bound_range[1]
+
+            boundsIx = (X>=lower_bound_range[0])&(X<=lower_bound_range[1])
             uniqLowerBounds = np.unique(np.around(X[boundsIx], decimal_resolution)).astype(int)
+            if uniqLowerBounds[-1]>=X.max():
+                uniqLowerBounds = uniqLowerBounds[:-1]
+            if uniqLowerBounds[0]==0:
+                uniqLowerBounds = uniqLowerBounds[1:]
+            if uniqLowerBounds.size==0:
+                if full_output:
+                    return (np.nan, np.nan), {}
+                return np.nan, np.nan
 
             # set up pool to evaluate likelihood for entire range of lower bounds
             # calls cls.max_likelihood to find best alpha for the given lower bound
@@ -882,7 +895,7 @@ class PowerLaw(DiscretePowerLaw):
         """
         
         # if only a single data is given, fitting procedure is not well defined
-        if X.size==1:
+        if X.size<=1:
             if lower_bound_range:
                 if full_output:
                     return (np.nan, np.nan), {}
@@ -916,17 +929,30 @@ class PowerLaw(DiscretePowerLaw):
         upper_bound = upper_bound or np.inf
         if upper_bound<np.inf:
             assert (X<=upper_bound).all(), "Upper bound is violated."
-        assert lower_bound_range[0]<lower_bound_range[1], "Lower bound range must be a range."
-        lower_bound_range = (lower_bound_range[0], min(lower_bound_range[-1], X.max()-1))
+        lower_bound_range = max(lower_bound_range[0], X.min()), min(lower_bound_range[-1], X.max())
+        assert lower_bound_range[0]<lower_bound_range[1], "Impossible lower bound range."
+        assert X.min()<=lower_bound_range[1]
         decimal_resolution = decimal_resolution or int(np.log10(lower_bound_range[0])+1)
         initial_guess = initial_guess or cls._default_alpha
         n_cpus = n_cpus or (cpu_count()-1)
-       
+      
+        # try all possible lower bounds in the given range (with some coarse-grained resolution for speed)
+        boundix = (X>=lower_bound_range[0])&(X<=lower_bound_range[1])
+        uniqLowerBounds = np.unique(np.around(X, decimal_resolution)[boundix])
+        if uniqLowerBounds[-1]>=X.max():
+            uniqLowerBounds = uniqLowerBounds[:-1]
+        if uniqLowerBounds[0]==0:
+            uniqLowerBounds = uniqLowerBounds[1:]
+        if uniqLowerBounds.size==0:
+            if full_output:
+                return (np.nan, np.nan), {}
+            return (np.nan, np.nan)
+
         def parallel_wrapper(lower_bound):
             """Wrap minimization for each lower bound to try."""
             def cost(alpha, x_=X[X>=lower_bound]):
                 # if only a single data point, fitting procedure is not well defined
-                if x_.size==1:
+                if x_.size<=1:
                     return np.nan
                 return -cls.log_likelihood(x_,
                                            alpha,
@@ -940,13 +966,6 @@ class PowerLaw(DiscretePowerLaw):
             return (soln['x'],
                     cls.ksvalclass(X[X>=lower_bound], soln['x'], lower_bound, upper_bound),
                     soln)
-
-        # try all possible lower bounds in the given range (with some coarse-grained resolution for speed)
-        boundix = (X>=lower_bound_range[0])&(X<=lower_bound_range[1])
-        uniqLowerBounds = np.unique(np.around(X, decimal_resolution)[boundix])
-        if uniqLowerBounds[0]==0:
-            uniqLowerBounds = uniqLowerBounds[1:]
-        assert uniqLowerBounds.size>=1
         
         # run max likelihood procedure over all lower bounds
         if n_cpus>1 and uniqLowerBounds.size>1:
