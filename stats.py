@@ -341,64 +341,62 @@ class DiscretePowerLaw():
                 return soln['x'], soln
             return soln['x']
 
-        else:
-            # setup
-            decimal_resolution = decimal_resolution or int(np.log10(X[0])+1)
+        # setup
+        decimal_resolution = decimal_resolution or int(np.log10(X[0])+1)
 
-            # lower bound cannot exceed the values of the elements of X, here's a not-very-well constrained
-            # range
-            lower_bound_range = max(lower_bound_range[0],X.min()), min(lower_bound_range[1],X.max())
-            assert lower_bound_range[0]>0
-            if lower_bound_range[0]>=lower_bound_range[1]:
-                raise AssertionError("Impossible lower bound range.")
-            assert lower_bound_range[0]<(upper_bound-1)
-            assert X.min()<=lower_bound_range[1]
+        # lower bound cannot exceed the values of the elements of X, here's a very generous range
+        lower_bound_range = max(lower_bound_range[0],X.min()), min(lower_bound_range[1],X.max())
+        assert lower_bound_range[0]>0
+        if lower_bound_range[0]>=lower_bound_range[1]:
+            raise AssertionError("Impossible lower bound range.")
+        assert lower_bound_range[0]<(upper_bound-1)
+        assert X.min()<=lower_bound_range[1]
 
-            boundsIx = (X>=lower_bound_range[0])&(X<=lower_bound_range[1])
-            uniqLowerBounds = np.unique(np.around(X[boundsIx], decimal_resolution)).astype(int)
-            if uniqLowerBounds[-1]>=X.max():
-                uniqLowerBounds = uniqLowerBounds[:-1]
-            if uniqLowerBounds[0]==0:
-                uniqLowerBounds = uniqLowerBounds[1:]
-            if uniqLowerBounds.size==0:
-                if full_output:
-                    return (np.nan, np.nan), {}
-                return np.nan, np.nan
-
-            # set up pool to evaluate likelihood for entire range of lower bounds
-            # calls cls.max_likelihood to find best alpha for the given lower bound
-            def solve_one_lower_bound(lower_bound):
-                if not (X>=lower_bound).any():
-                    raise Exception("Lower bound is too large.")
-                alpha, soln = cls.max_likelihood(X[X>=lower_bound],
-                                                 initial_guess=initial_guess,
-                                                 lower_bound=lower_bound,
-                                                 upper_bound=upper_bound,
-                                                 minimize_kw=minimize_kw,
-                                                 full_output=True)
-                # return CSM approach of using KS statistic
-                # print("In max lik lower bound range", alpha, lower_bound)
-                return alpha, cls.ksvalclass(X[X>=lower_bound], alpha, lower_bound, upper_bound), soln
-            
-            if n_cpus is None or n_cpus>1:
-                # parallelized
-                pool = Pool(cpu_count()-1)
-                alpha, negloglik, soln = zip(*pool.map(solve_one_lower_bound, uniqLowerBounds))
-                pool.close()
-            else:
-                # sequential
-                alpha = np.zeros(len(uniqLowerBounds))
-                negloglik = np.zeros(len(uniqLowerBounds))
-                soln = []
-                for i,lb in enumerate(uniqLowerBounds):
-                    alpha[i], negloglik[i], s = solve_one_lower_bound(lb)
-                    soln.append(s)
-            
+        boundsIx = (X>=lower_bound_range[0])&(X<=lower_bound_range[1])
+        uniqLowerBounds = np.unique(np.around(X[boundsIx], decimal_resolution)).astype(int)
+        if uniqLowerBounds[-1]>=X.max():
+            uniqLowerBounds = uniqLowerBounds[:-1]
+        if uniqLowerBounds[0]==0:
+            uniqLowerBounds = uniqLowerBounds[1:]
+        if uniqLowerBounds.size==0:
             if full_output:
-                bestFitIx = np.argmin(negloglik)
-                return ((alpha[bestFitIx], uniqLowerBounds[bestFitIx]),
-                        soln[bestFitIx])
-            return alpha[np.argmin(negloglik)], uniqLowerBounds[np.argmin(negloglik)]
+                return (np.nan, np.nan), {}
+            return np.nan, np.nan
+
+        # set up pool to evaluate likelihood for entire range of lower bounds
+        # calls cls.max_likelihood to find best alpha for the given lower bound
+        def solve_one_lower_bound(lower_bound):
+            if not (X>=lower_bound).any():
+                raise Exception("Lower bound is too large.")
+            alpha, soln = cls.max_likelihood(X[X>=lower_bound],
+                                             initial_guess=initial_guess,
+                                             lower_bound=lower_bound,
+                                             upper_bound=upper_bound,
+                                             minimize_kw=minimize_kw,
+                                             full_output=True)
+            # return CSM approach of using KS statistic
+            # print("In max lik lower bound range", alpha, lower_bound)
+            return alpha, cls.ksvalclass(X[X>=lower_bound], alpha, lower_bound, upper_bound), soln
+        
+        if n_cpus is None or n_cpus>1:
+            # parallelized
+            pool = Pool(cpu_count()-1)
+            alpha, negloglik, soln = zip(*pool.map(solve_one_lower_bound, uniqLowerBounds))
+            pool.close()
+        else:
+            # sequential
+            alpha = np.zeros(len(uniqLowerBounds))
+            negloglik = np.zeros(len(uniqLowerBounds))
+            soln = []
+            for i,lb in enumerate(uniqLowerBounds):
+                alpha[i], negloglik[i], s = solve_one_lower_bound(lb)
+                soln.append(s)
+        
+        if full_output:
+            bestFitIx = np.argmin(negloglik)
+            return ((alpha[bestFitIx], uniqLowerBounds[bestFitIx]),
+                    soln[bestFitIx])
+        return alpha[np.argmin(negloglik)], uniqLowerBounds[np.argmin(negloglik)]
        
     @classmethod
     def log_likelihood(cls, X, alpha, 
