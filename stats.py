@@ -272,6 +272,7 @@ class DiscretePowerLaw():
                        full_output=False,
                        n_cpus=None,
                        max_alpha=7.,
+                       decimal_resolution=None,
                        run_check=True):
         """
         Find the best fit power law exponent and min threshold for a discrete power law distribution. Lower
@@ -294,6 +295,7 @@ class DiscretePowerLaw():
         n_cpus : int, None
         max_alpha : float, 7.
             max value allowed for alpha.
+        decimal_resolution : int, None
         run_check : bool, True
             If True, run checks. Disable for max speed.
 
@@ -306,6 +308,16 @@ class DiscretePowerLaw():
         scipy.optimize.minimize or list thereof
         """
 
+        # if only a single data is given, fitting procedure is not well defined
+        if X.size==1:
+            if lower_bound_range:
+                if full_output:
+                    return (np.nan, np.nan), {}
+                return np.nan, np.nan
+            if full_output:
+                return np.nan, {}
+            return np.nan
+ 
         if lower_bound_range is None:
             if run_check:
                 if type(X) is list:
@@ -332,10 +344,13 @@ class DiscretePowerLaw():
         else:
             assert lower_bound_range[0]>0
             assert lower_bound_range[0]<(upper_bound-1)
+            decimal_resolution = decimal_resolution or int(np.log10(X[0])+1)
+
             # lower bound cannot exceed the values of the elements of X, here's a not-very-well constrained
             # range
-            lower_bound_range = max(lower_bound_range[0],X.min()), min(lower_bound_range[1]+1,X.max()+1)
-            uniqLowerBounds = np.unique(X[(X>=lower_bound_range[0])&(X<lower_bound_range[1])]).astype(int)
+            lower_bound_range = max(lower_bound_range[0],X.min()), min(lower_bound_range[1],X.max()-1)
+            boundsIx = (X>=lower_bound_range[0])&(X<lower_bound_range[1])
+            uniqLowerBounds = np.unique(np.around(X[boundsIx], decimal_resolution)).astype(int)
 
             # set up pool to evaluate likelihood for entire range of lower bounds
             # calls cls.max_likelihood to find best alpha for the given lower bound
@@ -351,8 +366,6 @@ class DiscretePowerLaw():
                 # return CSM approach of using KS statistic
                 # print("In max lik lower bound range", alpha, lower_bound)
                 return alpha, cls.ksvalclass(X[X>=lower_bound], alpha, lower_bound, upper_bound), soln
-                # return normalized log likelihood
-                return alpha, soln['fun']/(X>=lower_bound).sum()
             
             if n_cpus is None or n_cpus>1:
                 # parallelized
@@ -505,6 +518,7 @@ class DiscretePowerLaw():
                      samples_below_cutoff=None,
                      return_all=False,
                      correction=None,
+                     decimal_resolution=None,
                      n_cpus=None):
         """
         Run bootstrapped test for significance of the max deviation from a power law fit to the
@@ -523,6 +537,8 @@ class DiscretePowerLaw():
         samples_below_cutoff : ndarray, None
             Pass integer number of samples n and return n samples.
         return_all : bool, True
+        correction : function, None
+        decimal_resolution : int, None
         n_cpus : int, None
             For multiprocessing.
 
@@ -536,8 +552,7 @@ class DiscretePowerLaw():
             (alpha, lb) : the found parameters for each random sample 
         """
         
-        if n_cpus is None:
-            n_cpus = cpu_count()-1
+        n_cpus = n_cpus or (cpu_count()-1)
         
         if n_cpus<=1:
             self.rng = np.random.RandomState()
@@ -549,7 +564,8 @@ class DiscretePowerLaw():
                                                                        lower_bound_range,
                                                                        samples_below_cutoff,
                                                                        return_all=True,
-                                                                       correction=correction)
+                                                                       correction=correction,
+                                                                       decimal_resolution=decimal_resolution)
         else:
             if not samples_below_cutoff is None:
                 assert (samples_below_cutoff<X.min()).all()
@@ -578,7 +594,8 @@ class DiscretePowerLaw():
                     lower_bound_range=None,
                     samples_below_cutoff=None,
                     return_all=False,
-                    correction=None):
+                    correction=None,
+                    decimal_resolution=None):
         """Generate a random sample from and fit to random distribution  given by specified power
         law model. This is used to generate a KS statistic.
         
@@ -593,6 +610,7 @@ class DiscretePowerLaw():
             as specified in Clauset 2007.
         return_all : bool, False
         correction : function, None
+        decimal_resolution : int, None
 
         Returns
         -------
@@ -616,6 +634,7 @@ class DiscretePowerLaw():
                                             lower_bound_range=lower_bound_range,
                                             upper_bound=self.upper_bound,
                                             initial_guess=self.alpha,
+                                            decimal_resolution=decimal_resolution,
                                             n_cpus=1)
                 lb = self.lower_bound
             else:
@@ -623,6 +642,7 @@ class DiscretePowerLaw():
                                                 lower_bound_range=lower_bound_range,
                                                 upper_bound=self.upper_bound,
                                                 initial_guess=self.alpha,
+                                                decimal_resolution=decimal_resolution,
                                                 n_cpus=1)
             
             if correction:
@@ -655,12 +675,14 @@ class DiscretePowerLaw():
             alpha, lb = self.max_likelihood(X,
                                             upper_bound=self.upper_bound,
                                             initial_guess=self.alpha,
+                                            decimal_resolution=decimal_resolution,
                                             n_cpus=1)
         else:
             alpha, lb = self.max_likelihood(X,
                                             lower_bound_range=(X.min(),lower_bound_range[1]),
                                             upper_bound=self.upper_bound,
                                             initial_guess=self.alpha,
+                                            decimal_resolution=decimal_resolution,
                                             n_cpus=1)
         if correction:
             alpha += correction(alpha, (X>=lb).sum(), lb)
@@ -803,16 +825,17 @@ class PowerLaw(DiscretePowerLaw):
             return cdf
 
         def cdf(x, alpha=alpha, lower_bound=lower_bound, upper_bound=upper_bound):
-            assert all(x>=lower_bound) and all(x<=upper_bound)
+            assert (x>=lower_bound).all() and (x<=upper_bound).all(), (x.min(), x.max(),
+                                                                       lower_bound, upper_bound)
             return -(x**(1-alpha) - lower_bound**(1-alpha)) / (lower_bound**(1-alpha) - upper_bound**(1-alpha))
         return cdf
 
     @classmethod
-    def max_likelihood(cls, x,
+    def max_likelihood(cls, X,
                        lower_bound=None,
                        upper_bound=None,
                        lower_bound_range=None,
-                       decimal_resolution=0,
+                       decimal_resolution=None,
                        initial_guess=None,
                        full_output=False,
                        n_cpus=None,
@@ -827,9 +850,9 @@ class PowerLaw(DiscretePowerLaw):
 
         Parameters
         ----------
-        x : ndarray
+        X : ndarray
         lower_bound : float, None
-            If no lower_bound_range is specified, then x.min() is set to lower bound.
+            If no lower_bound_range is specified, then X.min() is set to lower bound.
             NOTE: Overestimation of the lower bound (which is likely when using this
             approach) can lead to serious overestimation of the true exponent.
             Underestimation is likewise an important source of bias.
@@ -837,10 +860,12 @@ class PowerLaw(DiscretePowerLaw):
             Default is inf.
         lower_bound_range : duple, None
             If given, then lower bound is solved for.
-        decimal_resolution : int, 0
+        decimal_resolution : int, None
             Decimals to which to round the unique values the sample that could be lower
-            bound.
-        initial_guess : tuple, None
+            bound. If unspecified, inferred by using accuracy of the lower limit of 
+            lower_bound_range.
+        initial_guess : float, None
+            Only a guess for alpha is allowed.
         full_output : bool, False
         n_cpus : None
             Dummy argument to standardize input across classes.
@@ -856,75 +881,81 @@ class PowerLaw(DiscretePowerLaw):
             Solution returned from scipy.optimize.minimize.
         """
         
+        # if only a single data is given, fitting procedure is not well defined
+        if X.size==1:
+            if lower_bound_range:
+                if full_output:
+                    return (np.nan, np.nan), {}
+                return np.nan, np.nan
+            if full_output:
+                return np.nan, {}
+            return np.nan
+        
+        # no lower bound range is specified
         if lower_bound_range is None:
             if lower_bound is None:
-                lower_bound=x.min()
+                lower_bound=X.min()
             else:
-                assert (x>=lower_bound).all(), "Lower bound violated."
+                assert (X>=lower_bound).all(), "Lower bound violated."
             
             # analytic solution if lower bound is given and upper bound is at inf
             if upper_bound is None or upper_bound==np.inf:
-                return 1 + 1/np.log(x/lower_bound).mean()
+                return 1 + 1/np.log(X/lower_bound).mean()
             
-            assert (x<=upper_bound).all(), "Upper bound violated."
+            assert (X<=upper_bound).all(), "Upper bound violated."
             def cost(alpha):
-                return -cls.log_likelihood(x, alpha, lower_bound, upper_bound, True)
+                return -cls.log_likelihood(X, alpha, lower_bound, upper_bound, True)
 
             soln = minimize(cost, cls._default_alpha, bounds=[(1.0001,max_alpha)])
             if full_output:
                 return soln['x'], soln
             return soln['x']
         
-        # if lower_bound_range is given
-        if upper_bound is None:
-            upper_bound = np.inf
-        else:
-            assert (x<=upper_bound).all(), "Upper bound is violated."
-        if lower_bound_range[-1]>=x.max():
-            #print("Shrinking lower_bound_range.")
-            lower_bound_range = (lower_bound_range[0], x.max()/2)
- 
-        if initial_guess is None:
-            initial_guess = (cls._default_alpha, cls._default_lower_bound)
-        if hasattr(initial_guess, '__len__'): 
-            assert len(initial_guess)==2, "Initial guess can only provide up to two args."
-        # handle case where only a guess for alpha is given
-        else:
-            initial_guess = (initial_guess, min( x.min()*2, np.sqrt(x.max()*x.min()) ))
-        assert initial_guess[-1]<upper_bound, "Guess for lower bound cannot be >= upper bound."
-
+        # if lower_bound_range is specified
+        # setup
+        upper_bound = upper_bound or np.inf
+        if upper_bound<np.inf:
+            assert (X<=upper_bound).all(), "Upper bound is violated."
+        assert lower_bound_range[0]<lower_bound_range[1], "Lower bound range must be a range."
+        lower_bound_range = (lower_bound_range[0], min(lower_bound_range[-1], X.max()-1))
+        decimal_resolution = decimal_resolution or int(np.log10(lower_bound_range[0])+1)
+        initial_guess = initial_guess or cls._default_alpha
         n_cpus = n_cpus or (cpu_count()-1)
        
-        def cost(alpha, lower_bound):
-            #return cls.ksvalclass( x[x>=lower_bound],
-            #                       alpha,
-            #                       lower_bound,
-            #                       upper_bound )
-            return -cls.log_likelihood(x[x>=lower_bound],
-                                       alpha,
-                                       lower_bound,
-                                       upper_bound,
-                                       True)
         def parallel_wrapper(lower_bound):
             """Wrap minimization for each lower bound to try."""
-            soln = minimize(lambda alpha: cost(alpha, lower_bound), initial_guess[0],
+            def cost(alpha, x_=X[X>=lower_bound]):
+                # if only a single data point, fitting procedure is not well defined
+                if x_.size==1:
+                    return np.nan
+                return -cls.log_likelihood(x_,
+                                           alpha,
+                                           lower_bound,
+                                           upper_bound,
+                                           True)
+
+            soln = minimize(lambda alpha: cost(alpha, lower_bound), initial_guess,
                             bounds=[(1.0001,max_alpha)],
                             **minimize_kw)
             return (soln['x'],
-                    cls.ksvalclass(x[x>=lower_bound], soln['x'], lower_bound, upper_bound),
+                    cls.ksvalclass(X[X>=lower_bound], soln['x'], lower_bound, upper_bound),
                     soln)
-            return soln['x'], soln
 
         # try all possible lower bounds in the given range (with some coarse-grained resolution for speed)
-        boundix = (x>=lower_bound_range[0])&(x<=lower_bound_range[1])
-        uniqLowerBounds = np.unique(np.around(x, decimal_resolution)[boundix])
-        if n_cpus>1:
+        boundix = (X>=lower_bound_range[0])&(X<=lower_bound_range[1])
+        uniqLowerBounds = np.unique(np.around(X, decimal_resolution)[boundix])
+        if uniqLowerBounds[0]==0:
+            uniqLowerBounds = uniqLowerBounds[1:]
+        assert uniqLowerBounds.size>=1
+        
+        # run max likelihood procedure over all lower bounds
+        if n_cpus>1 and uniqLowerBounds.size>1:
             pool = Pool(n_cpus or cpu_count())
             alpha, ksval, soln = list(zip(*pool.map(parallel_wrapper, uniqLowerBounds)))
             pool.close()
         else:
-            alpha = np.zeros_like(uniqLowerBounds)
-            ksval = np.zeros_like(uniqLowerBounds)
+            alpha = np.zeros(uniqLowerBounds.size)
+            ksval = np.zeros(uniqLowerBounds.size)
             soln = []
             for i,ulb in enumerate(uniqLowerBounds):
                 alpha[i], ksval[i], s = parallel_wrapper(ulb)
@@ -937,12 +968,13 @@ class PowerLaw(DiscretePowerLaw):
         return alpha[minCostIx], uniqLowerBounds[minCostIx]
 
     @classmethod
-    def log_likelihood(cls, x, alpha, lower_bound, upper_bound=np.inf, normalize=False):
+    def log_likelihood(cls, X, alpha, lower_bound, upper_bound=np.inf, normalize=False):
+        #if np.isnan(alpha): return np.nan
         assert alpha>1, alpha
         if normalize:
             Z=( lower_bound**(1-alpha)-upper_bound**(1-alpha) )/(alpha-1)
-            return -alpha*np.log(x).sum() - len(x) * np.log(Z)
-        return -alpha*np.log(x).sum()
+            return -alpha*np.log(X).sum() - len(X) * np.log(Z)
+        return -alpha*np.log(X).sum()
 
     @classmethod
     def alpha_range(cls, x, alpha, dL, lower_bound=None):
