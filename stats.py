@@ -347,7 +347,7 @@ class DiscretePowerLaw():
 
             # lower bound cannot exceed the values of the elements of X, here's a not-very-well constrained
             # range
-            lower_bound_range = max(lower_bound_range[0],X.min()), min(lower_bound_range[1],X.max()-1)
+            lower_bound_range = max(lower_bound_range[0],X.min()), min(lower_bound_range[1],X.max())
             assert lower_bound_range[0]>0
             if lower_bound_range[0]>=lower_bound_range[1]:
                 raise AssertionError("Impossible lower bound range.")
