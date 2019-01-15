@@ -152,7 +152,7 @@ class DiscretePowerLaw():
     def Z(cls, alpha, lower_bound, upper_bound):
         """Return normalization."""
 
-        assert alpha>1.00001, "alpha cannot be too close to 1."
+        assert alpha>1.000001, "alpha cannot be too close to 1."
         if upper_bound==np.inf:
             return zeta(alpha, lower_bound)
         else:
@@ -381,22 +381,22 @@ class DiscretePowerLaw():
         if n_cpus is None or n_cpus>1:
             # parallelized
             pool = Pool(cpu_count()-1)
-            alpha, negloglik, soln = zip(*pool.map(solve_one_lower_bound, uniqLowerBounds))
+            alpha, ksstat, soln = zip(*pool.map(solve_one_lower_bound, uniqLowerBounds))
             pool.close()
         else:
             # sequential
-            alpha = np.zeros(len(uniqLowerBounds))
-            negloglik = np.zeros(len(uniqLowerBounds))
+            alpha = np.zeros(uniqLowerBounds.size)
+            ksstat = np.zeros(uniqLowerBounds.size)
             soln = []
             for i,lb in enumerate(uniqLowerBounds):
-                alpha[i], negloglik[i], s = solve_one_lower_bound(lb)
+                alpha[i], ksstat[i], s = solve_one_lower_bound(lb)
                 soln.append(s)
         
         if full_output:
-            bestFitIx = np.argmin(negloglik)
+            bestFitIx = np.argmin(ksstat)
             return ((alpha[bestFitIx], uniqLowerBounds[bestFitIx]),
-                    soln[bestFitIx])
-        return alpha[np.argmin(negloglik)], uniqLowerBounds[np.argmin(negloglik)]
+                    (uniqLowerBounds, ksstat, soln))
+        return alpha[np.argmin(ksstat)], uniqLowerBounds[np.argmin(ksstat)]
        
     @classmethod
     def log_likelihood(cls, X, alpha, 
@@ -524,7 +524,8 @@ class DiscretePowerLaw():
             return alpha, (upper_cutoff_range, m)
         return alpha
 
-    def clauset_test(self, X, ksstat, lower_bound_range,
+    def clauset_test(self, X, ksstat,
+                     lower_bound_range=None,
                      bootstrap_samples=1000,
                      samples_below_cutoff=None,
                      return_all=False,
@@ -542,7 +543,7 @@ class DiscretePowerLaw():
             Samples from the distribution.
         ksstat : float
             The max deviation from the empirical cdf of X given the model specified.
-        lower_bound_range : duple
+        lower_bound_range : duple, None
         bootstrap_samples : int, 1000
             Number of times to bootstrap to calculate p-value.
         samples_below_cutoff : ndarray, None
@@ -642,7 +643,6 @@ class DiscretePowerLaw():
             # fit each random sample to a power law
             if lower_bound_range is None:
                 alpha = self.max_likelihood(X,
-                                            lower_bound_range=lower_bound_range,
                                             upper_bound=self.upper_bound,
                                             initial_guess=self.alpha,
                                             decimal_resolution=decimal_resolution,
@@ -683,11 +683,12 @@ class DiscretePowerLaw():
         # fit random sample to a power law
         # must set n_cpus=1 because cannot spawn processes within process
         if lower_bound_range is None:
-            alpha, lb = self.max_likelihood(X,
-                                            upper_bound=self.upper_bound,
-                                            initial_guess=self.alpha,
-                                            decimal_resolution=decimal_resolution,
-                                            n_cpus=1)
+            alpha = self.max_likelihood(X,
+                                        upper_bound=self.upper_bound,
+                                        initial_guess=self.alpha,
+                                        decimal_resolution=decimal_resolution,
+                                        n_cpus=1)
+            lb = self.lower_bound
         else:
             alpha, lb = self.max_likelihood(X,
                                             lower_bound_range=(X.min(),lower_bound_range[1]),
