@@ -643,9 +643,9 @@ class DiscretePowerLaw():
             # fit each random sample to a power law
             if lower_bound_range is None:
                 alpha = self.max_likelihood(X,
+                                            lower_bound=self.lower_bound,
                                             upper_bound=self.upper_bound,
                                             initial_guess=self.alpha,
-                                            decimal_resolution=decimal_resolution,
                                             n_cpus=1)
                 lb = self.lower_bound
             else:
