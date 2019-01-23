@@ -949,17 +949,22 @@ class PowerLaw(DiscretePowerLaw):
 
         def parallel_wrapper(lower_bound):
             """Wrap minimization for each lower bound to try."""
+            # analytic solution if lower bound is given and upper bound is at inf
+            if upper_bound is None or upper_bound==np.inf:
+                alphaML = 1 + 1/np.log(X[X>=lower_bound]/lower_bound).mean()
+                return (alphaML,
+                        cls.ksvalclass(X[X>=lower_bound], alphaML, lower_bound, upper_bound),
+                        {})
+
             def cost(alpha, x_=X[X>=lower_bound]):
                 # if only a single data point, fitting procedure is not well defined
                 if x_.size<=1:
                     return np.nan
-                return -cls.log_likelihood(x_,
-                                           alpha,
-                                           lower_bound,
-                                           upper_bound,
-                                           True)
+                
+                #assert (X<=upper_bound).all(), "Upper bound violated."
+                return -cls.log_likelihood(x_, alpha, lower_bound, upper_bound, True)
 
-            soln = minimize(lambda alpha: cost(alpha, lower_bound), initial_guess,
+            soln = minimize(lambda alpha: cost(alpha), initial_guess,
                             bounds=[(1.0001,max_alpha)],
                             **minimize_kw)
             return (soln['x'],
