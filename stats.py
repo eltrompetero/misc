@@ -338,8 +338,8 @@ class DiscretePowerLaw():
 
             soln = minimize(f, initial_guess, bounds=[(1.0001,max_alpha)], tol=1e-3, **minimize_kw)
             if full_output:
-                return soln['x'], soln
-            return soln['x']
+                return soln['x'][0], soln
+            return soln['x'][0]
 
         # setup
         decimal_resolution = decimal_resolution or int(np.log10(X[0])+1)
