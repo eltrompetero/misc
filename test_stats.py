@@ -94,3 +94,22 @@ def test_pdf():
     for a in np.arange(1.5,5.5,.5):
         p = DiscretePowerLaw.pdf(a, 1)(2**np.arange(30))
         assert np.isclose( np.diff(np.log(p)), np.log(2**-a) ).all()
+
+def test_max_likelihood_flow():
+    """Make sure returned estimates are what I've found before."""
+    # continuous
+    X = PowerLaw.rvs(size=1000, rng=np.random.RandomState(0))
+    alphaML = PowerLaw.max_likelihood(X)
+    assert alphaML==1.997014843072137
+
+    alphaML, lb = PowerLaw.max_likelihood(X, lower_bound_range=(1,10), initial_guess=1.76)
+    assert alphaML==1.9582463655267062 and lb==1.7
+    
+    # discrete
+    X = DiscretePowerLaw.rvs(2., size=1000, rng=np.random.RandomState(0))
+    alphaML = DiscretePowerLaw.max_likelihood(X)
+    assert alphaML==1.9943153950040227
+
+    alphaML, lb = DiscretePowerLaw.max_likelihood(X, lower_bound_range=(1,10), initial_guess=1.76)
+    assert alphaML==1.9949113857079714 and lb==1
+

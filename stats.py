@@ -9,7 +9,7 @@ from numpy import fft
 from scipy.optimize import minimize
 from scipy.special import zeta
 from multiprocess import Pool,cpu_count
-from functools import lru_cache
+from numba import njit
 import numpy.distutils.system_info as sysinfo
 assert sysinfo.platform_bits==64
 
@@ -121,6 +121,16 @@ def vector_ccf(x,y,length=20):
     else:
         raise Exception("length must be int or array of ints.")
     return c
+
+@njit
+def has_multiple_unique_values(x):
+    """Check if given list has more than one unique value. Return True if there is more
+    than one unique value."""
+
+    for i in range(1,len(x)):
+        if x[i]!=x[0]:
+            return True
+    return False    
 
 
 # =============================================================================================== #
@@ -309,7 +319,7 @@ class DiscretePowerLaw():
         """
 
         # if only a single data is given, fitting procedure is not well defined
-        if X.size<=1:
+        if not has_multiple_unique_values(X):
             if lower_bound_range:
                 if full_output:
                     return (np.nan, np.nan), {}
@@ -338,8 +348,8 @@ class DiscretePowerLaw():
 
             soln = minimize(f, initial_guess, bounds=[(1.0001,max_alpha)], tol=1e-3, **minimize_kw)
             if full_output:
-                return soln['x'], soln
-            return soln['x']
+                return soln['x'][0], soln
+            return soln['x'][0]
 
         # setup
         decimal_resolution = decimal_resolution or int(np.log10(X[0])+1)
@@ -894,7 +904,7 @@ class PowerLaw(DiscretePowerLaw):
         """
         
         # if only a single data is given, fitting procedure is not well defined
-        if X.size<=1:
+        if not has_multiple_unique_values(X):
             if lower_bound_range:
                 if full_output:
                     return (np.nan, np.nan), {}
@@ -949,17 +959,22 @@ class PowerLaw(DiscretePowerLaw):
 
         def parallel_wrapper(lower_bound):
             """Wrap minimization for each lower bound to try."""
+            # analytic solution if lower bound is given and upper bound is at inf
+            if upper_bound is None or upper_bound==np.inf:
+                alphaML = 1 + 1/np.log(X[X>=lower_bound]/lower_bound).mean()
+                return (alphaML,
+                        cls.ksvalclass(X[X>=lower_bound], alphaML, lower_bound, upper_bound),
+                        {})
+
             def cost(alpha, x_=X[X>=lower_bound]):
                 # if only a single data point, fitting procedure is not well defined
                 if x_.size<=1:
                     return np.nan
-                return -cls.log_likelihood(x_,
-                                           alpha,
-                                           lower_bound,
-                                           upper_bound,
-                                           True)
+                
+                #assert (X<=upper_bound).all(), "Upper bound violated."
+                return -cls.log_likelihood(x_, alpha, lower_bound, upper_bound, True)
 
-            soln = minimize(lambda alpha: cost(alpha, lower_bound), initial_guess,
+            soln = minimize(lambda alpha: cost(alpha), initial_guess,
                             bounds=[(1.0001,max_alpha)],
                             **minimize_kw)
             return (soln['x'],
