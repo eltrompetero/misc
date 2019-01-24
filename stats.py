@@ -281,7 +281,7 @@ class DiscretePowerLaw():
                        minimize_kw={},
                        full_output=False,
                        n_cpus=None,
-                       max_alpha=7.,
+                       max_alpha=20.,
                        decimal_resolution=None,
                        run_check=True):
         """
@@ -303,7 +303,7 @@ class DiscretePowerLaw():
         minimize_kw : dict, {}
         full_output : bool, False
         n_cpus : int, None
-        max_alpha : float, 7.
+        max_alpha : float, 20.
             max value allowed for alpha.
         decimal_resolution : int, None
         run_check : bool, True
@@ -869,7 +869,7 @@ class PowerLaw(DiscretePowerLaw):
                        initial_guess=None,
                        full_output=False,
                        n_cpus=None,
-                       max_alpha=7.,
+                       max_alpha=20.,
                        minimize_kw={}):
         """
         Conventional max likelihood fit to the power law when no search for the lower
@@ -899,7 +899,7 @@ class PowerLaw(DiscretePowerLaw):
         full_output : bool, False
         n_cpus : None
             Dummy argument to standardize input across classes.
-        max_alpha : float, 7.
+        max_alpha : float, 20.
             Only used if upper_bound is specified.
         minimize_kw : dict, {}
 
