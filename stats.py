@@ -376,8 +376,6 @@ class DiscretePowerLaw():
         # set up pool to evaluate likelihood for entire range of lower bounds
         # calls cls.max_likelihood to find best alpha for the given lower bound
         def solve_one_lower_bound(lower_bound):
-            if not (X>=lower_bound).any():
-                raise Exception("Lower bound is too large.")
             alpha, soln = cls.max_likelihood(X[X>=lower_bound],
                                              initial_guess=initial_guess,
                                              lower_bound=lower_bound,
@@ -402,11 +400,11 @@ class DiscretePowerLaw():
                 alpha[i], ksstat[i], s = solve_one_lower_bound(lb)
                 soln.append(s)
         
+        bestFitIx = np.nanargmin(ksstat)
         if full_output:
-            bestFitIx = np.argmin(ksstat)
             return ((alpha[bestFitIx], uniqLowerBounds[bestFitIx]),
                     (uniqLowerBounds, ksstat, soln))
-        return alpha[np.argmin(ksstat)], uniqLowerBounds[np.argmin(ksstat)]
+        return alpha[bestFitIx], uniqLowerBounds[bestFitIx]
        
     @classmethod
     def log_likelihood(cls, X, alpha, 
@@ -644,11 +642,16 @@ class DiscretePowerLaw():
 
         if samples_below_cutoff is None or len(samples_below_cutoff)==0:
             # generate random samples from best fit power law
-            X = self.rvs(alpha=self.alpha,
-                         size=int(K),
-                         lower_bound=self.lower_bound,
-                         upper_bound=self.upper_bound,
-                         rng=self.rng)
+            # we do not consider samples with less than two unique values
+            sampled = False
+            while not sampled:
+                X = self.rvs(alpha=self.alpha,
+                             size=int(K),
+                             lower_bound=self.lower_bound,
+                             upper_bound=self.upper_bound,
+                             rng=self.rng)
+                if has_multiple_unique_values(X):
+                    sampled = True
 
             # fit each random sample to a power law
             if lower_bound_range is None:
@@ -683,12 +686,17 @@ class DiscretePowerLaw():
 
         # generate random samples from best fit power law and include samples below cutoff to repeat
         # entire sampling process
-        X = np.concatenate((self.rng.choice(samples_below_cutoff, size=K1),
-                            self.rvs(alpha=self.alpha,
-                                     size=K2,
-                                     lower_bound=self.lower_bound,
-                                     upper_bound=self.upper_bound,
-                                     rng=self.rng)))
+        # we do not consider samples with less than two unique values
+        sampled = False
+        while not sampled:
+            X = np.concatenate((self.rng.choice(samples_below_cutoff, size=K1),
+                                self.rvs(alpha=self.alpha,
+                                         size=K2,
+                                         lower_bound=self.lower_bound,
+                                         upper_bound=self.upper_bound,
+                                         rng=self.rng)))
+            if has_multiple_unique_values(X):
+                sampled = True
 
         # fit random sample to a power law
         # must set n_cpus=1 because cannot spawn processes within process
@@ -968,7 +976,7 @@ class PowerLaw(DiscretePowerLaw):
 
             def cost(alpha, x_=X[X>=lower_bound]):
                 # if only a single data point, fitting procedure is not well defined
-                if x_.size<=1:
+                if not has_multiple_unique_values(x_):
                     return np.nan
                 
                 #assert (X<=upper_bound).all(), "Upper bound violated."
@@ -995,14 +1003,13 @@ class PowerLaw(DiscretePowerLaw):
                 soln.append(s)
         
         # select lower bound that minimizes the cost function
-        minCostIx = np.argmin(ksval)
+        minCostIx = np.nanargmin(ksval)
         if full_output:
             return (alpha[minCostIx], uniqLowerBounds[minCostIx]), soln[minCostIx]
         return alpha[minCostIx], uniqLowerBounds[minCostIx]
 
     @classmethod
     def log_likelihood(cls, X, alpha, lower_bound, upper_bound=np.inf, normalize=False):
-        #if np.isnan(alpha): return np.nan
         assert alpha>1, alpha
         if normalize:
             Z=( lower_bound**(1-alpha)-upper_bound**(1-alpha) )/(alpha-1)
