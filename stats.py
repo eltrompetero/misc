@@ -9,7 +9,7 @@ from numpy import fft
 from scipy.optimize import minimize
 from scipy.special import zeta
 from multiprocess import Pool,cpu_count
-from functools import lru_cache
+from numba import njit
 import numpy.distutils.system_info as sysinfo
 assert sysinfo.platform_bits==64
 
@@ -121,6 +121,16 @@ def vector_ccf(x,y,length=20):
     else:
         raise Exception("length must be int or array of ints.")
     return c
+
+@njit
+def has_multiple_unique_values(x):
+    """Check if given list has more than one unique value. Return True if there is more
+    than one unique value."""
+
+    for i in range(1,len(x)):
+        if x[i]!=x[0]:
+            return True
+    return False    
 
 
 # =============================================================================================== #
@@ -309,7 +319,7 @@ class DiscretePowerLaw():
         """
 
         # if only a single data is given, fitting procedure is not well defined
-        if X.size<=1:
+        if not has_multiple_unique_values(X):
             if lower_bound_range:
                 if full_output:
                     return (np.nan, np.nan), {}
@@ -894,7 +904,7 @@ class PowerLaw(DiscretePowerLaw):
         """
         
         # if only a single data is given, fitting procedure is not well defined
-        if X.size<=1:
+        if not has_multiple_unique_values(X):
             if lower_bound_range:
                 if full_output:
                     return (np.nan, np.nan), {}

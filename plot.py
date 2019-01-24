@@ -24,7 +24,6 @@ def utm_from_lon(lon):
 def scale_bar(ax, proj, length, location=(0.5, 0.05), linewidth=3,
               units='km', m_per_unit=1000):
     """
-
     http://stackoverflow.com/a/35705477/1072212
     ax is the axes to draw the scalebar on.
     proj is the projection the axes are in
