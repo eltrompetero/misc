@@ -10,6 +10,7 @@ from scipy.optimize import minimize
 from scipy.special import zeta
 from multiprocess import Pool,cpu_count
 from numba import njit
+from warnings import warn
 import numpy.distutils.system_info as sysinfo
 assert sysinfo.platform_bits==64
 
