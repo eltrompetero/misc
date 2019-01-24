@@ -857,6 +857,10 @@ class PowerLaw(DiscretePowerLaw):
         def cdf(x, alpha=alpha, lower_bound=lower_bound, upper_bound=upper_bound):
             assert (x>=lower_bound).all() and (x<=upper_bound).all(), (x.min(), x.max(),
                                                                        lower_bound, upper_bound)
+            # numerical accuracy becomes a problem
+            if alpha>50.:
+                warn("PowerLaw.cdf uses alpha>50.")
+                return np.nan
             return -(x**(1-alpha) - lower_bound**(1-alpha)) / (lower_bound**(1-alpha) - upper_bound**(1-alpha))
         return cdf
 
