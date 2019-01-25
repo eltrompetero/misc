@@ -108,8 +108,8 @@ def test_max_likelihood_flow():
     # discrete
     X = DiscretePowerLaw.rvs(2., size=1000, rng=np.random.RandomState(0))
     alphaML = DiscretePowerLaw.max_likelihood(X)
-    assert alphaML==1.9943153950040227
+    assert alphaML==1.9939545133636511
 
     alphaML, lb = DiscretePowerLaw.max_likelihood(X, lower_bound_range=(1,10), initial_guess=1.76)
-    assert alphaML==1.9949113857079714 and lb==1
+    assert alphaML==1.9939545644486907 and lb==1
 
