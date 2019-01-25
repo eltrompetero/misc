@@ -338,7 +338,7 @@ class DiscretePowerLaw():
 
             logXsum = np.log(X).sum()
             if upper_bound==np.inf:
-                # don't waste time computing upper bound term of 0.
+                # don't waste cycles computing upper bound term of 0.
                 def f(alpha): 
                     # faster to eval log likelihood here
                     return alpha*logXsum + X.size*np.log(zeta(alpha, lower_bound))
@@ -347,7 +347,7 @@ class DiscretePowerLaw():
                     # faster to eval log likelihood here
                     return alpha*logXsum + X.size*np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))
 
-            soln = minimize(f, initial_guess, bounds=[(1.0001,max_alpha)], tol=1e-3, **minimize_kw)
+            soln = minimize(f, initial_guess, bounds=[(1.0001,max_alpha)], **minimize_kw)
             if full_output:
                 return soln['x'][0], soln
             return soln['x'][0]
