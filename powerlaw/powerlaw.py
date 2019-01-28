@@ -1,9 +1,9 @@
-# ========================================================================================================= #
+# ================================================================================================ #
 # Module for bias testing of power law.
 # Author : Eddie Lee, edlee@alumni.princeton.edu
 #
 # Cached functions in this module require a cache folder in the working directory.
-# ========================================================================================================= #
+# ================================================================================================ #
 import numpy as np
 from workspace.utils import cached
 from ..stats import PowerLaw, DiscretePowerLaw
@@ -240,8 +240,8 @@ def cache_powerlaw_correction_spline(n_iters, alphaRange, Krange):
     return args, kwargs
 
 @cached(cache_pickle='cache/powerlaw_correction_spline_cache1.p')
-def powerlaw_correction_spline(alphaRange=np.arange(1.1, 10, .1),
-                               Krange=np.around(2.**np.arange(2,10.5,.5)).astype(int),
+def powerlaw_correction_spline(alphaRange=None,
+                               Krange=None,
                                n_iters=100_000,
                                full_output=False,
                                run_check=True):
@@ -249,8 +249,8 @@ def powerlaw_correction_spline(alphaRange=np.arange(1.1, 10, .1),
     
     Parameters
     ----------
-    alphaRange : ndarray
-    Krange : ndarray
+    alphaRange : ndarray, np.arange(1.1, 10, .1)
+    Krange : ndarray, np.around(2.**np.arange(2, 10.5, .5)).astype(int)
     n_iters : int, 100_000
         Number of samples on which to perform max likelihood procedure.
     full_output : bool, False
@@ -264,6 +264,11 @@ def powerlaw_correction_spline(alphaRange=np.arange(1.1, 10, .1),
     """
     
     from scipy.interpolate import griddata
+    if alphaRange is None:
+        alphaRange = np.arange(1.1, 10, .1)
+    if Krange is None:
+        Krange = np.around(2.**np.arange(2, 10.5, .5)).astype(int)
+
     args, kwargs = cache_powerlaw_correction_spline(n_iters, tuple(alphaRange), tuple(Krange))
 
     # basically a glorified look up table given the measured alpha to find the true alpha
