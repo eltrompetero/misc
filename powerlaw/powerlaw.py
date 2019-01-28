@@ -10,8 +10,19 @@ from ..stats import PowerLaw, DiscretePowerLaw
 from multiprocess import Pool, cpu_count
 import pickle
 import os
+from numba import njit
 from warnings import warn
 
+
+@njit
+def has_multiple_unique_values(x):
+    """Check if given list has more than one unique value. Return True if there is more
+    than one unique value."""
+
+    for i in range(1,len(x)):
+        if x[i]!=x[0]:
+            return True
+    return False    
 
 @cached(iprint=True, cache_pickle='cache/discrete_powerlaw_correction_spline_cache.p')
 def cache_discrete_powerlaw_correction_spline(n_iters, alphaRange, Krange, lower_bound):
@@ -46,12 +57,17 @@ def cache_discrete_powerlaw_correction_spline(n_iters, alphaRange, Krange, lower
         K = int(K)
         alphaML = np.zeros(n_iters)
             
-        # since this is slow to instantiate DPL.pdf(), sample once
-        # mem use is ok as long as we keep total size small
-        assert (n_iters*K)<1e8
-        X = DiscretePowerLaw.rvs(alpha, size=(n_iters,K), rng=rng, lower_bound=lower_bound)
         for i in range(n_iters):
-            alphaML[i] = DiscretePowerLaw.max_likelihood(X[i],
+            goodSample = False
+            nTries = 0
+            while not goodSample:
+                X = DiscretePowerLaw.rvs(alpha, size=K, rng=rng, lower_bound=lower_bound)
+                nTries += 1
+                if has_multiple_unique_values(X):
+                    goodSample = True
+                if nTries>1e6:
+                    raise Exception(alpha, K, lower_bound)
+            alphaML[i] = DiscretePowerLaw.max_likelihood(X,
                                                          initial_guess=alpha,
                                                          n_cpus=1,
                                                          max_alpha=np.inf,
@@ -190,7 +206,15 @@ def cache_powerlaw_correction_spline(n_iters, alphaRange, Krange):
         alphaML = np.zeros(n_iters)
 
         for i in range(n_iters):
-            X = PowerLaw.rvs(alpha, size=K, rng=rng, lower_bound=1)
+            goodSample = False
+            nTries = 0
+            while not goodSample:
+                X = PowerLaw.rvs(alpha, size=K, rng=rng, lower_bound=1)
+                nTries += 1
+                if has_multiple_unique_values(X):
+                    goodSample = True
+                if nTries>1e6:
+                    raise Exception(alpha, K, lower_bound)
             alphaML[i] = PowerLaw.max_likelihood(X, 
                                                  initial_guess=alpha,
                                                  n_cpus=1,
