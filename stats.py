@@ -1427,6 +1427,54 @@ class ExpTruncDiscretePowerLaw(DiscretePowerLaw):
 #end ExpTruncDiscretePowerLaw
 
 
+def bivariate_reg(x, y, initial_guess=None, iprint=False, full_output=False):
+    """Bivariate regression. Assuming Gaussian errors on both x and y axes. The width of
+    errors is part of the fitting process.
+    
+    Parameters
+    ----------
+    x : ndarray
+        Variable 1.
+    y : ndarray
+        Variable 2.
+    initial_guess : list, None
+        (a, b, sigx, sigy)
+    iprint : bool, False
+        If True, also print helpful messages.
+    full_output : bool, False
+        If True, also return output from scipy.optimize.minimize.
+
+    Returns
+    -------
+    duple
+        Exponent and offset (slope and intercept on log scale).
+    dict (optional)
+        Result from scipy.optimize.minimize. Last two fit variables correspond to width of
+        errors estimated for x and y axes, respectively.
+    """
+
+    from scipy.optimize import minimize
+    if initial_guess is None:
+        initial_guess = np.ones(4)
+
+    def bivariate_cost(args):
+       """Errors only along y-axis."""
+
+       a, b, widthx, widthy = args
+
+       cost = ( ((x - (y-b)/a)**2).sum()/2/widthx**2 + ((a*x + b - y)**2).sum()/2/widthy**2 +
+                x.size*np.log(2 * np.pi * widthx**2 * widthy**2) )
+
+       return cost
+
+    soln = minimize(bivariate_cost, initial_guess)
+    if iprint and not soln['success']:
+        print("bivariate_reg did not converge on a solution.")
+        print(soln['message'])
+    if full_output:
+        return soln['x'][:2], soln
+    return soln['x'][:2]
+
 def loglog_fit(x, y, p=2, iprint=False, full_output=False, symmetric=True):
     """Symmetric log-log fit.
     

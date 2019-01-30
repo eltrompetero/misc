@@ -94,8 +94,8 @@ def cache_discrete_powerlaw_correction_spline(n_iters, alphaRange, Krange, lower
 
 @cached(cache_pickle='cache/discrete_powerlaw_correction_spline_cache1.p')
 def _discrete_powerlaw_correction_spline(lower_bound,
-                                         alphaRange=np.arange(1.1, 10, .25),
-                                         Krange=np.around(2.**np.arange(2,8.5,.5)).astype(int),
+                                         alphaRange=None,
+                                         Krange=None,
                                          n_iters=10_000,
                                          full_output=False,
                                          cache_file='cache/discrete_powerlaw_correction_spline_cache.p',
@@ -106,8 +106,8 @@ def _discrete_powerlaw_correction_spline(lower_bound,
     Parameters
     ----------
     lower_bound : int
-    alphaRange : ndarray
-    Krange : ndarray
+    alphaRange : ndarray, np.arange(1.1, 10, .25)
+    Krange : ndarray, np.around(2.**np.arange(2,8.5,.5)).astype(int)
     n_iters : int, 10_000
         Number of samples on which to perform max likelihood procedure. Discrete max
         likelihood is much slower than for continuous variables.
@@ -126,10 +126,15 @@ def _discrete_powerlaw_correction_spline(lower_bound,
     """
 
     from scipy.interpolate import griddata
+    if alphaRange is None:
+        alphaRange = np.arange(1.1, 10, .25)
+    if Krange is None:
+        Krange = np.around(2.**np.arange(2,8.5,.5)).astype(int)
+
     args, kwargs = cache_discrete_powerlaw_correction_spline(n_iters,
-                                                            tuple(alphaRange),
-                                                            tuple(Krange),
-                                                            lower_bound)
+                                                             tuple(alphaRange),
+                                                             tuple(Krange),
+                                                             lower_bound)
 
     # basically a glorified look up table given the measured alpha to find the true alpha
     # this function takes in coordinates (alpha, K)
