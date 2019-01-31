@@ -137,6 +137,59 @@ def has_multiple_unique_values(x):
 # =============================================================================================== #
 # Statistical distributions
 # =============================================================================================== #
+def ECDF(x, conf_interval=None, n_boot_samples=250, as_delta=True):
+    """Wrapper for statsmodels ECDF also including bootstrapped error bars.
+
+    Parameters
+    ----------
+    x : ndarray
+    conf_interval : twople, None
+        twople specifying lower and upper percentiles for conf bounds
+    n_boot_samples : int, 250
+
+    Returns
+    -------
+    function
+        ECDF
+    function (optional)
+        Linearly interpolated lower confidence bounds.
+    function (optional)
+        Linearly interpolated upper confidence bounds.
+    """
+
+    from statsmodels.distributions import ECDF
+    from scipy.interpolate import interp1d
+
+    ecdf = ECDF(x)
+    
+    if not conf_interval:
+        return ecdf
+    
+    assert x.ndim==1
+    assert conf_interval[0]<50 and conf_interval[1]>50
+    ux = np.unique(x)
+    ecdfSample = np.zeros((n_boot_samples, ux.size))
+    for i in range(n_boot_samples):
+        x_ = np.random.choice(x, size=x.size)
+        ecdfSample[i] = ECDF(x_)(ux)
+
+    # anything outside interval returns 0 or 1 depending on whether it is below or above interval
+    if as_delta:
+        return (ecdf,
+                interp1d(ux, ecdf(ux)-np.percentile(ecdfSample, conf_interval[0], axis=0),
+                         fill_value=(0,1),
+                         bounds_error=False),
+                interp1d(ux, np.percentile(ecdfSample, conf_interval[1], axis=0)-ecdf(ux),
+                         fill_value=(0,1),
+                         bounds_error=False))
+    return (ecdf,
+            interp1d(ux, np.percentile(ecdfSample, conf_interval[0], axis=0),
+                     fill_value=(0,1),
+                     bounds_error=False),
+            interp1d(ux, np.percentile(ecdfSample, conf_interval[1], axis=0),
+                     fill_value=(0,1),
+                     bounds_error=False))
+
 class DiscretePowerLaw():
     _default_lower_bound=1
     _default_upper_bound=np.inf

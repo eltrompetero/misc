@@ -6,6 +6,10 @@ from .stats import *
 ALPHA=1.5
 
 
+def test_ECDF():
+    x = np.arange(10)
+    print(ECDF(x, conf_interval=(5,95)))
+
 def test_call_format():
     pl = PowerLaw(alpha=1.5, lower_bound=1.111, upper_bound=10.111)
     assert pl.alpha==1.5 and pl.lower_bound==1.111 and pl.upper_bound==10.111
