@@ -1480,6 +1480,55 @@ class ExpTruncDiscretePowerLaw(DiscretePowerLaw):
 #end ExpTruncDiscretePowerLaw
 
 
+def _bivariate_reg(x, y, initial_guess=None, iprint=False, full_output=False):
+    """Bivariate regression. Assuming Gaussian model for total distance from best line of
+    fit.
+    
+    The reason errors are not fit separately for x and y is that that approach generates
+    degenerate solutions where errors along one axis go to zero and the other axis go to
+    infinity.
+
+    Parameters
+    ----------
+    x : ndarray
+        Variable 1.
+    y : ndarray
+        Variable 2.
+    initial_guess : list, None
+        (a, b)
+    iprint : bool, False
+        If True, also print helpful messages.
+    full_output : bool, False
+        If True, also return output from scipy.optimize.minimize.
+
+    Returns
+    -------
+    duple
+        Exponent and offset (slope and intercept on log scale).
+    dict (optional)
+        Result from scipy.optimize.minimize. Last two fit variables correspond to width of
+        errors estimated for x and y axes, respectively.
+    """
+
+    from scipy.optimize import minimize
+    if initial_guess is None:
+        initial_guess = np.ones(2)
+
+    def bivariate_cost(args):
+        a, b = args
+        xClose = (x + a*y - a*b) / (a**2+1)
+        yClose = a*xClose + b
+        return ((xClose-x)**2).sum() + ((yClose-y)**2).sum()
+
+    soln = minimize(bivariate_cost, initial_guess,
+                    bounds=[(-np.inf,np.inf),(-np.inf,np.inf)])
+    if iprint and not soln['success']:
+        print("bivariate_reg did not converge on a solution.")
+        print(soln['message'])
+    if full_output:
+        return soln['x'], soln
+    return soln['x']
+
 def bivariate_reg(x, y, initial_guess=None, iprint=False, full_output=False):
     """Bivariate regression. Assuming Gaussian errors on both x and y axes. The width of
     errors is part of the fitting process.
@@ -1520,7 +1569,8 @@ def bivariate_reg(x, y, initial_guess=None, iprint=False, full_output=False):
 
        return cost
 
-    soln = minimize(bivariate_cost, initial_guess)
+    soln = minimize(bivariate_cost, initial_guess,
+                    bounds=[(-np.inf,np.inf),(-np.inf,np.inf),(1e-4,np.inf),(1e-4,np.inf)])
     if iprint and not soln['success']:
         print("bivariate_reg did not converge on a solution.")
         print(soln['message'])

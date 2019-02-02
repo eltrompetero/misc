@@ -22,7 +22,8 @@ def utm_from_lon(lon):
     return np.floor( ( lon + 180 ) / 6) + 1
 
 def scale_bar(ax, proj, length, location=(0.5, 0.05), linewidth=3,
-              units='km', m_per_unit=1000):
+              units='km', m_per_unit=1000, scale_bar_y_pos_factor=1.,
+              compass_x_pos_factor=1, compass_y_pos_factor=1):
     """
     http://stackoverflow.com/a/35705477/1072212
     ax is the axes to draw the scalebar on.
@@ -51,22 +52,22 @@ def scale_bar(ax, proj, length, location=(0.5, 0.05), linewidth=3,
     # buffer for scalebar
     buffer = [patheffects.withStroke(linewidth=5, foreground="w")]
     # Plot the scalebar with buffer
-    ax.plot(bar_xs, [sbcy, sbcy], transform=utm, color='k',
+    ax.plot(bar_xs, [sbcy*scale_bar_y_pos_factor, sbcy*scale_bar_y_pos_factor], transform=utm, color='k',
             linewidth=linewidth, path_effects=buffer)
     # buffer for text
     buffer = [patheffects.withStroke(linewidth=3, foreground="w")]
     # Plot the scalebar label
-    t0 = ax.text(sbcx, sbcy, str(length) + ' ' + units, transform=utm,
+    t0 = ax.text(sbcx, sbcy*1.01, str(length) + ' ' + units, transform=utm,
                 horizontalalignment='center', verticalalignment='bottom', fontsize=15,
                 path_effects=buffer, zorder=2)
     left = x0+(x1-x0)*0.05
     # Plot the N arrow
-    t1 = ax.text(left, sbcy, u'\u25B2\nN', transform=utm,
+    t1 = ax.text(left*compass_x_pos_factor, sbcy*compass_y_pos_factor, u'\u25B2\nN', transform=utm,
                 horizontalalignment='center', verticalalignment='bottom',
                 fontsize=15,
                 path_effects=buffer, zorder=2)
     # Plot the scalebar without buffer, in case covered by text buffer
-    ax.plot(bar_xs, [sbcy, sbcy], transform=utm, color='k',
+    ax.plot(bar_xs, [sbcy*scale_bar_y_pos_factor, sbcy*scale_bar_y_pos_factor], transform=utm, color='k',
             linewidth=linewidth, zorder=3)
 
 def _interp_r(t1,t2,r1,r2):
