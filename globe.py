@@ -588,6 +588,10 @@ class SphereCoordinate():
         newphi, newtheta=self._vec_to_angle( newvec[0], newvec[1], newvec[2] )
 
         return SphereCoordinate(newphi%(2*pi), newtheta)
+
+    def __str__(self):
+        coord = self.vec[0], self.vec[1], self.vec[2], self.phi, self.theta
+        return "misc.globe.SphereCoordinate\nx=%1.4f\ny=%1.4f\nz=%1.4f\n\nphi=%1.4f\ntheta=%1.4f"%coord
 #end SphereCoordinate
 
 

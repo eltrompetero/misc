@@ -192,6 +192,8 @@ def _boundaries_diag_cut_out(xy, xy1, xy2):
     function
     """
     
+    if xy2[0]==xy1[0]:
+        return np.zeros(len(xy))==1
     dydx = (xy2[1]-xy1[1])/(xy2[0]-xy1[0])
     if xy1[0]<=xy2[0] and xy1[1]<=xy2[1]:
         return xy[:,1]>(dydx*(xy[:,0]-xy1[0])+xy1[1])
