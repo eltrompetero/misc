@@ -1,3 +1,7 @@
+# ===================================================================================== #
+# Module for testing utils.py.
+# Author : Eddie Lee, edlee@alumni.princeton.edu
+# ===================================================================================== #
 from .utils import *
 np.random.RandomState(0)
 

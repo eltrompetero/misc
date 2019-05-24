@@ -1,5 +1,7 @@
+# ===================================================================================== #
 # Module for useful functions.
 # Author : Eddie Lee, edlee@alumni.princeton.edu
+# ===================================================================================== #
 import numpy as np
 import math
 from multiprocess import Pool,cpu_count
@@ -22,6 +24,149 @@ i0qq=(2.962898424533095e-1,4.866115913196384e-1,
 # ================================= #
 # Useful mathematical calculations. #
 # ================================= #
+def convex_hull(xy, concatenate_first=False):
+    """Identify convex hull of points in 2 dimensions.
+    
+    Recursive version. Number of points to consider typically goes like sqrt(n), so
+    this can handle a good number, but this could be made faster and to handle larger
+    systems by making it sequential.
+
+    This has been tested visually on a number of random examples for the armed_conflict
+    project.
+    
+    Parameters
+    ----------
+    xy : ndarray
+        List of coordinates.
+    concatenate_first : bool, False
+        If True, will append first coordinate again at end of returned list for a closed
+        path.
+        
+    Returns
+    -------
+    list
+        Indices of rows in xy that correspond to the convex hull. It is traversed in a
+        clockwise direction.
+    
+    Example
+    -------
+    >>> xy = np.random.normal(size=(100,2))
+    >>> hull = convex_hull(xy)
+    >>> fig, ax = plt.subplots()
+    >>> for i in range(10):
+    >>>     ax.text(xy[i,0], xy[i,1], i)
+    >>> ax.plot(*xy.T,'o')
+    >>> ax.plot(*xy[4],'o')
+    >>> ax.plot(*xy[9],'o')
+    >>> ax.plot(xy[hull][:,0], xy[hull][:,1], 'k-')
+    """
+    
+    if len(xy)<=3:
+        return np.arange(len(xy), dtype=int)
+    assert xy.shape[1]==2, "This only works for 2D."
+    assert len(np.unique(xy,axis=0))==len(xy), "No duplicate entries allowed."
+    
+    # going around clockwise, get the extrema along each axis
+    endptsix = [xy[:,0].argmin(), xy[:,1].argmax(),
+                xy[:,0].argmax(), xy[:,1].argmin()]
+    # remove duplicates
+    if endptsix[0]==endptsix[1]:
+        endptsix.pop(0)
+    elif endptsix[1]==endptsix[2]:
+        endptsix.pop(1)
+    elif endptsix[2]==endptsix[3]:
+        endptsix.pop(2)
+    elif endptsix[3]==endptsix[0]:
+        endptsix.pop(0)
+        
+    pairsToConsider = [(endptsix[i], endptsix[(i+1)%len(endptsix)])
+                       for i in range(len(endptsix))]
+    
+    # for each pair, assembly a list of points to check by using a cutting region determined
+    # by the line passing through that pair of points
+    pointsToCheck = []
+    for i,j in pairsToConsider:
+        ix = np.delete(range(len(xy)), endptsix)
+        pointsToCheck.append( ix[_boundaries_diag_cut_out(xy[ix], xy[i], xy[j])] )
+    
+    # whittle 
+    hull = []
+    for ix, checkxy in zip(pairsToConsider, pointsToCheck):
+        subhull = []
+        _check_between_pair(xy, ix[0], ix[1], checkxy, subhull)
+        hull.append(subhull)
+
+    # extract loop
+    hull = np.concatenate(hull).ravel()
+    if concatenate_first:
+        hull = np.concatenate((hull[::2], [hull[-1]]))
+    return hull
+
+def _check_between_pair(xy, ix1, ix2, possible_xy, chain):
+    """Used by convex_hull().
+    Recursively check between initial set of pairs.
+    
+    Parameters
+    ----------
+    xy : ndarray
+        List of coordinates.
+    ix1 : int
+    ix2 : int
+    possible_xy: ndarray
+        List of indices.
+    chain : list
+        Growing list of points on convex hull.
+    """
+    
+    pointsToCheck = possible_xy[_boundaries_diag_cut_out(xy[possible_xy], xy[ix1], xy[ix2])]
+    if len(pointsToCheck)==1:
+        chain.append((ix1, pointsToCheck[0]))
+        chain.append((pointsToCheck[0], ix2))
+        return
+    if len(pointsToCheck)==0:
+        chain.append((ix1, ix2))
+        return
+    
+    # take the point that's furthest from the line passing thru xy1 and xy2
+    xy1 = xy[ix1]
+    xy2 = xy[ix2]
+    furthestix = np.abs((xy2[1]-xy1[1])*xy[pointsToCheck][:,0]-
+                        (xy2[0]-xy1[0])*xy[pointsToCheck][:,1]+
+                        xy2[0]*xy1[1]-xy2[1]*xy1[0]).argmax()
+
+    _check_between_pair(xy, ix1, pointsToCheck[furthestix], pointsToCheck, chain),
+    _check_between_pair(xy, pointsToCheck[furthestix], ix2, pointsToCheck, chain)
+
+@njit
+def _boundaries_diag_cut_out(xy, xy1, xy2):
+    """Used by convex_hull() to find points that are above or below the line passing thru
+    xy1 and xy2.
+    
+    Parameters
+    ----------
+    xy : ndarray
+        Points to test.
+    xy1 : ndarray
+        Origin point.
+    xy2 : ndarray
+        Next point in clockwise direction.
+
+    Returns
+    -------
+    function
+    """
+    
+    dydx = (xy2[1]-xy1[1])/(xy2[0]-xy1[0])
+    if xy1[0]<=xy2[0] and xy1[1]<=xy2[1]:
+        return xy[:,1]>(dydx*(xy[:,0]-xy1[0])+xy1[1])
+    elif xy1[0]<=xy2[0] and xy1[1]>=xy2[1]:
+        return xy[:,1]>(dydx*(xy[:,0]-xy1[0])+xy1[1])
+    elif xy1[0]>=xy2[0] and xy1[1]>=xy2[1]:
+        return xy[:,1]<(dydx*(xy[:,0]-xy1[0])+xy1[1])
+    elif xy1[0]>=xy2[0] and xy1[1]<=xy2[1]:
+        return xy[:,1]<(dydx*(xy[:,0]-xy1[0])+xy1[1])
+    else: raise Exception
+
 def weighted_corrcoef(x,y,w):
     """
     Params:
