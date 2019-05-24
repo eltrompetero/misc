@@ -369,7 +369,8 @@ class DiscretePowerLaw():
             alpha
         int, optional
             xmin, Only returned if the lower_bound_range is given.
-        scipy.optimize.minimize or list thereof
+        tuple, optional
+            (uniqLowerBounds, ksstat, list of soln)
         """
 
         # if only a single data is given, fitting procedure is not well defined
@@ -1529,7 +1530,11 @@ def _bivariate_reg(x, y, initial_guess=None, iprint=False, full_output=False):
         return soln['x'], soln
     return soln['x']
 
-def bivariate_reg(x, y, initial_guess=None, iprint=False, full_output=False):
+def bivariate_reg(x, y,
+                  initial_guess=None,
+                  iprint=False,
+                  full_output=False,
+                  min_kw={'bounds':[(-np.inf,np.inf),(-np.inf,np.inf),(1e-4,np.inf),(1e-4,np.inf)]}):
     """Bivariate regression. Assuming Gaussian errors on both x and y axes. The width of
     errors is part of the fitting process.
     
@@ -1570,7 +1575,7 @@ def bivariate_reg(x, y, initial_guess=None, iprint=False, full_output=False):
        return cost
 
     soln = minimize(bivariate_cost, initial_guess,
-                    bounds=[(-np.inf,np.inf),(-np.inf,np.inf),(1e-4,np.inf),(1e-4,np.inf)])
+                    **min_kw)
     if iprint and not soln['success']:
         print("bivariate_reg did not converge on a solution.")
         print(soln['message'])

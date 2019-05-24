@@ -1,7 +1,6 @@
 # Module for useful functions.
 # Author : Eddie Lee, edlee@alumni.princeton.edu
 import numpy as np
-import numpy
 import math
 from multiprocess import Pool,cpu_count
 from numba import jit,njit
@@ -20,9 +19,9 @@ i0qq=(2.962898424533095e-1,4.866115913196384e-1,
       1.529835782400450e-6)
 
 
-# ----------------------------------#
+# ================================= #
 # Useful mathematical calculations. #
-# ----------------------------------#
+# ================================= #
 def vincenty(point1, point2, a, f, MAX_ITERATIONS=200, CONVERGENCE_THRESHOLD=1e-12):
     """
     Vincenty's formula (inverse method) to calculate the distance 
@@ -109,36 +108,6 @@ def weighted_corrcoef(x,y,w):
     
     return covxy/np.sqrt(covxx*covyy)
 
-def xmax(a):
-    """
-    Find max in a generator.
-
-    Params:
-    -------
-    a (generator for floats)
-    """
-    nowmx = -np.inf
-    for i in a:
-        if i>nowmx:
-            nowmx = i
-    return nowmx
-
-def xlogsumexp(a,b):
-    """
-    Generator version of scipy.misc.logsumexp().
-    First scan through iterator for the max. Then implement iterative sum.
-    
-    Params:
-    -------
-    a,b (generators)
-        Two copies of the generator.
-    """
-    mx = xmax(a)
-    res = 0
-    for i in b:
-        res += np.exp(i-mx)
-    return np.log(res) + mx
-
 @jit(nopython=True,cache=True)
 def poly(c,x):
     """
@@ -170,9 +139,9 @@ def iv(x,v=0):
 
 
 
-# -------#
-# Other  #
-# -------#
+# ===== #
+# Other #
+# ===== #
 def merge(sets):
     """Merge a list of sets such that any two sets with any intersection are merged."""
     merged = 1  # has a merge occurred?
@@ -931,68 +900,21 @@ def acf(x, length=20,iters=0,nonan=True):
             return np.array([1]+[np.ma.corrcoef(x[:-i], x[i:])[0,1] \
                 for i in range(1, length)]), samp
 
-def fix_err_bars(y,yerr,ymn,ymx, dy=1e-10):
+def fix_err_bars(y, yerr, ymn, ymx, dy=1e-10):
     """
-    2013-10-25
-        Return 2xN array of low error and high error points having removed negative
-        values. Might need this when extent of error bars return negative values that are
-        impossible.
-        This fits right into pyplot.errobar() xerr or yerr options
+    Return 2xN array of low error and high error points having removed negative
+    values. Might need this when extent of error bars return negative values that are
+    impossible.
+
+    This fits right into pyplot.errorbar() xerr or yerr options
     """
+
     yerru = yerr.copy()
     yerru[(y+yerr)>=ymx] -= ((y+yerr)-ymx)[(y+yerr)>=ymx] +dy
     yerrl = yerr.copy()
     yerrl[(y-yerr)<=ymn] += (y-yerr)[(y-yerr)<=ymn] -dy
 
     return np.vstack((yerrl,yerru))
-
-def invert_f_lin_interp(f,xmin,xmax,prec=3):
-    """
-    2013-10-09
-        Look up table inversion of given single argument function with desired precision
-        and linear interpolation.
-        xmin,xmax : inclusive endpoints
-        prec : number of decimal points to which to round
-    """
-    x = np.arange(xmin,xmax+10**(-prec),10**(-prec))
-    y = f(x)
-
-    def g(y0):
-        ix = np.argmin(abs(y-y0))
-        if y[ix]==y.max():
-            return x[ix]
-        elif (y[ix]-y0)>0:
-            return np.mean([x[ix],x[ix-1]])
-        elif (y[ix]-y0)<0:
-            return np.mean([x[ix],x[ix+1]])
-        else:
-            return x[ix]
-
-    return g
-
-def invert_f(f,xmin,xmax,prec=3):
-    """
-    2013-10-09
-        Look up table inversion of given single argument function with desired precision.
-        xmin,xmax : inclusive endpoints
-        prec : number of decimal points to which to round
-    """
-    x = np.arange(xmin,xmax+10**(-prec),10**(-prec))
-    y = f(x)
-    def g(y0):
-        return x[np.argmin(abs(y-y0))]
-
-    return g
-
-def get_ax():
-    """
-    2013-08-06
-    """
-    import matplotlib.pyplot as plt
-    fig = plt.figure(figsize=[5,4])
-    ax = fig.add_subplot(111)
-
-    return ax,fig
 
 def hist_log(data,bins,
              density=False,
@@ -1037,172 +959,3 @@ def hist_log(data,bins,
     x = xedges[:-1]+dx
 
     return (n,x,xedges)
-
-def read_text_data(fname):
-    """Read simple text file with data.
-    2012-08-13"""
-
-    fid = open(fname)
-
-    i = 0
-    for line in fid:
-        vals = line.split()
-        if i==0:
-            data = np.zeros((1,len(vals)))
-            data[0,:] = vals
-        else:
-            data = np.append( data,np.zeros((1,len(vals))),axis=0 )
-            data[i,:] = vals
-        i += 1
-    return data
-
-def read_csv(fname):
-    """
-    2014-04-03
-    """
-    import csv
-    with open(fname+'.csv', 'rb') as csvfile:
-        spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
-        for row in spamreader:
-            print(', '.join(row))
-    return
-
-def convert_utri_to_array(vec,diag,N):
-    """
-    Take a vector of the upper triangle and convert it to an array with
-    diagonal elements given separately.
-    2013-03-09
-    """
-    # Inumpyut checking.
-    try:
-    # structured like this to allow use of shortcut OR operator
-        if isinstance(diag,(int)) or (diag.size==N):
-            mat = np.zeros((N,N))
-        else:
-            raise
-    except:
-        if diag==np.nan:
-            mat = np.zeros((N,N))
-
-    # Initialize.
-    mat = np.zeros((N,N))
-
-    k=0
-    for i in range(N-1):
-        for j in range(i+1,N):
-            mat[i,j] = vec[k]
-            k+=1
-
-    mat = mat+np.transpose(mat)
-    mat[np.eye(N)==1] = diag
-    return mat
-
-def convert_sisj_to_cij(sisj,si):
-    """
-    2013-04-20
-    """
-    N = si.size
-    NN = sisj.size
-    Cij = np.zeros((NN))
-
-    k=0
-    for i in range(N-1):
-        for j in range(i+1,N):
-            Cij[k] = sisj[k]-si[i]*si[j]
-            k+=1
-
-    return Cij
-
-def get_network(adj, widthfactor = 15):
-    """
-    2012"""
-    import networkx as nx
-    import math
-
-    N = adj.shape[0]
-    g1 = nx.Graph()
-    g2 = nx.Graph()
-    nodesizes = []
-    nodecolors = []
-    for i in range(N-1):
-        g1.add_node(i+1)
-        for j in range(i,N):
-            if i!=j:
-                if (adj[i][j])>0:
-                    g1.add_edge( i+1,j+1,weight=math.fabs(adj[i][j]) )
-                else:
-                    g2.add_edge( i+1,j+1,weight=math.fabs(adj[i][j]) )
-            else:
-                nodesizes.append(math.fabs(adj[i][j]*1000))
-                if adj[i][j]>0:
-                    nodecolors.append('w')
-                elif adj[i][j]<0:
-                    nodecolors.append('k')
-                else:
-                    nodecolors.append('g')
-            # else don't do anything because node size is not given
-
-    edgewidth1 = []
-    edgewidth2 = []
-    for (u,v) in g1.edges():
-        conn = g1.get_edge_data(u,v)['weight']
-        edgewidth1.append (widthfactor*conn)
-
-    for (u,v) in g2.edges():
-        conn = g2.get_edge_data(u,v)['weight']
-        edgewidth2.append (widthfactor*conn)
-
-    return (g1,g2,edgewidth1,edgewidth2,nodesizes,nodecolors)
-
-def get_network1(adj,names,h, edgewidthfactor = 15, noderadiifactor = 100, basicnodesize=1200):
-    """
-    2012"""
-    import networkx as nx
-    import math
-
-    N = adj.shape[0]
-    g1 = nx.Graph() # positive
-    g2 = nx.Graph() # negative
-    nodesizes = []
-    nodecolors = []
-    for i in range(N):
-        g1.add_node(names[i])
-        for j in range(i,N):
-            if i!=j:
-                if ~(math.fabs(adj[i][j])<.1):
-                    if (adj[i][j])>0:
-                        g1.add_edge( names[i],names[j],weight=math.fabs(adj[i][j]) )
-                    else:
-                        g2.add_edge( names[i],names[j],weight=math.fabs(adj[i][j]) )
-            else:
-                nodesizes.append(basicnodesize+(h[i]*noderadiifactor)**2*math.pi)
-                nodecolors.append(adj[i][j])
-
-    # Scale edge widths.
-    edgewidth1 = []
-    edgewidth2 = []
-    for (u,v) in g1.edges():
-        conn = g1.get_edge_data(u,v)['weight']
-        edgewidth1.append (15*conn)
-    for (u,v) in g2.edges():
-        conn = g2.get_edge_data(u,v)['weight']
-        edgewidth2.append (15*conn)
-
-    return (g1,g2,edgewidth1,edgewidth2,nodesizes,nodecolors)
-
-def pearson_corr(x,y):
-    """
-        Included case where sx or sy==0.
-    2014-02-19
-    """
-    if x.size!=y.size:
-        raise Exception('Vectors must be of same size.')
-
-    mx = np.mean(x)
-    my = np.mean(y)
-    sx = np.std(x)
-    sy = np.std(y)
-    if sx==0 or sy==0:
-        return 0.
-    else:
-        return np.sum((x-mx)*(y-my))/(sx*sy)/x.size

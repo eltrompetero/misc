@@ -1,13 +1,13 @@
 # Module for implementation of common numpy functions that do not work in jit environment.
+# Author : Eddie Lee, edlee@alumni.princeton.edu
 # 2017-07-29
-
 import numpy as np
 from numba import jit
 
+
 @jit(nopython=True,cache=True)
 def all(X,axis=0):
-    """
-    Right now, only implemented for two dimensional arrays.
+    """Right now, only implemented for two dimensional arrays.
     
     Params:
     -------

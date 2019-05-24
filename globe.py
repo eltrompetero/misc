@@ -407,6 +407,7 @@ class SphereCoordinate():
             self.rng=rng
             
     def update_xy(self,*args):
+        """Store both Cartesian and spherical representation of point."""
         if len(args)==2:
             phi,theta=args
             self.vec=np.array([cos(phi)*sin(theta),sin(phi)*sin(theta),cos(theta)])
@@ -414,11 +415,11 @@ class SphereCoordinate():
         else:
             assert len(args)==3 or len(args[0])==3
             if len(args)==3:
-                args=np.array(args)
+                self.vec = np.array(args)
             else:
-                self.vec=args[0]
+                self.vec = args[0]
                 
-            self.vec=self.vec/np.linalg.norm(self.vec)
+            self.vec = self.vec / (np.nextafter(0,1) + np.linalg.norm(self.vec))
             self.phi,self.theta=self._vec_to_angle(*self.vec)
     
     @classmethod
@@ -702,7 +703,6 @@ spec=[
         ('real',float64),
         ('vec',float64[:])
     ]
-
 @jitclass(spec)
 class jitQuaternion():
     """Faster quaternion class with limited functionality.
