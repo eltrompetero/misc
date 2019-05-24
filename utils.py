@@ -7,6 +7,8 @@ import math
 from multiprocess import Pool,cpu_count
 from numba import jit,njit
 from numbers import Number
+from scipy.spatial.distance import pdist
+from . import easy_jit as ejit
 i0p=(9.999999999999997e-1,2.466405579426905e-1,
 	1.478980363444585e-2,3.826993559940360e-4,5.395676869878828e-6,
 	4.700912200921704e-8,2.733894920915608e-10,1.115830108455192e-12,
@@ -24,6 +26,40 @@ i0qq=(2.962898424533095e-1,4.866115913196384e-1,
 # ================================= #
 # Useful mathematical calculations. #
 # ================================= #
+def max_dist_pair2D(xy, force_slow=False):
+    """Find most distant pair of points in 2D Euclidean space.
+
+    Maximally distant pair of points must coincide with extrema of convex hull.
+
+    Parameters
+    ----------
+    xy : ndarray
+        (x,y) coordinations
+    force_slow : bool, False
+        Use slow calculation computing entire matrix of pairwise distances.
+
+    Returns
+    -------
+    tuple
+        Indices of two max separated points.
+    """
+    
+    if force_slow or len(xy)<500:
+        return _max_dist_pair(xy)
+    
+    hull = convex_hull(xy)
+    mxix = ejit.ind_to_sub(hull.size, pdist(xy[hull]).argmax())
+    return hull[mxix[0]], hull[mxix[1]]
+
+def _max_dist_pair(xy):
+    """Slow way of finding maximally distant pair by checking every pair.
+    """
+    
+    dmat = pdist(xy)
+    dmaxix = dmat.argmax()
+    majix = ejit.ind_to_sub(len(xy), dmaxix)
+    return majix
+
 def convex_hull(xy, concatenate_first=False):
     """Identify convex hull of points in 2 dimensions.
     

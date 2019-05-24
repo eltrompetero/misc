@@ -1,9 +1,34 @@
+# ===================================================================================== #
 # Module for implementation of common numpy functions that do not work in jit environment.
 # Author : Eddie Lee, edlee@alumni.princeton.edu
-# 2017-07-29
+# ===================================================================================== #
 import numpy as np
-from numba import jit
+from numba import jit, njit
 
+
+@njit(cache=True)
+def ind_to_sub(n, ix):
+    """Convert index from flattened upper triangular matrix to pair subindex.
+
+    Parameters
+    ----------
+    n : int
+        Dimension size of square array.
+    ix : int
+        Index to convert.
+
+    Returns
+    -------
+    subix : tuple
+        (i,j)
+    """
+
+    k = 0
+    for i in range(n-1):
+        for j in range(i+1,n):
+            if k==ix:
+                return (i,j)
+            k += 1
 
 @jit(nopython=True,cache=True)
 def all(X,axis=0):
