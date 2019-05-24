@@ -26,6 +26,60 @@ i0qq=(2.962898424533095e-1,4.866115913196384e-1,
 # ================================= #
 # Useful mathematical calculations. #
 # ================================= #
+def maj_min_axis_ratio(xy):
+    """Find major axis of points in plane, take projection onto orthogonal axis and take
+    ratio of those distances.
+
+    Parameters
+    ----------
+    xy : ndarray
+        xy coordinates
+        
+    Returns
+    -------
+    float
+        Ratio of major and minor axis.
+    """
+
+    xy = np.unique(xy, axis=0)
+    majix = max_dist_pair2D(xy)
+    majAxis = xy[majix[0]] - xy[majix[1]]
+
+    if majAxis[1]!=0:
+        minAxis = np.array([1, -majAxis[0]/majAxis[1]])
+    else:
+        minAxis = np.array([0.,1.])
+    minAxis /= np.linalg.norm(minAxis)
+    minProj = xy.dot(minAxis)
+
+    return (np.linalg.norm(majAxis) /
+            np.linalg.norm(xy[minProj.argmax()]-xy[minProj.argmin()]))
+
+def ortho_plane(v):
+    """Return a plane defined by two vectors orthogonal to the given vector.
+    
+    Parameters
+    ----------
+    v : ndarray
+    
+    Returns
+    -------
+    ndarray
+    ndarray
+    """
+    
+    assert v.size==3
+    
+    # Get a first orthogonal vector
+    r1 = np.random.rand(3)
+    r1 -= v*r1.dot(v)
+    r1 /= np.sqrt(r1.dot(r1))
+    
+    # Get second othorgonal vector
+    r2 = np.cross(v,r1)
+    
+    return r1,r2
+
 def max_dist_pair2D(xy, force_slow=False):
     """Find most distant pair of points in 2D Euclidean space.
 

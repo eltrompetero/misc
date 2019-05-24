@@ -6,6 +6,17 @@ from .utils import *
 np.random.RandomState(0)
 
 
+def test_ortho_plane():
+    r = np.random.rand(3)
+    r /= np.linalg.norm(r)
+    r1, r2 = ortho_plane(r)
+
+    assert np.isclose(r1.dot(r), 0)
+    assert np.isclose(r2.dot(r), 0)
+    assert np.isclose(r1.dot(r2), 0)
+    assert np.isclose(np.linalg.norm(r1), 1)
+    assert np.isclose(np.linalg.norm(r2), 1)
+
 def test_unravel_utri(n=5):
     from scipy.spatial.distance import squareform
     
