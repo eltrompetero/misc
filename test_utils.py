@@ -3,8 +3,29 @@
 # Author : Eddie Lee, edlee@alumni.princeton.edu
 # ===================================================================================== #
 from .utils import *
+from .utils import _sort_by_phi
 np.random.RandomState(0)
 
+
+def test_sort_by_phi():
+    xy = np.random.normal(size=(10,2))
+    assert _sort_by_phi(xy).size==10
+    xy[0,:] = xy[1,:]
+    assert _sort_by_phi(xy).size==9
+    xy[2,:] = xy[1,:]
+    assert _sort_by_phi(xy).size==8
+
+    xy[0] = [2,0]
+    xy[1] = [1,0]
+    assert not 1 in _sort_by_phi(xy), _sort_by_phi(xy)
+
+def test_convex_hull():
+    for i in range(10):
+        xy = np.random.normal(size=(100,2))
+        hullrec = convex_hull(xy, recursive=True)
+        hullseq = convex_hull(xy, recursive=False)
+        assert np.array_equal(hullrec, hullseq)
+    print("Test passed: Recursive convex hull algo agrees with sequential for 10 random samples.")
 
 def test_ortho_plane():
     r = np.random.rand(3)

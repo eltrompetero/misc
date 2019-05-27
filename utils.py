@@ -8,7 +8,7 @@ from multiprocess import Pool,cpu_count
 from numba import jit,njit
 from numbers import Number
 from scipy.spatial.distance import pdist
-from . import easy_jit as ejit
+from .easy_jit import *
 i0p=(9.999999999999997e-1,2.466405579426905e-1,
 	1.478980363444585e-2,3.826993559940360e-4,5.395676869878828e-6,
 	4.700912200921704e-8,2.733894920915608e-10,1.115830108455192e-12,
@@ -56,7 +56,8 @@ def maj_min_axis_ratio(xy):
             np.linalg.norm(xy[minProj.argmax()]-xy[minProj.argmin()]))
 
 def ortho_plane(v):
-    """Return a plane defined by two vectors orthogonal to the given vector.
+    """Return a plane defined by two vectors orthogonal to the given vector using random
+    vector and Gram-Schmidt.
     
     Parameters
     ----------
@@ -101,8 +102,8 @@ def max_dist_pair2D(xy, force_slow=False):
     if force_slow or len(xy)<500:
         return _max_dist_pair(xy)
     
-    hull = convex_hull(xy)
-    mxix = ejit.ind_to_sub(hull.size, pdist(xy[hull]).argmax())
+    hull = convex_hull(xy, recursive=True)
+    mxix = ind_to_sub(hull.size, pdist(xy[hull]).argmax())
     return hull[mxix[0]], hull[mxix[1]]
 
 def _max_dist_pair(xy):
@@ -111,10 +112,10 @@ def _max_dist_pair(xy):
     
     dmat = pdist(xy)
     dmaxix = dmat.argmax()
-    majix = ejit.ind_to_sub(len(xy), dmaxix)
+    majix = ind_to_sub(len(xy), dmaxix)
     return majix
 
-def convex_hull(xy, concatenate_first=False):
+def convex_hull(xy, recursive=False, concatenate_first=False):
     """Identify convex hull of points in 2 dimensions.
     
     Recursive version. Number of points to consider typically goes like sqrt(n), so
@@ -168,33 +169,115 @@ def convex_hull(xy, concatenate_first=False):
         endptsix.pop(2)
     elif endptsix[3]==endptsix[0]:
         endptsix.pop(0)
+    
+    if recursive:
+        pairsToConsider = [(endptsix[i], endptsix[(i+1)%len(endptsix)])
+                           for i in range(len(endptsix))]
         
-    pairsToConsider = [(endptsix[i], endptsix[(i+1)%len(endptsix)])
-                       for i in range(len(endptsix))]
-    
-    # for each pair, assembly a list of points to check by using a cutting region determined
-    # by the line passing through that pair of points
-    pointsToCheck = []
-    for i,j in pairsToConsider:
-        ix = np.delete(range(len(xy)), endptsix)
-        pointsToCheck.append( ix[_boundaries_diag_cut_out(xy[ix], xy[i], xy[j])] )
-    
-    # whittle 
-    hull = []
-    for ix, checkxy in zip(pairsToConsider, pointsToCheck):
-        subhull = []
-        _check_between_pair(xy, ix[0], ix[1], checkxy, subhull)
-        hull.append(subhull)
+        # for each pair, assembly a list of points to check by using a cutting region determined
+        # by the line passing through that pair of points
+        pointsToCheck = []
+        for i,j in pairsToConsider:
+            ix = np.delete(range(len(xy)), endptsix)
+            pointsToCheck.append( ix[_boundaries_diag_cut_out(xy[ix], xy[i], xy[j])] )
+        
+        # whittle 
+        hull = []
+        for ix, checkxy in zip(pairsToConsider, pointsToCheck):
+            subhull = []
+            _check_between_pair(xy, ix[0], ix[1], checkxy, subhull)
+            hull.append(subhull)
 
-    # extract loop
-    hull = np.concatenate(hull).ravel()
-    if concatenate_first:
-        hull = np.concatenate((hull[::2], [hull[-1]]))
+        # extract loop
+        hull = np.concatenate(hull).ravel()
+        # monkey patch because some elements appear twice
+        hull = np.append(hull[::2], hull[-1])
+        _, ix = np.unique(hull, return_index=True)
+        hull = hull[ix[np.argsort(ix)]]
+        if concatenate_first:
+            hull = np.concatenate((hull, [hull[0]]))
+        return hull
+    
+    # sequential Graham algorithm
+    # center all the points about a centroid defined as between min/max pairs of x and y axes
+    midxy = (xy.max(0)+xy.min(0))/2
+    xy = xy-midxy
+    sortix = _sort_by_phi(xy)[::-1]
+    xysorted = xy[sortix]
+    # start with point with leftmost point
+    startix = xysorted[:,0].argmin()
+    sortix = np.roll(sortix, -startix)
+    xysorted = np.roll(xysorted, -startix, axis=0)
+    hull = _check_between_triplet(xysorted)
+
+    return sortix[hull]
+
+def _sort_by_phi(xy):
+    """Sort points in play by angle in counterclockwise direction. With unique angles.
+    """
+
+    phi = np.arctan2(xy[:,1], xy[:,0])
+
+    # if angle repeats, remove coordinate with smaller radius
+    if phi.size>np.unique(phi).size:
+        _, invIx = np.unique(phi, return_inverse=True)
+        ixToRemove = []
+        # for every element of phi that repeats
+        for ix in np.where(np.bincount(invIx)>1)[0]:
+            # take larger radius
+            r = np.linalg.norm(xy[invIx==ix], axis=1)
+            mxix = r.argmax()
+            remIx = np.where(invIx==ix)[0].tolist()
+            remIx.pop(mxix)
+            ixToRemove += remIx
+        
+        # remove duplicates
+        keepix = np.delete(range(phi.size), ixToRemove)
+
+        sortix = keepix[np.argsort(phi[keepix])]
+        return sortix
+
+    return np.argsort(phi)
+
+def _check_between_triplet(xy):
+    """Used by convex_hull().
+
+    Sequentially checks between sets of three points that have been ordered in the
+    clockwise direction (Graham algorithm).
+    
+    Parameters
+    ----------
+    xy : ndarray
+        List of Cartesian coordinates. First point must belong to convex hull.
+
+    Returns
+    -------
+    list
+        Ordered list of indices of xy that are in convex hull.
+    """
+    
+    hull = list(range(len(xy)))
+    k = 0
+    # end loop once we can traverse hull without eliminating points
+    allChecked = 0
+    while allChecked<len(hull):
+        if _boundaries_diag_cut_out(xy[hull[(k+1)%len(hull)]][None,:],
+                                    xy[hull[k%len(hull)]],
+                                    xy[hull[(k+2)%len(hull)]])[0]:
+            k += 1
+            allChecked += 1
+        else:
+            # remove element that forms a concave angle with next neighbors
+            hull.pop((k+1)%len(hull))
+            k -= 1
+            allChecked = 0
     return hull
 
 def _check_between_pair(xy, ix1, ix2, possible_xy, chain):
     """Used by convex_hull().
-    Recursively check between initial set of pairs.
+
+    Recursively check between initial set of pairs and append results into chain such that
+    chain can be read sequentially to yield a clockwise path around the hull..
     
     Parameters
     ----------
@@ -255,9 +338,10 @@ def _boundaries_diag_cut_out(xy, xy1, xy2):
         return xy[:,1]>(dydx*(xy[:,0]-xy1[0])+xy1[1])
     elif xy1[0]>=xy2[0] and xy1[1]>=xy2[1]:
         return xy[:,1]<(dydx*(xy[:,0]-xy1[0])+xy1[1])
-    elif xy1[0]>=xy2[0] and xy1[1]<=xy2[1]:
+    #elif xy1[0]>=xy2[0] and xy1[1]<=xy2[1]:
+    else:
         return xy[:,1]<(dydx*(xy[:,0]-xy1[0])+xy1[1])
-    else: raise Exception
+    #else: raise Exception
 
 def weighted_corrcoef(x,y,w):
     """
