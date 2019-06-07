@@ -472,15 +472,18 @@ class SphereCoordinate():
 
         self.update_xy(*args)
         if rng is None:
-            self.rng=np.random.RandomState()
+            self.rng = np.random.RandomState()
         else:
-            self.rng=rng
+            self.rng = rng
             
-    def update_xy(self,*args):
+    def update_xy(self, *args):
         """Store both Cartesian and spherical representation of point."""
+
         if len(args)==2:
             phi, theta = args
-            self.vec = np.array([cos(phi)*sin(theta),sin(phi)*sin(theta),cos(theta)])
+            assert 0<=phi<=(2*pi)
+            assert 0<=theta<=pi
+            self.vec = np.array([cos(phi)*sin(theta), sin(phi)*sin(theta), cos(theta)])
             self.phi, self.theta = phi, theta
         else:
             assert len(args)==3 or len(args[0])==3

@@ -1,3 +1,7 @@
+# ===================================================================================== #
+# Testing suite for globe.py
+# Author: Eddie Lee, edl56@cornell.edu
+# ===================================================================================== #
 from .globe import *
 from numpy import pi
 import numpy as np
