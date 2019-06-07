@@ -589,7 +589,7 @@ class SphereCoordinate():
         return SphereCoordinate(newphi%(2*pi), newtheta)
 
     def rotate_to_north_pole(self):
-        """Rotate given vector to the north pole.
+        """Parameters for rotating vector to north pole.
         
         Returns
         -------
