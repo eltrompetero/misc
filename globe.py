@@ -458,7 +458,7 @@ class PoissonDiscSphere():
 
 
 class SphereCoordinate():
-    """Coordinate on a spherical surface. Contains methods for easy manipulation and translation
+    """Coordinate on unit sphere. Contains methods for easy manipulation and translation
     of points. Sphere is normalized to unit sphere.
     """
 
@@ -479,9 +479,9 @@ class SphereCoordinate():
     def update_xy(self,*args):
         """Store both Cartesian and spherical representation of point."""
         if len(args)==2:
-            phi,theta=args
-            self.vec=np.array([cos(phi)*sin(theta),sin(phi)*sin(theta),cos(theta)])
-            self.phi,self.theta=phi,theta
+            phi, theta = args
+            self.vec = np.array([cos(phi)*sin(theta),sin(phi)*sin(theta),cos(theta)])
+            self.phi, self.theta = phi, theta
         else:
             assert len(args)==3 or len(args[0])==3
             if len(args)==3:
@@ -490,15 +490,15 @@ class SphereCoordinate():
                 self.vec = args[0]
                 
             self.vec = self.vec / (np.nextafter(0,1) + np.linalg.norm(self.vec))
-            self.phi,self.theta=self._vec_to_angle(*self.vec)
+            self.phi, self.theta = self._vec_to_angle(*self.vec)
     
     @classmethod
-    def _angle_to_vec(cls,phi,theta):
+    def _angle_to_vec(cls, phi, theta):
         return np.array([cos(phi)*sin(theta), sin(phi)*sin(theta), cos(theta)])
     
     @classmethod
-    def _vec_to_angle(cls,x,y,z):
-        return arctan2(y,x)%(2*pi), arccos(z)
+    def _vec_to_angle(cls, x, y, z):
+        return arctan2(y,x)%(2*pi), arccos(min(z, 1))
            
     def random_shift(self,return_angle=True,bds=[0,1]):
         """
@@ -573,21 +573,37 @@ class SphereCoordinate():
 
         Returns
         -------
-        newphi : float
-        newtheta : float
+        SphereCoordinate
         """
 
-        rotvec/=np.sqrt(rotvec[0]**2 + rotvec[1]**2 + rotvec[2]**2)
-        a, b=cos(d/2), sin(d/2)
-        rotq=Quaternion(a, b*rotvec[0], b*rotvec[1], b*rotvec[2])
+        rotvec /= np.sqrt(rotvec[0]**2 + rotvec[1]**2 + rotvec[2]**2)
+        a, b = cos(d/2), sin(d/2)
+        rotq = Quaternion(a, b*rotvec[0], b*rotvec[1], b*rotvec[2])
 
-        vec=self._angle_to_vec(self.phi, self.theta)
-        vecq=Quaternion(0, vec[0], vec[1], vec[2])
+        vec = self._angle_to_vec(self.phi, self.theta)
+        vecq = Quaternion(0, vec[0], vec[1], vec[2])
         
-        newvec=vecq.rotate(rotq).vec
-        newphi, newtheta=self._vec_to_angle( newvec[0], newvec[1], newvec[2] )
+        newvec = vecq.rotate(rotq).vec
+        newphi, newtheta = self._vec_to_angle( newvec[0], newvec[1], newvec[2] )
 
         return SphereCoordinate(newphi%(2*pi), newtheta)
+
+    def rotate_to_north_pole(self):
+        """Rotate given vector to the north pole.
+        
+        Returns
+        -------
+        ndarray
+            Rotation axis.
+        float
+            Angle to rotate.
+        """
+        
+        rotvec = np.cross( self.vec, np.array([0,0,1]) )
+        rotvec /= np.linalg.norm(rotvec)
+        d = arccos( self.vec[-1] )
+
+        return rotvec, d
 
     def __str__(self):
         coord = self.vec[0], self.vec[1], self.vec[2], self.phi, self.theta
@@ -625,9 +641,8 @@ class jitSphereCoordinate():
     def _angle_to_vec(self,phi,theta):
         return np.array([cos(phi)*sin(theta), sin(phi)*sin(theta), cos(theta)])
     
-    def _vec_to_angle(self,x,y,z):
-        #print(y,x)
-        return arctan2(y,x)%(2*pi), arccos(z)
+    def _vec_to_angle(self, x, y, z):
+        return arctan2(y,x)%(2*pi), arccos(min(z, 1))
            
     def random_shift(self, bds):
         """

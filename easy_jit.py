@@ -6,6 +6,14 @@ import numpy as np
 from numba import jit, njit
 
 
+@njit
+def clip(x, xmn, xmx):
+    for i in range(len(x)):
+        if x[i]<xmn:
+            x[i] = xmn
+        elif x[i]>xmx:
+            x[i] = xmx
+
 @njit(cache=True)
 def ind_to_sub(n, ix):
     """Convert index from flattened upper triangular matrix to pair subindex.
