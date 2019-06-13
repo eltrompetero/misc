@@ -129,29 +129,49 @@ def vincenty(point1, point2, a, f, MAX_ITERATIONS=200, CONVERGENCE_THRESHOLD=1e-
 # Classes #
 # ======= #
 class PoissonDiscSphere():
-    """A class for generating two-dimensional Possion (blue) noise) modified from: 
-    # For mathematical details of this algorithm, please see the blog
-    # article at https://scipython.com/blog/poisson-disc-sampling-in-python/
-    # Christian Hill, March 2017.
-    """
+    """Generate a random set of points on the surface of a sphere within some specified
+    region using a Poisson disc sampling algorithm. To speed up nearest neighbor searches,
+    the points are all assigned to a coarser grid such that only comparisons to the
+    children of the coarse grid are necessary.
 
+    This was adapted from the blog article at
+    https://scipython.com/blog/poisson-disc-sampling-in-python/ by Christian Hill and
+    accessed in March 2017.
+    """
     def __init__(self, r,
-                 width_bds=(0,2*pi),
-                 height_bds=(-pi/2,pi/2),
+                 width_bds=(0, 2*pi),
+                 height_bds=(-pi/2, pi/2),
                  fast_sample_size=30,
-                 k=30,
+                 n_tries=30,
                  coarse_grid=None,
                  k_coarse=9,
                  rng=None):
         """
         Parameters
         ----------
-        coarse_grid : ndarray
-            These are used to bin the grid points to make neighbor searching more efficient.
+        r : float
+            Angular distance to use to separate random adjacent points.
+        width_bds : tuple, (0, 2*pi)
+            Longitude range in which to generate random points as radians.
+        height_bds : tuple, (-pi/2, pi/2)
+            Latitude range in which to generate random points as radians.
+        fast_sample_size : int, 30
+            Number of points to sample inspect carefully when using heuristic for
+            calculating distances for nearest neighbor search. The heuristic uses the
+            simple Euclidean distance on angular coordinates to identify a set of close
+            neighbors. This is a reasonable approximation far from the poles.
+        n_tries : int, 30
+            Number of times to try generating random neighbor in annulus before giving up.
+        coarse_grid : ndarray, None
+            Can supply a predefined grid on which to perform the coarse-grained neighbor
+            search. If not provided, this is automatically generated.
         k_coarse : int, 9
-            Number of nearest neighbors on the coarse grid to use for fast neighbor searching. For
-            the spherical surface about 6 should be good enough for the roughly hexagonal tiling,
-            but I find that irregular tiling means having more neighbors is a good idea.
+            Number of nearest neighbors on the coarse grid to use for fast neighbor
+            searching. For the spherical surface about 6 should be good enough for the
+            roughly hexagonal tiling, but I find that irregular tiling means having more
+            neighbors is a good idea. If this number is too large, many unnecessary
+            comparisons will be made with the children of those coarse grids.
+        rng : np.random.RandomState, None
         """
 
         assert r>0,r
@@ -160,7 +180,7 @@ class PoissonDiscSphere():
 
         self.width, self.height = width_bds, height_bds
         self.r = r
-        self.k = k
+        self.nTries = n_tries
         self.unif_theta_bounds=(1+np.cos(r))/2,(1+np.cos(2*r))/2
         self.fastSampleSize=fast_sample_size
         if rng is None:
@@ -185,8 +205,8 @@ class PoissonDiscSphere():
             self.samplesByGrid[self.assign_grid_point(pt)].append(i)
 
     def preprocess_coarse_grid(self):
-        """Find the k_coarse nearest neighbors for each point in the coarse grid. Also include self
-        in the list and thus the +1.
+        """Find the k_coarse nearest neighbors for each point in the coarse grid. Also
+        include self in the list and thus the +1.
         """
 
         coarseNeighbors=[]
@@ -196,7 +216,8 @@ class PoissonDiscSphere():
         self.coarseNeighbors=coarseNeighbors
 
     def get_neighbours(self, xy, top_n=None, apply_dist_threshold=False):
-        """Return top_n neighbors in the grid according to the fast Euclidean distance calculation.
+        """Return top_n neighbors in the grid according to the fast Euclidean distance
+        calculation.
 
         Parameters
         ----------
@@ -242,8 +263,7 @@ class PoissonDiscSphere():
         return []
 
     def _get_closest_neighbor(self, pt, ignore_zero=1e-9):
-        """
-        Get closest grid point index for a single point.
+        """Get closest grid point index for a single point.
 
         Parameters
         ----------
@@ -269,8 +289,7 @@ class PoissonDiscSphere():
         return neighborix[np.argmin(distance)]
 
     def get_closest_neighbor(self, pt, ignore_zero=1e-9):
-        """
-        Get closest grid point index for all points given.
+        """Get closest grid point index for all points given.
 
         Parameters
         ----------
@@ -327,14 +346,15 @@ class PoissonDiscSphere():
         return True
     
     def get_point(self, refpt, max_iter=10):
-        """Try to find a candidate point near refpt to emit in the sample.  We draw up to k points
-        from the annulus of inner radius r, outer radius 2r around the reference point, refpt. If
-        none of them are suitable (because they're too close to existing points in the sample),
-        return False. Otherwise, return the pt in a list.
+        """Try to find a candidate point near refpt to emit in the sample.  We draw up to
+        k points from the annulus of inner radius r, outer radius 2r around the reference
+        point, refpt. If none of them are suitable (because they're too close to existing
+        points in the sample), return False. Otherwise, return the pt in a list.
         """
+
         sphereRefpt=jitSphereCoordinate(refpt[0], refpt[1]+pi/2)
         i = 0
-        while i < self.k:
+        while i < self.nTries:
             pt=sphereRefpt.random_shift(self.unif_theta_bounds)
             # put back into same range as this code
             pt=np.array([pt[0], pt[1]-pi/2])
@@ -371,9 +391,10 @@ class PoissonDiscSphere():
 
     def sample(self):
         """Poisson disc random sampling in 2D.
-        Draw random samples on the domain width x height such that no two samples are closer than r
-        apart. The parameter k determines the maximum number of candidate points to be chosen around
-        each reference point before removing it from the "active" list.
+        Draw random samples on the domain width x height such that no two samples are
+        closer than r apart. The parameter k determines the maximum number of candidate
+        points to be chosen around each reference point before removing it from the
+        "active" list.
         """
 
         if not self.coarseGrid is None:
@@ -449,10 +470,11 @@ class PoissonDiscSphere():
         -------
         dvec : ndarray
         """
+
         # Account for discontinuity at phi=0 and phi=2*pi
-        d=np.abs(x-y)
-        ix=d[:,0]>pi
-        d[ix,0]=pi-d[ix,0]%pi
+        d = np.abs(x-y)
+        ix = d[:,0]>pi
+        d[ix,0] = pi-d[ix,0]%pi
         return ( d**2 ).sum(1)
 #end PoissonDiscSphere
 
