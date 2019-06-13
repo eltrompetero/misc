@@ -79,7 +79,7 @@ def ortho_plane(v):
     # Get second othorgonal vector
     r2 = np.cross(v,r1)
     
-    return r1,r2
+    return r1, r2
 
 def max_dist_pair2D(xy, force_slow=False):
     """Find most distant pair of points in 2D Euclidean space.
@@ -116,7 +116,8 @@ def _max_dist_pair(xy):
     return majix
 
 def convex_hull(xy, recursive=False, concatenate_first=False):
-    """Identify convex hull of points in 2 dimensions.
+    """Identify convex hull of points in 2 dimensions. I think this is the same as
+    Quickhull.
     
     Recursive version. Number of points to consider typically goes like sqrt(n), so
     this can handle a good number, but this could be made faster and to handle larger

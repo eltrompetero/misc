@@ -501,7 +501,9 @@ class SphereCoordinate():
     
     @classmethod
     def _vec_to_angle(cls, x, y, z):
-        return arctan2(y,x)%(2*pi), arccos(min(z, 1))
+        if z<0:
+            return arctan2(y, x)%(2*pi), arccos(max(z, -1))
+        return arctan2(y, x)%(2*pi), arccos(min(z, 1))
            
     def random_shift(self,return_angle=True,bds=[0,1]):
         """
@@ -638,13 +640,15 @@ class jitSphereCoordinate():
     def update_xy(self, phi, theta):
         assert 0<=phi<=(2*pi)
         assert 0<=theta<=pi
-        self.vec=np.array([cos(phi)*sin(theta),sin(phi)*sin(theta),cos(theta)])
-        self.phi, self.theta=phi, theta
+        self.vec = np.array([cos(phi)*sin(theta), sin(phi)*sin(theta), cos(theta)])
+        self.phi, self.theta = phi, theta
     
     def _angle_to_vec(self,phi,theta):
         return np.array([cos(phi)*sin(theta), sin(phi)*sin(theta), cos(theta)])
     
     def _vec_to_angle(self, x, y, z):
+        if z<0:
+            return arctan2(y,x)%(2*pi), arccos(max(z, -1))
         return arctan2(y,x)%(2*pi), arccos(min(z, 1))
            
     def random_shift(self, bds):
