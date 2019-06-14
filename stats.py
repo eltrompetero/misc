@@ -134,9 +134,9 @@ def has_multiple_unique_values(x):
     return False    
 
 
-# =============================================================================================== #
+# ===================================================================================== #
 # Statistical distributions
-# =============================================================================================== #
+# ===================================================================================== #
 def ECDF(x, conf_interval=None, n_boot_samples=250, as_delta=True):
     """Wrapper for statsmodels ECDF also including bootstrapped error bars.
 
@@ -189,6 +189,7 @@ def ECDF(x, conf_interval=None, n_boot_samples=250, as_delta=True):
             interp1d(ux, np.percentile(ecdfSample, conf_interval[1], axis=0),
                      fill_value=(0,1),
                      bounds_error=False))
+
 
 class DiscretePowerLaw():
     _default_lower_bound=1

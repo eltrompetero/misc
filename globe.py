@@ -130,7 +130,10 @@ def vincenty(point1, point2, a, f, MAX_ITERATIONS=200, CONVERGENCE_THRESHOLD=1e-
 # ======= #
 class PoissonDiscSphere():
     """Generate a random set of points on the surface of a sphere within some specified
-    region using a Poisson disc sampling algorithm. To speed up nearest neighbor searches,
+    region using a Poisson disc sampling algorithm. This generates a random tiling that is
+    much more uniformly spaced than independently sampling the space.
+    
+    To speed up nearest neighbor searches,
     the points are all assigned to a coarser grid such that only comparisons to the
     children of the coarse grid are necessary.
 
@@ -181,39 +184,44 @@ class PoissonDiscSphere():
         self.width, self.height = width_bds, height_bds
         self.r = r
         self.nTries = n_tries
-        self.unif_theta_bounds=(1+np.cos(r))/2,(1+np.cos(2*r))/2
-        self.fastSampleSize=fast_sample_size
+        self.unif_theta_bounds = (1+np.cos(r))/2, (1+np.cos(2*r))/2
+        self.fastSampleSize = fast_sample_size
         if rng is None:
-            self.rng=np.random.RandomState()
+            self.rng = np.random.RandomState()
         else:
-            self.rng=rng
+            self.rng = rng
 
-        self.coarseGrid=coarse_grid
-        self.kCoarse=k_coarse
+        self.coarseGrid = coarse_grid
+        self.kCoarse = k_coarse
         
         if not self.coarseGrid is None:
             self.preprocess_coarse_grid()
 
     def set_coarse_grid(self, coarse_grid):
-        """Assign new coarse grid."""
+        """Assign new coarse grid.
+        
+        Parameters
+        ----------
+        coarse_grid : ndarray
+        """
 
-        self.coarseGrid=coarse_grid
+        self.coarseGrid = coarse_grid
         self.preprocess_coarse_grid()
-        self.samplesByGrid=[[] for i in self.coarseGrid]
+        self.samplesByGrid = [[] for i in self.coarseGrid]
 
         for i,pt in enumerate(self.samples):
             self.samplesByGrid[self.assign_grid_point(pt)].append(i)
 
     def preprocess_coarse_grid(self):
         """Find the k_coarse nearest neighbors for each point in the coarse grid. Also
-        include self in the list and thus the +1.
+        include self in the list which explains the +1.
         """
 
-        coarseNeighbors=[]
+        coarseNeighbors = []
         for pt in self.coarseGrid:
             coarseNeighbors.append( np.argsort(self.dist(pt,
                                                          self.coarseGrid))[:self.kCoarse+1].tolist() )
-        self.coarseNeighbors=coarseNeighbors
+        self.coarseNeighbors = coarseNeighbors
 
     def get_neighbours(self, xy, top_n=None, apply_dist_threshold=False):
         """Return top_n neighbors in the grid according to the fast Euclidean distance
@@ -334,7 +342,7 @@ class PoissonDiscSphere():
         """
         
         if len(self.samples)>0:
-            neighborIx=self.get_neighbours(pt)
+            neighborIx = self.get_neighbours(pt)
             for ix in neighborIx:
                 if (self.dist(pt, self.samples[ix]) < self.r):
                     return False
@@ -352,12 +360,12 @@ class PoissonDiscSphere():
         points in the sample), return False. Otherwise, return the pt in a list.
         """
 
-        sphereRefpt=jitSphereCoordinate(refpt[0], refpt[1]+pi/2)
+        sphereRefpt = jitSphereCoordinate(refpt[0], refpt[1]+pi/2)
         i = 0
         while i < self.nTries:
-            pt=sphereRefpt.random_shift(self.unif_theta_bounds)
+            pt = sphereRefpt.random_shift(self.unif_theta_bounds)
             # put back into same range as this code
-            pt=np.array([pt[0], pt[1]-pi/2])
+            pt = np.array([pt[0], pt[1]-pi/2])
             if not (self.width[0] < pt[0] < self.width[1] and 
                     self.height[0] < pt[1] < self.height[1]):
                 # This point falls outside the domain, so try again.
@@ -395,10 +403,15 @@ class PoissonDiscSphere():
         closer than r apart. The parameter k determines the maximum number of candidate
         points to be chosen around each reference point before removing it from the
         "active" list.
+
+        Returns
+        -------
+        ndarray
+            sample points
         """
 
         if not self.coarseGrid is None:
-            self.samplesByGrid=[[] for i in self.coarseGrid]
+            self.samplesByGrid = [[] for i in self.coarseGrid]
 
         # Pick a random point to start with.
         pt = np.array([self.rng.uniform(*self.width),
@@ -431,10 +444,11 @@ class PoissonDiscSphere():
                 # remove it from the list of "active" points.
                 active.remove(idx)
         
-        self.samples=np.vstack(self.samples)
-        # we cannot take a faster small sample than the size of the system
+        self.samples = np.vstack(self.samples)
+        # When doing a fast distance computation, we cannot take a sample smaller than the
+        # size of the system so cap the number of comparisons to the total sample size.
         if len(self.samples)<self.fastSampleSize:
-            self.fastSampleSize=len(self.samples)
+            self.fastSampleSize = len(self.samples)
         if not self.coarseGrid is None:
             assert sum([len(s) for s in self.samplesByGrid])==len(self.samples)
         return self.samples
@@ -458,8 +472,8 @@ class PoissonDiscSphere():
     
     @staticmethod
     def fast_dist(x,y):
-        """Fast inaccurate Euclidean distance calculation accounting for periodic boundary
-        conditions in phi.
+        """Fast inaccurate Euclidean distance squared calculation accounting for periodic
+        boundary conditions in phi. This is not too bad near the equator.
 
         Parameters
         ----------
@@ -645,8 +659,11 @@ spec=[
      ]
 @jitclass(spec)
 class jitSphereCoordinate():
-    """Coordinate on a spherical surface. Contains methods for easy manipulation and translation
-    of points. Sphere is normalized to unit sphere.
+    """Coordinate on a spherical surface. Contains methods for easy manipulation and
+    translation of points. Sphere is normalized to unit sphere.
+
+    theta in [0, 2*pi]
+    phi in [0, pi]
     """
 
     def __init__(self, phi, theta):
@@ -674,16 +691,15 @@ class jitSphereCoordinate():
         return arctan2(y,x)%(2*pi), arccos(min(z, 1))
            
     def random_shift(self, bds):
-        """
-        Return a vector that is randomly shifted away from this coordinate. This is done by
-        imagining that hte north pole is aligned along this vector and then adding a random angle
+        """Return a vector that is randomly shifted away from this coordinate. This is done by
+        imagining that the north pole is aligned along this vector and then adding a random angle
         and then rotating the north pole to align with this vector.
 
         Angles are given relative to the north pole; that is, theta in [0,pi] and phi in [0,2*pi].
 
         Parameters
         ----------
-        bds : tuple,[0,1]
+        bds : tuple, [0,1]
             Bounds on uniform number generator to only sample between fixed limits of theta. This
             can be calculated using the formula
                 (1+cos(theta)) / 2 = X
