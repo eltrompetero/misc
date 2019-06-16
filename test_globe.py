@@ -11,19 +11,6 @@ def test_haversine():
     assert haversine([0,0],[0,0])==0
     assert np.isclose(haversine([0,0],[2*pi,0]),0)
 
-def test_PoissonDiscSphere():
-    poissd = PoissonDiscSphere(pi/50,
-                               fast_sample_size=5,
-                               width_bds=(0,.5),
-                               height_bds=(0,.5))
-    poissd.sample()
-
-    # make sure that closest neighbor is the closest one in the entire sample
-    pt = np.array([.2,.3])
-    nearestix = poissd.get_closest_neighbor(pt)
-    d = poissd.dist(pt, poissd.samples)
-    assert nearestix==np.argmin(d)
-
 def test_quaternion():
     from numpy import sin,cos,pi
     
@@ -67,8 +54,8 @@ def test_SphereCoordinate():
     coord=SphereCoordinate(0,1)
     newcoord=coord.rotate(rotvec,np.pi).rotate(rotvec,np.pi)
     assert np.isclose([0,1], (newcoord.phi,newcoord.theta)).all(), (newcoord.phi,newcoord.theta)
-    coord=SphereCoordinate(pi/7,2*pi/3)
-    newcoord=coord.rotate(rotvec,np.pi).rotate(rotvec,np.pi)
+    coord = SphereCoordinate(pi/7, 2*pi/3)
+    newcoord = coord.rotate(rotvec, np.pi).rotate(rotvec, np.pi)
     assert np.isclose([pi/7,2*pi/3], (newcoord.phi,newcoord.theta)).all(), (newcoord.phi,newcoord.theta)
 
     # Check that a rotation and its inverse return you to same point
@@ -110,6 +97,20 @@ def test_jitSphereCoordinate():
     coord=jitSphereCoordinate(0, pi/2)
     newcoord=coord.rotate(rotvec, 3*pi/2).rotate(rotvec, pi/2)
     assert np.isclose((coord.phi,coord.theta), (newcoord.phi,newcoord.theta), atol=1e-10).all(), (newcoord.phi,newcoord.theta)
+
+def test_PoissonDiscSphere():
+    poissd = PoissonDiscSphere(pi/50,
+                               fast_sample_size=5,
+                               width_bds=(0,.5),
+                               height_bds=(0,.5),
+                               rng=np.random.RandomState(0))
+    poissd.sample()
+
+    # make sure that closest neighbor is the closest one in the entire sample
+    pt = np.array([.2,.3])
+    nearestix = poissd.closest_neighbor(pt)
+    d = poissd.dist(pt, poissd.samples)
+    assert nearestix==np.argmin(d)
 
 if __name__=='__main__':
     test_jitSphereCoordinate()

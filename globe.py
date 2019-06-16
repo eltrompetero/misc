@@ -1,8 +1,12 @@
+# ===================================================================================== #
 # Module for useful functions on the 2D sphere.
+# Author: Eddie Lee, edl56@cornell.edu
+# ===================================================================================== #
 import numpy as np
 from numpy import cos,sin,arctan2,arccos,arcsin,pi
 from .angle import Quaternion
 from numba import jitclass, float64, njit, jit
+from warnings import warn
 
 
 def rand(n=1, degree=True):
@@ -124,6 +128,75 @@ def vincenty(point1, point2, a, f, MAX_ITERATIONS=200, CONVERGENCE_THRESHOLD=1e-
 
     return round(s, 6)
 
+def pixelate_voronoi(X, poissd, offset, lonlat=True):
+    """Cluster events on the globe using a Voronoi tessellation.
+
+    Parameters
+    ----------
+    X : pandas.DataFrame or ndarray
+        DataFrame: must have 'LONGITUDE' and 'LATITUDE' columns in units of degrees.
+        ndarray: must be columns in order of lat and lon.
+    poissd : PoissonDiscSphere
+        Used to determine neighbors.
+    offset : float
+        Longitudinal offset.
+    lonlat : bool, True
+        If True, given coordinates are longitude and latitude (and not angles).
+
+    Returns
+    -------
+    list of lists of indices
+        Indices to the given DataFrame grouped by pixel.
+    list of indices
+        Pixel to which each event belongs sorted in the order of the events in the clusters.
+    list of indices
+        Pixel to which each event belongs sorted in the original order of events given.
+    """
+
+    if type(X) is pd.DataFrame:
+        # When a dataframe is passed in, we must account for the possibility that the
+        # indices are not nicely sorted such that we can return indices that are
+        # consistent with the dataframe's.
+        originalix = X.index
+        if lonlat:
+            lat, lon=X.loc[:,'LATITUDE'].values, X.loc[:,'LONGITUDE'].values%360-offset
+            pixIx = poissd.closest_neighbor(np.vstack(lonlat2angle(lon, lat)).T, ignore_zero=False)
+        else:
+            theta, phi = X.loc[:,'LATITUDE'].values, X.loc[:,'LONGITUDE'].values
+            pixIx = poissd.closest_neighbor(np.vstack((phi, theta)).T, ignore_zero=False)
+        uniqIx = np.unique(pixIx)
+
+        clusteredPixIx = []  # pixel ix by cluster order
+        pixIxByOriginalIx = np.zeros_like(originalix)  # pix ix in order of original data
+        splitix = []
+
+        for i in uniqIx:
+            splitix.append( np.array(originalix[np.where(pixIx==i)[0]]) )
+            pixIxByOriginalIx[pixIx==i] = i
+            clusteredPixIx.extend( [i]*len(splitix[-1]) )
+
+        return splitix, np.array(clusteredPixIx), pixIxByOriginalIx
+
+    if lonlat:
+        lat, lon=X[:,0], X[:,1]-offset
+        pixIx = poissd.closest_neighbor(np.vstack(lonlat2angle(lon, lat)).T, ignore_zero=False)
+    else:
+        theta, phi=X[:,0], X[:,1]
+        pixIx = poissd.closest_neighbor(np.vstack((phi, theta)).T, ignore_zero=False)
+    uniqIx = np.unique(pixIx)
+
+    clusteredPixIx = []
+    pixIxByOriginalIx = np.zeros(len(X), dtype=int)  # pix ix in order of original data
+    splitix=[]
+
+    for i in uniqIx:
+        splitix.append( np.where(pixIx==i)[0] )
+        pixIxByOriginalIx[pixIx==i] = i
+        clusteredPixIx.extend( [i]*len(splitix[-1]) )
+    
+    return splitix, np.array(clusteredPixIx), pixIxByOriginalIx
+
+
 
 # ======= #
 # Classes #
@@ -133,9 +206,9 @@ class PoissonDiscSphere():
     region using a Poisson disc sampling algorithm. This generates a random tiling that is
     much more uniformly spaced than independently sampling the space.
     
-    To speed up nearest neighbor searches,
-    the points are all assigned to a coarser grid such that only comparisons to the
-    children of the coarse grid are necessary.
+    To speed up nearest neighbor searches, the points are all assigned to a coarser grid
+    such that only comparisons to the children of the coarse grid are necessary to find
+    nearest neighbors.
 
     This was adapted from the blog article at
     https://scipython.com/blog/poisson-disc-sampling-in-python/ by Christian Hill and
@@ -148,6 +221,7 @@ class PoissonDiscSphere():
                  n_tries=30,
                  coarse_grid=None,
                  k_coarse=9,
+                 iprint=True,
                  rng=None):
         """
         Parameters
@@ -165,16 +239,28 @@ class PoissonDiscSphere():
             neighbors. This is a reasonable approximation far from the poles.
         n_tries : int, 30
             Number of times to try generating random neighbor in annulus before giving up.
+            The larger this number, the more uniform the packing is likely to be, but it
+            will be proportionally slower.
         coarse_grid : ndarray, None
-            Can supply a predefined grid on which to perform the coarse-grained neighbor
-            search. If not provided, this is automatically generated.
+            Can supply a predefined set of points on which to perform the coarse-grained
+            neighbor search. If not provided, this is automatically generated.
         k_coarse : int, 9
             Number of nearest neighbors on the coarse grid to use for fast neighbor
             searching. For the spherical surface about 6 should be good enough for the
             roughly hexagonal tiling, but I find that irregular tiling means having more
             neighbors is a good idea. If this number is too large, many unnecessary
             comparisons will be made with the children of those coarse grids.
+        iprint : bool, True
         rng : np.random.RandomState, None
+
+        Members
+        -------
+        kCoarse : int
+        coarseGrid : ndarray
+        coarseNeighbors : list
+            Neighbors for each coarse grid point.
+        samples : ndarray
+        samplesByGrid : list
         """
 
         assert r>0,r
@@ -186,34 +272,41 @@ class PoissonDiscSphere():
         self.nTries = n_tries
         self.unif_theta_bounds = (1+np.cos(r))/2, (1+np.cos(2*r))/2
         self.fastSampleSize = fast_sample_size
+        self.iprint = iprint
         if rng is None:
             self.rng = np.random.RandomState()
         else:
             self.rng = rng
-
-        self.coarseGrid = coarse_grid
-        self.kCoarse = k_coarse
         
-        if not self.coarseGrid is None:
-            self.preprocess_coarse_grid()
-
+        # set up grid
+        self.kCoarse = k_coarse
+        self.samples = np.zeros((0,2))
+        self.set_coarse_grid(coarse_grid)
+    
     def set_coarse_grid(self, coarse_grid):
-        """Assign new coarse grid.
+        """Assign each sample point to a new coarse grid.
         
         Parameters
         ----------
         coarse_grid : ndarray
         """
+        
+        if self.iprint:
+            print("Setting up coarse grid.")
 
         self.coarseGrid = coarse_grid
-        self.preprocess_coarse_grid()
-        self.samplesByGrid = [[] for i in self.coarseGrid]
+        if not self.coarseGrid is None:
+            self.preprocess_coarse_grid()
+            self.samplesByGrid = [[] for i in self.coarseGrid]
 
-        for i,pt in enumerate(self.samples):
-            self.samplesByGrid[self.assign_grid_point(pt)].append(i)
+            for i,pt in enumerate(self.samples):
+                self.samplesByGrid[self.assign_grid_point(pt)].append(i)
+            if self.iprint: print("Coarse grid done.")
+        elif self.iprint:
+            print("No coarse grid set up.")
 
     def preprocess_coarse_grid(self):
-        """Find the k_coarse nearest neighbors for each point in the coarse grid. Also
+        """Find the k_coarse nearest coarse neighbors for each point in the coarse grid. Also
         include self in the list which explains the +1.
         """
 
@@ -223,61 +316,93 @@ class PoissonDiscSphere():
                                                          self.coarseGrid))[:self.kCoarse+1].tolist() )
         self.coarseNeighbors = coarseNeighbors
 
-    def get_neighbours(self, xy, top_n=None, apply_dist_threshold=False):
+    def get_neighbours(self, *args, **kwargs):
+        """Deprecated wrapper for neighbors()."""
+        
+        warn("PoissonDiscSphere.get_neighbours() is now deprecated. Use neighbors() instead.")
+        return self.neighbors(*args, **kwargs)
+
+    def neighbors(self, xy,
+                  fast=False,
+                  top_n=None,
+                  apply_dist_threshold=False,
+                  return_dist=False):
         """Return top_n neighbors in the grid according to the fast Euclidean distance
-        calculation.
+        calculation. All neighbors are guaranteed to be within 2*r*apply_dist_threshold
+        though neighbors may not be the closest ones (or sorted) if the fast heuristic is
+        used.
 
         Parameters
         ----------
         xy : ndarray 
             Coordinates for which to find neighbors.
+        fast : bool, False
+            If True, fast heuristic is used (only when there is no coarse grid!).
         top_n : int, None
-            Number of grid points to keep using search with fast distance.
-        apply_dist_threshold : bool or float, False
-            If it is a float, that value will be multiplied to the distance window 2*self.r.
+            Number of grid points to keep using search with fast distance. 
+        apply_dist_threshold : float, False
+            If True, that value will be multiplied to the distance window 2*self.r and
+            only points within that distance will be returned as potential neighbors.
+        return_dist : bool, False
+            If no coarse grid available, distance to each point in self.samples can be
+            returned.
 
         Returns
         -------
-        neighbor_ix : list
+        list of lists
+            neighbor_ix
         """
 
-        top_n=top_n or self.fastSampleSize
+        top_n = top_n or self.fastSampleSize
         
         # case where coarse grid is defined
         if not self.coarseGrid is None:
             if len(self.samples)>0:
-                # find the closest grid point by fast search
-                d=self.fast_dist(xy, self.coarseGrid)
-                # return all children of that grid point and its neighbors
-                allSurroundingGridIx=self.coarseNeighbors[np.argmin(d)]
-                neighbors=[]
+                # find the closest coarse grid point
+                d = self.dist(xy, self.coarseGrid)
+
+                # collect all children of that grid point and its neighbors which are already stored
+                allSurroundingGridIx = self.coarseNeighbors[np.argmin(d)]
+                neighbors = []
                 for ix in allSurroundingGridIx:
-                    neighbors+=self.samplesByGrid[ix]
+                    neighbors += self.samplesByGrid[ix]
                 if apply_dist_threshold:
-                    neighbors=[neighbors[i] for i,d in enumerate(self.dist(self.samples[neighbors],xy))
-                                if d<=(2*self.r*apply_dist_threshold)]
+                    neighbors = [neighbors[i] for i,d in enumerate(self.dist(self.samples[neighbors], xy))
+                                 if d<=(2*self.r*apply_dist_threshold)]
                 return neighbors
             return []
 
         if len(self.samples)>0:
-            # find the closest point by fast search
-            d=self.fast_dist(xy, self.samples)
-            neighbors=np.argsort(d)[:top_n].tolist()
-            if apply_dist_threshold:
-                    neighbors=[neighbors[i] for i,d in enumerate(self.dist(self.samples[neighbors],xy))
-                                if d<=(2*self.r*apply_dist_threshold)]
-            return neighbors
+            if self.iprint: "No coarse grid available, all pairwise comparisons to find neighbors."
 
-        return []
+            # find the closest point
+            if fast:
+                d = self.fast_dist(xy, self.samples)
+                neighbors = np.argsort(d)[:top_n]
+                if apply_dist_threshold:
+                    # calculate true distance for applying cutoff
+                    neighbors = neighbors[self.dist(self.samples[neighbors],xy)<=(2*self.r*apply_dist_threshold)]
+            else:
+                d = self.dist(xy, np.vstack(self.samples))
+                neighbors = np.argsort(d)[:top_n]
+                if apply_dist_threshold:
+                    # can reuse results of distance calculation in this case
+                    neighbors = neighbors[d[neighbors]<=(2*self.r*apply_dist_threshold)]
+            if return_dist:
+                return neighbors.tolist(), d[neighbors]
+            return neighbors.tolist()
+        return [], []
 
-    def _get_closest_neighbor(self, pt, ignore_zero=1e-9):
+    def _closest_neighbor(self, pt, ignore_zero=1e-9):
         """Get closest grid point index for a single point.
 
         Parameters
         ----------
         pt : tuple
         ignore_zero : float, 1e-9
-            Distances smaller than this are ignored for returning the min distance.
+            Distances smaller than this are ignored for returning the min distance. This
+            is to account for comparisons that might fail because of floating point
+            precision.
 
         Returns
         -------
@@ -285,18 +410,24 @@ class PoissonDiscSphere():
             Index.
         """
 
-        neighborix=np.array(self.get_neighbours(pt))
-        distance=self.dist(pt, self.samples[neighborix])
+        neighborix, distance = self.neighbors(pt, return_dist=True)
+        neighborix = np.array(neighborix)
 
         if ignore_zero and len(neighborix)>0:
-            keepix=distance>ignore_zero
-            distance=distance[keepix]
-            neighborix=neighborix[keepix]
+            keepix = distance > ignore_zero
+            distance = distance[keepix]
+            neighborix = neighborix[keepix]
         elif len(neighborix)==0:
             return []
         return neighborix[np.argmin(distance)]
 
-    def get_closest_neighbor(self, pt, ignore_zero=1e-9):
+    def get_closest_neighbor(self, *args, **kwargs):
+        """Deprecated. Use closest_neighbor() instead."""
+
+        warn("Deprecated. Use closest_neighbor() instead.")
+        return self.closest_neighbor(*args, **kwargs)
+
+    def closest_neighbor(self, pt, ignore_zero=1e-9):
         """Get closest grid point index for all points given.
 
         Parameters
@@ -312,11 +443,11 @@ class PoissonDiscSphere():
         """
 
         if pt.ndim==1:
-            pt=pt[None,:]
+            pt = pt[None,:]
         
-        return [self._get_closest_neighbor(row, ignore_zero) for row in pt]
+        return [self._closest_neighbor(row, ignore_zero) for row in pt]
 
-    def get_closest_neighbor_dist(self, pt, ignore_zero=1e-9):
+    def closest_neighbor_dist(self, pt, ignore_zero=1e-9):
         """
         Parameters
         ----------
@@ -330,7 +461,7 @@ class PoissonDiscSphere():
             On a unit sphere. Multiply by the radius to get it in the desired units.
         """
 
-        distance=self.dist(pt, self.samples[self.get_neighbours(pt)])
+        distance = self.dist(pt, self.samples[self.neighbors(pt)])
         if ignore_zero:
             return distance[distance>ignore_zero].min()
         return distance.min()
@@ -338,19 +469,20 @@ class PoissonDiscSphere():
     def point_valid(self, pt):
         """Is pt a valid point to emit as a sample?
         It must be no closer than r from any other point: check the cells in its immediate
-        neighbourhood.
+        neighborhood.
         """
         
         if len(self.samples)>0:
-            neighborIx = self.get_neighbours(pt)
-            for ix in neighborIx:
-                if (self.dist(pt, self.samples[ix]) < self.r):
+            neighborIx = self.neighbors(pt)
+
+            # handle lists of samples and array of samples differently
+            if type(self.samples) is list:
+                for ix in neighborIx:
+                    if (self.dist(pt, self.samples[ix]) < self.r):
+                        return False
+            else:
+                if (self.dist(pt, self.samples[neighborIx]) < self.r).any():
                     return False
-            #if len(neighborIx)>0:
-            #    if (self.dist(pt, np.array(self.samples)[neighborIx]) < self.r).any():
-            #        # The points are too close, so pt is not a candidate.
-            #        return False
-        # All points tested: if we're here, pt is valid
         return True
     
     def get_point(self, refpt, max_iter=10):
@@ -376,26 +508,23 @@ class PoissonDiscSphere():
         # We failed to find a suitable point in the vicinity of refpt.
         return False
 
-    def assign_grid_point(self, pt):
-        return np.argmin( self.fast_dist(pt, self.coarseGrid) )
-
-    def find_grid_point(self, sampleix):
-        """Given the index of a sample, find the coarse grained grid that it belongs to.
+    def assign_grid_point(self, pt, fast=False):
+        """Find closest coarseGrid point that is near given point for assignment.
 
         Parameters
         ----------
-        sampleix : int
+        pt : ndarray
+            Single point.
+        fast : bool, False
 
         Returns
         -------
-        coarseGridIx : int
+        int
         """
         
-        assert 0<=sampleix<=len(self.samples), "Given sample index is invalid."
-        for i,samplesInPixel in enumerate(self.samplesByGrid):
-            if sampleix in samplesInPixel:
-                return i
-        raise Exception
+        if fast:
+            return np.argmin( self.fast_dist(pt, self.coarseGrid) )
+        return np.argmin( self.dist(pt, self.coarseGrid) )
 
     def sample(self):
         """Poisson disc random sampling in 2D.
@@ -420,12 +549,10 @@ class PoissonDiscSphere():
         if not self.coarseGrid is None:
             self.samplesByGrid[self.assign_grid_point(pt)].append(0)
 
-        # and it is active, in the sense that we're going to look for more
-        # points in its neighbourhood.
+        # and it is active, in the sense that we're going to look for more points in its neighbourhood.
         active = [0]
 
-        # As long as there are points in the active list, keep looking for
-        # samples.
+        # As long as there are points in the active list, keep looking for samples.
         while active:
             # choose a random "reference" point from the active list.
             idx = self.rng.choice(active)
@@ -440,13 +567,13 @@ class PoissonDiscSphere():
                 if not self.coarseGrid is None:
                     self.samplesByGrid[self.assign_grid_point(pt[0])].append(len(self.samples)-1)
             else:
-                # We had to give up looking for valid points near refpt, so
-                # remove it from the list of "active" points.
+                # We had to give up looking for valid points near refpt, so remove it from the list of
+                # "active" points.
                 active.remove(idx)
         
         self.samples = np.vstack(self.samples)
-        # When doing a fast distance computation, we cannot take a sample smaller than the
-        # size of the system so cap the number of comparisons to the total sample size.
+        # When doing a fast distance computation, we cannot take a sample smaller than the size of the system
+        # so cap the number of comparisons to the total sample size.
         if len(self.samples)<self.fastSampleSize:
             self.fastSampleSize = len(self.samples)
         if not self.coarseGrid is None:
@@ -455,7 +582,7 @@ class PoissonDiscSphere():
     
     @classmethod
     def dist(cls, x, y):
-        """Great circle distance"""
+        """Great circle distance. Vector optimized."""
 
         from numpy import sin,cos
 
