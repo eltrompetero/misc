@@ -525,7 +525,7 @@ class PoissonDiscSphere():
         sphereRefpt = jitSphereCoordinate(refpt[0]%(2*pi), refpt[1]+pi/2)
         i = 0
         while i < self.nTries:
-            pt = sphereRefpt.random_shift(self.unif_theta_bounds)
+            pt = sphereRefpt.random_shift_controlled(self.unif_theta_bounds, *self.rng.rand(2))
             # put theta back into same range as this class (since SphereCoordinate uses [0,pi]
             pt = np.array([pt[0], pt[1]-pi/2])
             if not ((self.width[0] < pt[0] < self.width[1] or
@@ -884,7 +884,7 @@ class jitSphereCoordinate():
         phi : float
         theta : float
         """
-
+                
         self.update_xy(phi, theta)
             
     def update_xy(self, phi, theta):
@@ -900,7 +900,7 @@ class jitSphereCoordinate():
         if z<0:
             return arctan2(y,x)%(2*pi), arccos(max(z, -1))
         return arctan2(y,x)%(2*pi), arccos(min(z, 1))
-           
+
     def random_shift(self, bds):
         """Return a vector that is randomly shifted away from this coordinate. This is done by
         imagining that the north pole is aligned along this vector and then adding a random angle
@@ -954,6 +954,44 @@ class jitSphereCoordinate():
         if inSouthPole:
             # move back to south pole
             newtheta=pi-newtheta
+        return newphi, newtheta
+          
+    def random_shift_controlled(self, bds, r1, r2):
+        """Same as random_shift() except with explicit control of random numbers by passing them in.
+        """
+
+        # setup rotation operation
+        if self.vec[-1]<-.5:
+            # when vector is near south pole, numerical erros are dominant for the rotation and so we
+            # move it to the northern hemisphere before doing any calculation
+            vec=self.vec.copy()
+            # move vector to the north pole
+            vec[-1]*=-1
+            theta=pi-self.theta
+            inSouthPole=True
+        else:
+            vec=self.vec.copy()
+            theta=self.theta
+            inSouthPole=False
+        
+        # rotation axis given by cross product with (0,0,1)
+        rotvec=np.array([vec[1], -vec[0], 0])
+        rotvec/=np.sqrt(rotvec[0]**2 + rotvec[1]**2)
+        a, b=cos(theta/2), sin(theta/2)
+        rotq=jitQuaternion(a, b*rotvec[0], b*rotvec[1], b*rotvec[2])
+
+        # Add random shift to north pole
+        dphi = r1*2*pi  #np.random.uniform(0, 2*pi)
+        dtheta = arccos(2*(r2*(bds[1]-bds[0])+bds[0])-1)  #arccos(2*np.random.uniform(bds[0], bds[1])-1)
+        dvec = self._angle_to_vec(dphi, dtheta)
+        randq = jitQuaternion(0, dvec[0], dvec[1], dvec[2])
+        
+        # Rotate north pole to this vector's orientation
+        vec = randq.rotate(rotq.inv()).vec
+        newphi, newtheta = self._vec_to_angle( vec[0], vec[1], vec[2] )
+        if inSouthPole:
+            # move back to south pole
+            newtheta = pi-newtheta
         return newphi, newtheta
 
     def rotate(self, rotvec, d):
