@@ -213,6 +213,25 @@ class PoissonDiscSphere():
     This was adapted from the blog article at
     https://scipython.com/blog/poisson-disc-sampling-in-python/ by Christian Hill and
     accessed in March 2017.
+
+    Data members
+    ------------
+    kCoarse : int
+    coarseGrid : ndarray
+    coarseNeighbors : list
+        Neighbors for each coarse grid point.
+    fastSampleSize : int
+    height : tuple
+    iprint : bool
+    kCoarse : int
+    nTries : int
+    r : float
+    rng : np.randomRandomState
+    samples : ndarray
+    samplesByGrid : list
+    unif_theta_bounds : tuple
+        For sampling neighbors when generating the random tiling.
+    width : tuple
     """
     def __init__(self, r,
                  width_bds=(0, 2*pi),
@@ -252,15 +271,6 @@ class PoissonDiscSphere():
             comparisons will be made with the children of those coarse grids.
         iprint : bool, True
         rng : np.random.RandomState, None
-
-        Members
-        -------
-        kCoarse : int
-        coarseGrid : ndarray
-        coarseNeighbors : list
-            Neighbors for each coarse grid point.
-        samples : ndarray
-        samplesByGrid : list
         """
 
         assert r>0,r
@@ -617,6 +627,35 @@ class PoissonDiscSphere():
         ix = d[:,0]>pi
         d[ix,0] = pi-d[ix,0]%pi
         return ( d**2 ).sum(1)
+
+    def expand(self, factor):
+        """Expand or contract grid by a constant factor. This operation maintains the
+        center of mass projected onto the surface of the sphere fixed.
+
+        Parameters
+        ----------
+        factor : float
+        """
+        
+        assert factor>0
+        assert (np.ptp(self.samples[:,0])*factor)<=(2*pi), "Factor violates phi bounds."
+        assert (np.ptp(self.samples[:,1])*factor)<=pi, "Factor violates theta bounds."
+
+        # center of mass calculated is to be calculated in 3D, so convert spherical
+        # coordinates to Cartesian
+        phi = self.samples[:,0]
+        theta = self.samples[:,1] + pi/2  # shift to [0,pi]
+        xyz = np.vstack((sin(theta)*cos(phi), sin(theta)*sin(phi), cos(theta))).T
+        com = xyz.mean(0)
+        com /= np.linalg.norm(com)
+        
+        # project Cartesian COM to spherical surface and expand samples and coarse grid
+        # points around that by factor
+        com = np.array([np.arctan2(com[1], com[0]), np.arccos(com[2])-pi/2])
+        self.samples = (self.samples-com[None,:])*factor + com[None,:]
+        if not self.coarseGrid is None:
+            self.coarseGrid = (self.coarseGrid-com[None,:])*factor + com[None,:]
+            self.coarseGrid[:,1] -= pi/2
 #end PoissonDiscSphere
 
 

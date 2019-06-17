@@ -112,5 +112,17 @@ def test_PoissonDiscSphere():
     d = poissd.dist(pt, poissd.samples)
     assert nearestix==np.argmin(d)
 
+    samples = poissd.samples.copy()
+    poissd.expand(1)
+    assert np.isclose(samples, poissd.samples).all()
+    print("Test passed: nothing changes when factor=1.")
+
+    samples = poissd.samples.copy()
+    poissd.expand(.5)
+    poissd.expand(2)
+    assert np.isclose(samples, poissd.samples, atol=1e-3).all()
+    # there will be some variation because of the way that we're calculating center of mass in 3D
+    print("Test passed: points remain roughly unchanged when contracted and expanded by reciprocal factors.")
+
 if __name__=='__main__':
     test_jitSphereCoordinate()
