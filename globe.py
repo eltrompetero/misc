@@ -362,6 +362,8 @@ class PoissonDiscSphere():
         -------
         list of lists
             neighbor_ix
+        ndarray
+            Distance to neighbors.
         """
 
         top_n = top_n or self.fastSampleSize
@@ -378,9 +380,24 @@ class PoissonDiscSphere():
                 for ix in allSurroundingGridIx:
                     neighbors += self.samplesByGrid[ix]
                 if apply_dist_threshold:
-                    neighbors = [neighbors[i] for i,d in enumerate(self.dist(self.samples[neighbors], xy))
-                                 if d<=(2*self.r*apply_dist_threshold)]
+                    d = self.dist(self.samples[neighbors], xy)
+                    # sorting is unnecessary and may slow things down...
+                    sortix = np.argsort(d)
+                    d = d[sortix]
+                    neighbors = neighbors[sortix]
+                    cutoffix = np.searchsorted(d, 2*self.r*apply_dist_threshold)+1
+                    neighbors = neighbors[:cutoffix] 
+                    d = d[:cutoffix]
+                    neighbors = neighbors.tolist()
+
+                if return_dist and apply_dist_threshold:
+                    return neighbors, d
+                elif return_dist:
+                    d = self.dist(self.samples[neighbors], xy)
+                    return neighbors, d
                 return neighbors
+            if return_dist:
+                return [], []
             return []
 
         if len(self.samples)>0:
@@ -402,7 +419,9 @@ class PoissonDiscSphere():
             if return_dist:
                 return neighbors.tolist(), d[neighbors]
             return neighbors.tolist()
-        return [], []
+        if return_dist:
+            return [], []
+        return []
 
     def _closest_neighbor(self, pt, ignore_zero=1e-9):
         """Get closest grid point index for a single point.

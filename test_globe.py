@@ -98,14 +98,27 @@ def test_jitSphereCoordinate():
     newcoord=coord.rotate(rotvec, 3*pi/2).rotate(rotvec, pi/2)
     assert np.isclose((coord.phi,coord.theta), (newcoord.phi,newcoord.theta), atol=1e-10).all(), (newcoord.phi,newcoord.theta)
 
-def test_PoissonDiscSphere():
+def test_PoissonDiscSphere(use_coarse_grid=True):
     from scipy.spatial.distance import pdist
+    
+    # Generate coarse grid
+    if use_coarse_grid:
+        poissdCoarse = PoissonDiscSphere(pi/50*3,
+                                   fast_sample_size=5,
+                                   width_bds=(0,.5),
+                                   height_bds=(0,.5),
+                                   rng=np.random.RandomState(0))
+        poissdCoarse.sample()
+        cg = poissdCoarse.samples
+    else:
+        cg = None
 
     poissd = PoissonDiscSphere(pi/50,
                                fast_sample_size=5,
+                               coarse_grid=cg,
                                width_bds=(0,.5),
                                height_bds=(0,.5),
-                               rng=np.random.RandomState(0))
+                               rng=np.random.RandomState(1))
     poissd.sample()
 
     # make sure that closest neighbor is the closest one in the entire sample
