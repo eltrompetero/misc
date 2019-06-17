@@ -726,33 +726,22 @@ class PoissonDiscSphere():
         dangle = np.array([-np.mean(self.width), -np.mean(self.height)])[None,:]
         samples += dangle
         coarseGrid += dangle
-
-        # now run the expansion and contraction
-        # center of mass calculated is to be calculated in 3D, so convert spherical
-        # coordinates to Cartesian
-        phi = samples[:,0]
-        theta = samples[:,1]+pi/2
-        xyz = np.vstack((sin(theta)*cos(phi), sin(theta)*sin(phi), cos(theta))).T
-        com = xyz.mean(0)
-        com /= np.linalg.norm(com)
-
-        # project Cartesian COM to spherical surface and expand samples and coarse grid points around that by
-        # factor
-        com = np.array([np.arctan2(com[1], com[0]), np.arccos(com[2])-pi/2])[None,:]
-        samples = (samples-com)*factor
+        
+        # now run the expansion and contraction about the center of the tiling
+        samples *= factor
         if not coarseGrid is None:
-            coarseGrid = (coarseGrid-com)*factor
+            coarseGrid *= factor
 
         # remove all sample points that wrap around sphere including both individual points that exceed
         # boundaries and all children of coarse grained points that exceed boundaries
-        samplesToRemove = np.where((samples[:,0]<-pi)|(samples[:,0]>pi)|
-                                   (samples[:,1]<(-pi/2))|(samples[:,1]>(pi/2)))[0].tolist()
+        samplesToRemove = np.where((samples[:,0]<-pi) | (samples[:,0]>pi) |
+                                   (samples[:,1]<(-pi/2)) | (samples[:,1]>(pi/2)))[0].tolist()
         if not coarseGrid is None:
-            coarseToRemove = np.where((coarseGrid[:,0]<-pi)|(coarseGrid[:,0]>pi)|
-                                      (coarseGrid[:,1]<(-pi/2))|(coarseGrid[:,1]>(pi/2)))[0].tolist()
+            coarseToRemove = np.where((coarseGrid[:,0]<-pi) | (coarseGrid[:,0]>pi) |
+                                      (coarseGrid[:,1]<(-pi/2)) | (coarseGrid[:,1]>(pi/2)))[0].tolist()
         else:
             coarseToRemove = False
-
+        
         if coarseToRemove:
             # collect all children of coarse nodes to remove
             for ix in coarseToRemove:
@@ -768,9 +757,9 @@ class PoissonDiscSphere():
                 raise Exception("No samples left in domain after expansion.")
         
         # Undo earlier offsets
-        samples += com - dangle
+        samples -= dangle
         if not coarseGrid is None:
-            coarseGrid += com - dangle
+            coarseGrid -= dangle
         
         # By removing the offset of the COM, we might have angles that are beyond permissible limits. Put
         # theta back into [-pi/2,pi/2] and account for any reversals in phi if theta is outside that range
@@ -820,6 +809,19 @@ class PoissonDiscSphere():
         ax.set(**kw_ax_set)
         return fig
 #end PoissonDiscSphere
+    
+def cartesian_com(phi, theta):
+    # center of mass calculated is to be calculated in 3D, so convert spherical
+    # coordinates to Cartesian
+    xyz = np.vstack((sin(theta)*cos(phi), sin(theta)*sin(phi), cos(theta))).T
+    com = xyz.mean(0)
+    com /= np.linalg.norm(com)
+
+    # project Cartesian COM to spherical surface and expand samples and coarse grid points around that by
+    # factor
+    com = np.array([np.arctan2(com[1], com[0]), np.arccos(com[2])-pi/2])
+    return com
+
 
 
 class SphereCoordinate():
