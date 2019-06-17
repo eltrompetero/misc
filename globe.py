@@ -656,51 +656,143 @@ class PoissonDiscSphere():
         ix = d[:,0]>pi
         d[ix,0] = pi-d[ix,0]%pi
         return ( d**2 ).sum(1)
+    
+    @classmethod
+    def wrap_phi(cls, phi):
+        wrapix = phi>pi
+        phi[wrapix] = phi[wrapix]%pi - pi
 
-    def expand(self, factor):
+    @classmethod
+    def unwrap_phi(cls, phi):
+        unwrapix = phi<0
+        phi[unwrapix] += 2*pi
+    
+    @classmethod
+    def unwrap_theta(cls, theta):
+        theta[:] += pi/2
+        theta[:] = theta%(2*pi)
+        reverseix = theta>pi
+        theta[reverseix] = 2*pi-theta[reverseix]
+        theta[:] -= pi/2
+        return reverseix
+
+    def expand(self, factor, force=False):
         """Expand or contract grid by a constant factor. This operation maintains the
         center of mass projected onto the surface of the sphere fixed.
 
         Parameters
         ----------
         factor : float
+        force : bool, False
+            If True, carries out expansion even if points must be deleted.
         """
+
+        samples = self.samples.copy()
+        if not self.coarseGrid is None:
+            coarseGrid = self.coarseGrid.copy()
+        else:
+            coarseGrid = None
         
+        # To make discontinuities easier to work with, center everything about phi=0 where phi in [-pi,pi] and
+        # theta=0 in [-pi/2,pi/2].
         assert factor>0
-        try: 
+        try:
+            # wrap sample phi's to [-pi,pi]
             if self.width[0]>self.width[1]:
                 self.width = self.width[0]-2*pi, self.width[1]
-                wrapix = self.samples[:,0]>pi
-                self.samples[wrapix,0] = self.samples[wrapix,0]%pi - pi
-            assert (np.ptp(self.samples[:,0])*factor)<=(2*pi), "Factor violates phi bounds."
+                self.wrap_phi(samples[:,0])
+                if not coarseGrid is None:
+                    self.wrap_phi(coarseGrid[:,0])
+
+            # check phi bounds
+            if force and (np.ptp(samples[:,0])*factor)>(2*pi):
+                warn("Factor violates phi bounds.")
+            else:
+                assert (np.ptp(samples[:,0])*factor)<=(2*pi)
+
+            # check theta bounds
+            if force and (np.ptp(samples[:,1])*factor)>pi:
+                warn("Factor violates theta bounds.")
+            else:
+                assert ((np.ptp(samples[:,1])*factor)<=pi), "Factor violates theta bounds."
         except:
-            # undo previous transformation
+            # undo previous transformation if we must quit
             self.width = self.width[0]%(2*pi), self.width[1]
-            self.samples[wrapix,0] += 2*pi
             raise Exception
-        assert (np.ptp(self.samples[:,1])*factor)<=pi, "Factor violates theta bounds."
-            
+
+        # center everything about (phi, theta) = (0,0)
+        dangle = np.array([-np.mean(self.width), -np.mean(self.height)])[None,:]
+        samples += dangle
+        coarseGrid += dangle
+
+        # now run the expansion and contraction
         # center of mass calculated is to be calculated in 3D, so convert spherical
         # coordinates to Cartesian
-        phi = self.samples[:,0]
-        theta = self.samples[:,1] + pi/2  # shift to [0,pi]
+        phi = samples[:,0]
+        theta = samples[:,1]+pi/2
         xyz = np.vstack((sin(theta)*cos(phi), sin(theta)*sin(phi), cos(theta))).T
         com = xyz.mean(0)
         com /= np.linalg.norm(com)
-        
+
         # project Cartesian COM to spherical surface and expand samples and coarse grid
         # points around that by factor
-        com = np.array([np.arctan2(com[1], com[0]), np.arccos(com[2])-pi/2])
-        self.samples = (self.samples-com[None,:])*factor + com[None,:]
-        if not self.coarseGrid is None:
-            self.coarseGrid = (self.coarseGrid-com[None,:])*factor + com[None,:]
-            self.coarseGrid[:,1] -= pi/2
+        com = np.array([np.arctan2(com[1], com[0]), np.arccos(com[2])-pi/2])[None,:]
+        samples = (samples-com)*factor
+        if not coarseGrid is None:
+            coarseGrid = (coarseGrid-com)*factor
 
+        # remove all sample points that wrap around sphere including both individual points that exceed
+        # boundaries and all children of coarse grained points that exceed boundaries
+        samplesToRemove = np.where((samples[:,0]<-pi)|(samples[:,0]>pi)|
+                                   (samples[:,1]<(-pi/2))|(samples[:,1]>(pi/2)))[0].tolist()
+        if not coarseGrid is None:
+            coarseToRemove = np.where((coarseGrid[:,0]<-pi)|(coarseGrid[:,0]>pi)|
+                                      (coarseGrid[:,1]<(-pi/2))|(coarseGrid[:,1]>(pi/2)))[0].tolist()
+        else:
+            coarseToRemove = False
+
+        if coarseToRemove:
+            # collect all children of coarse nodes to remove
+            for ix in coarseToRemove:
+                samplesToRemove += self.samplesByGrid[ix]
+            samplesToRemove = list(set(samplesToRemove))  # remove duplicates
+        if samplesToRemove:
+            if self.iprint:
+                print("Removing %d samples."%len(samplesToRemove))
+            samples = np.delete(samples, samplesToRemove, axis=0)
+            coarseGrid = np.delete(coarseGrid, coarseToRemove, axis=0)
+            
+            if samples.size==0:
+                raise Exception("No samples left in domain after expansion.")
+        
+        # Undo earlier offsets
+        samples += com - dangle
+        if not coarseGrid is None:
+            coarseGrid += com - dangle
+        
+        # put theta back into [-pi/2,pi/2] and account for any reversals in phi if theta is outside that range
+        # modulo
+        from .angle import mod_angle
+        reverseix = self.unwrap_theta(samples[:,1]) 
+        # if theta is between [pi,2*pi] then phi must be reversed
+        samples[reverseix,0] += pi
+        samples[:,0] = mod_angle(samples[:,0])
+        if not coarseGrid is None:
+            reverseix = self.unwrap_theta(coarseGrid[:,1]) 
+            coarseGrid[reverseix,0] += pi
+            coarseGrid[:,0] = mod_angle(coarseGrid[:,0])
+
+        # put phi back in to [0,2*pi]
         if self.width[0]<0:
             self.width = self.width[0]+2*pi, self.width[1]
             # map phi back to [0,2*pi]
-            unwrapix = self.samples[:,0]<0
-            self.samples[unwrapix,0] += 2*pi
+            self.unwrap_phi(samples[:,0])
+            if not coarseGrid is None:
+                self.unwrap_phi(coarseGrid[:,0])
+        
+        self.samples = samples
+        if samplesToRemove:
+            self.set_coarse_grid(coarseGrid)
 #end PoissonDiscSphere
 
 
@@ -872,6 +964,8 @@ spec=[
 class jitSphereCoordinate():
     """Coordinate on a spherical surface. Contains methods for easy manipulation and
     translation of points. Sphere is normalized to unit sphere.
+
+    This is a slimmed down version of SphereCoordinate.
 
     theta in [0, 2*pi]
     phi in [0, pi]

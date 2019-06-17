@@ -1,9 +1,10 @@
+# ===================================================================================== #
 # Module for manipulating angle/phase data.
-# Author: Edward D. Lee
-# Email: edl56@cornell.edu
-# 2017-03-29
+# Author: Edward D. Lee, edl56@cornell.edu
+# ===================================================================================== #
 import numpy as np
 from numpy import sin,cos,arcsin,arccos,arctan2,pi
+
 
 def mod_angle(angle):
     """

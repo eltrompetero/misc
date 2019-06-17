@@ -151,5 +151,11 @@ def test_PoissonDiscSphere(use_coarse_grid=True):
     #        np.isclose(d[0].mean(), d[2].mean(), atol=1e-6, rtol=1))
     #print("Test passed: average distance remains unchanged.")
 
+    poissd.expand(10, force=True)
+    assert ( (0<poissd.samples[:,0])&((2*pi)>poissd.samples[:,0]) ).all()
+    assert ( ((-pi/2)<poissd.samples[:,1])&((pi/2)>poissd.samples[:,1]) ).all()
+    assert ( (0<poissd.coarseGrid[:,0])&((2*pi)>poissd.coarseGrid[:,0]) ).all()
+    assert ( ((-pi/2)<poissd.coarseGrid[:,1])&((pi/2)>poissd.coarseGrid[:,1]) ).all()
+
 if __name__=='__main__':
     test_jitSphereCoordinate()
