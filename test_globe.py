@@ -105,7 +105,7 @@ def test_PoissonDiscSphere(use_coarse_grid=True):
     if use_coarse_grid:
         poissdCoarse = PoissonDiscSphere(pi/50*3,
                                    fast_sample_size=5,
-                                   width_bds=(0,.5),
+                                   width_bds=(2*pi-.25,.25),
                                    height_bds=(0,.5),
                                    rng=np.random.RandomState(0))
         poissdCoarse.sample()
@@ -116,7 +116,7 @@ def test_PoissonDiscSphere(use_coarse_grid=True):
     poissd = PoissonDiscSphere(pi/50,
                                fast_sample_size=5,
                                coarse_grid=cg,
-                               width_bds=(0,.5),
+                               width_bds=(2*pi-.25,.25),
                                height_bds=(0,.5),
                                rng=np.random.RandomState(1))
     poissd.sample()

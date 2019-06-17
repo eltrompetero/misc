@@ -275,7 +275,7 @@ class PoissonDiscSphere():
         """
 
         assert r>0,r
-        assert 0<=width_bds[0]<=width_bds[1]<=2*pi
+        assert 0<=width_bds[0]<=2*pi and 0<=width_bds[1]<=2*pi
         assert -pi/2<=height_bds[0]<=height_bds[1]<=pi/2
 
         self.width, self.height = width_bds, height_bds
@@ -522,13 +522,14 @@ class PoissonDiscSphere():
         points in the sample), return False. Otherwise, return the pt in a list.
         """
 
-        sphereRefpt = jitSphereCoordinate(refpt[0], refpt[1]+pi/2)
+        sphereRefpt = jitSphereCoordinate(refpt[0]%(2*pi), refpt[1]+pi/2)
         i = 0
         while i < self.nTries:
             pt = sphereRefpt.random_shift(self.unif_theta_bounds)
-            # put back into same range as this code
+            # put theta back into same range as this class (since SphereCoordinate uses [0,pi]
             pt = np.array([pt[0], pt[1]-pi/2])
-            if not (self.width[0] < pt[0] < self.width[1] and 
+            if not ((self.width[0] < pt[0] < self.width[1] or
+                     self.width[0] < (pt[0]-2*pi) < self.width[1]) and
                     self.height[0] < pt[1] < self.height[1]):
                 # This point falls outside the domain, so try again.
                 continue
@@ -557,8 +558,7 @@ class PoissonDiscSphere():
         return np.argmin( self.dist(pt, self.coarseGrid) )
 
     def sample(self):
-        """Poisson disc random sampling in 2D.
-        Draw random samples on the domain width x height such that no two samples are
+        """Draw random samples on the domain width x height such that no two samples are
         closer than r apart. The parameter k determines the maximum number of candidate
         points to be chosen around each reference point before removing it from the
         "active" list.
@@ -571,6 +571,12 @@ class PoissonDiscSphere():
 
         if not self.coarseGrid is None:
             self.samplesByGrid = [[] for i in self.coarseGrid]
+            
+        # must account for periodic boundary conditions when generating new points and checking validity of
+        # proposed points. By temporarily changing the boundary conditions, we can ensure that such tasks will
+        # be performed correctly.
+        if self.width[0]>self.width[1]:
+            self.width = self.width[0]-2*pi, self.width[1]
 
         # Pick a random point to start with.
         pt = np.array([self.rng.uniform(*self.width),
@@ -579,7 +585,7 @@ class PoissonDiscSphere():
         if not self.coarseGrid is None:
             self.samplesByGrid[self.assign_grid_point(pt)].append(0)
 
-        # and it is active, in the sense that we're going to look for more points in its neighbourhood.
+        # and it is active, in the sense that we're going to look for more points in its neighborhood.
         active = [0]
 
         # As long as there are points in the active list, keep looking for samples.
@@ -608,6 +614,11 @@ class PoissonDiscSphere():
             self.fastSampleSize = len(self.samples)
         if not self.coarseGrid is None:
             assert sum([len(s) for s in self.samplesByGrid])==len(self.samples)
+        
+        if self.width[0]<0:
+            self.samples[:,0] %= 2*pi
+            self.width = self.width[0]+2*pi, self.width[1]
+        
         return self.samples
     
     @classmethod
@@ -656,9 +667,19 @@ class PoissonDiscSphere():
         """
         
         assert factor>0
-        assert (np.ptp(self.samples[:,0])*factor)<=(2*pi), "Factor violates phi bounds."
+        try: 
+            if self.width[0]>self.width[1]:
+                self.width = self.width[0]-2*pi, self.width[1]
+                wrapix = self.samples[:,0]>pi
+                self.samples[wrapix,0] = self.samples[wrapix,0]%pi - pi
+            assert (np.ptp(self.samples[:,0])*factor)<=(2*pi), "Factor violates phi bounds."
+        except:
+            # undo previous transformation
+            self.width = self.width[0]%(2*pi), self.width[1]
+            self.samples[wrapix,0] += 2*pi
+            raise Exception
         assert (np.ptp(self.samples[:,1])*factor)<=pi, "Factor violates theta bounds."
-
+            
         # center of mass calculated is to be calculated in 3D, so convert spherical
         # coordinates to Cartesian
         phi = self.samples[:,0]
@@ -674,6 +695,12 @@ class PoissonDiscSphere():
         if not self.coarseGrid is None:
             self.coarseGrid = (self.coarseGrid-com[None,:])*factor + com[None,:]
             self.coarseGrid[:,1] -= pi/2
+
+        if self.width[0]<0:
+            self.width = self.width[0]+2*pi, self.width[1]
+            # map phi back to [0,2*pi]
+            unwrapix = self.samples[:,0]<0
+            self.samples[unwrapix,0] += 2*pi
 #end PoissonDiscSphere
 
 
@@ -687,7 +714,7 @@ class SphereCoordinate():
         Parameters
         ----------
         (x,y,z) or vector or (phi,theta)
-        rng : np.random.RandomState,None
+        rng : np.random.RandomState, None
         """
 
         self.update_xy(*args)
