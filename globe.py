@@ -7,6 +7,7 @@ from numpy import cos,sin,arctan2,arccos,arcsin,pi
 from .angle import Quaternion
 from numba import jitclass, float64, njit, jit
 from warnings import warn
+from .angle import mod_angle
 import matplotlib.pyplot as plt
 
 
@@ -424,6 +425,32 @@ class PoissonDiscSphere():
             return [], []
         return []
 
+    def get_closest_neighbor(self, *args, **kwargs):
+        """Deprecated. Use closest_neighbor() instead."""
+
+        warn("Deprecated. Use closest_neighbor() instead.")
+        return self.closest_neighbor(*args, **kwargs)
+
+    def closest_neighbor(self, pt, ignore_zero=1e-9):
+        """Get closest grid point index for all points given.
+
+        Parameters
+        ----------
+        pt : tuple
+        ignore_zero : float, 1e-9
+            Distances smaller than this are ignored for returning the min distance.
+
+        Returns
+        -------
+        list of ints
+            Indices of closest points.
+        """
+
+        if pt.ndim==1:
+            pt = pt[None,:]
+        
+        return [self._closest_neighbor(row, ignore_zero) for row in pt]
+
     def _closest_neighbor(self, pt, ignore_zero=1e-9):
         """Get closest grid point index for a single point.
 
@@ -451,32 +478,6 @@ class PoissonDiscSphere():
         elif len(neighborix)==0:
             return []
         return neighborix[np.argmin(distance)]
-
-    def get_closest_neighbor(self, *args, **kwargs):
-        """Deprecated. Use closest_neighbor() instead."""
-
-        warn("Deprecated. Use closest_neighbor() instead.")
-        return self.closest_neighbor(*args, **kwargs)
-
-    def closest_neighbor(self, pt, ignore_zero=1e-9):
-        """Get closest grid point index for all points given.
-
-        Parameters
-        ----------
-        pt : tuple
-        ignore_zero : float, 1e-9
-            Distances smaller than this are ignored for returning the min distance.
-
-        Returns
-        -------
-        list of ints
-            Indices of closest points.
-        """
-
-        if pt.ndim==1:
-            pt = pt[None,:]
-        
-        return [self._closest_neighbor(row, ignore_zero) for row in pt]
 
     def closest_neighbor_dist(self, pt, ignore_zero=1e-9):
         """
@@ -706,10 +707,10 @@ class PoissonDiscSphere():
                     self.wrap_phi(coarseGrid[:,0])
 
             # check phi bounds
-            if force and (np.ptp(samples[:,0])*factor)>(2*pi):
+            if force and (np.ptp(mod_angle(samples[:,0]))*factor)>(2*pi):
                 warn("Factor violates phi bounds.")
             else:
-                assert (np.ptp(samples[:,0])*factor)<=(2*pi)
+                assert (np.ptp(mod_angle(samples[:,0]))*factor)<=(2*pi)
 
             # check theta bounds
             if force and (np.ptp(samples[:,1])*factor)>pi:
@@ -735,8 +736,8 @@ class PoissonDiscSphere():
         com = xyz.mean(0)
         com /= np.linalg.norm(com)
 
-        # project Cartesian COM to spherical surface and expand samples and coarse grid
-        # points around that by factor
+        # project Cartesian COM to spherical surface and expand samples and coarse grid points around that by
+        # factor
         com = np.array([np.arctan2(com[1], com[0]), np.arccos(com[2])-pi/2])[None,:]
         samples = (samples-com)*factor
         if not coarseGrid is None:
@@ -771,11 +772,11 @@ class PoissonDiscSphere():
         if not coarseGrid is None:
             coarseGrid += com - dangle
         
-        # put theta back into [-pi/2,pi/2] and account for any reversals in phi if theta is outside that range
+        # By removing the offset of the COM, we might have angles that are beyond permissible limits. Put
+        # theta back into [-pi/2,pi/2] and account for any reversals in phi if theta is outside that range
         # modulo
-        from .angle import mod_angle
         reverseix = self.unwrap_theta(samples[:,1]) 
-        # if theta is between [pi,2*pi] then phi must be reversed
+        # if theta is between [pi,2*pi] then phi must be flipped by pi
         samples[reverseix,0] += pi
         samples[:,0] = mod_angle(samples[:,0])
         if not coarseGrid is None:
@@ -792,7 +793,7 @@ class PoissonDiscSphere():
                 self.unwrap_phi(coarseGrid[:,0])
         
         self.samples = samples
-        if samplesToRemove:
+        if not coarseGrid is None:
             self.set_coarse_grid(coarseGrid)
     
     def _default_plot_kw(self):
