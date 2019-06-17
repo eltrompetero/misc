@@ -44,7 +44,7 @@ def haversine(x, y, r=1):
     """
 
     return r * 2. * arcsin(np.sqrt( sin((x[1]-y[1])/2)**2 +
-                                   cos(x[1])*cos(y[1])*sin((x[0]-y[0])/2)**2 ))
+                                    cos(x[1])*cos(y[1])*sin((x[0]-y[0])/2)**2 ))
 
 @njit
 def jithaversine(x, y):
@@ -64,8 +64,8 @@ def jithaversine(x, y):
 
 def vincenty(point1, point2, a, f, MAX_ITERATIONS=200, CONVERGENCE_THRESHOLD=1e-12):
     """
-    Vincenty's formula (inverse method) to calculate the distance 
-    between two points on the surface of a spheroid
+    Vincenty's formula (inverse method) to calculate the distance between two points on
+    the surface of a spheroid
 
     Parameters
     ----------
@@ -78,6 +78,7 @@ def vincenty(point1, point2, a, f, MAX_ITERATIONS=200, CONVERGENCE_THRESHOLD=1e-
     f : float
         eccentricity, semi-minor polar axis b=(1-f)*a
     """
+
     # short-circuit coincident points
     if point1[0] == point2[0] and point1[1] == point2[1]:
         return 0.0
@@ -593,8 +594,6 @@ class PoissonDiscSphere():
     @classmethod
     def dist(cls, x, y):
         """Great circle distance. Vector optimized."""
-
-        from numpy import sin,cos
 
         if x.ndim==2 and y.ndim==1:
             return 2*arcsin( np.sqrt(sin((x[:,1]-y[1])/2)**2 +

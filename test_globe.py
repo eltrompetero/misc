@@ -1,7 +1,7 @@
-# ===================================================================================== #
+# ====================================================================================== #
 # Testing suite for globe.py
 # Author: Eddie Lee, edl56@cornell.edu
-# ===================================================================================== #
+# ====================================================================================== #
 from .globe import *
 from numpy import pi
 import numpy as np
@@ -99,6 +99,8 @@ def test_jitSphereCoordinate():
     assert np.isclose((coord.phi,coord.theta), (newcoord.phi,newcoord.theta), atol=1e-10).all(), (newcoord.phi,newcoord.theta)
 
 def test_PoissonDiscSphere():
+    from scipy.spatial.distance import pdist
+
     poissd = PoissonDiscSphere(pi/50,
                                fast_sample_size=5,
                                width_bds=(0,.5),
@@ -118,11 +120,23 @@ def test_PoissonDiscSphere():
     print("Test passed: nothing changes when factor=1.")
 
     samples = poissd.samples.copy()
+    d = [pdist(poissd.samples, jithaversine)]
     poissd.expand(.5)
+    d.append(pdist(poissd.samples, jithaversine))
     poissd.expand(2)
-    assert np.isclose(samples, poissd.samples, atol=1e-3).all()
+    d.append(pdist(poissd.samples, jithaversine))
     # there will be some variation because of the way that we're calculating center of mass in 3D
+    assert np.isclose(samples, poissd.samples, atol=1e-6, rtol=1).all()
     print("Test passed: points remain roughly unchanged when contracted and expanded by reciprocal factors.")
+    
+    assert (np.isclose(d[0]/2, d[1], atol=1e-6, rtol=1).all() and
+            np.isclose(d[0], d[2], atol=1e-6, rtol=1).all())
+    print("Test passed: pairwise distances remain unchanged.")
+
+    #print("d(1) = %1.4f\nd(1/2) = %1.4f\nd(1)' = %1.4f"%tuple([i.mean() for i in d]))
+    #assert (np.isclose(d[0].mean()/2, d[1].mean(), atol=1e-6, rtol=1) and
+    #        np.isclose(d[0].mean(), d[2].mean(), atol=1e-6, rtol=1))
+    #print("Test passed: average distance remains unchanged.")
 
 if __name__=='__main__':
     test_jitSphereCoordinate()
