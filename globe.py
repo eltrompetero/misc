@@ -7,6 +7,7 @@ from numpy import cos,sin,arctan2,arccos,arcsin,pi
 from .angle import Quaternion
 from numba import jitclass, float64, njit, jit
 from warnings import warn
+import matplotlib.pyplot as plt
 
 
 def rand(n=1, degree=True):
@@ -793,6 +794,30 @@ class PoissonDiscSphere():
         self.samples = samples
         if samplesToRemove:
             self.set_coarse_grid(coarseGrid)
+    
+    def _default_plot_kw(self):
+        return {'xlabel':'phi', 'ylabel':'theta', 'xlim':(0,2*pi),'ylim':(-pi/2,pi/2)}
+
+    def plot(self, fig=None, ax=None,
+             kw_ax_set=None):
+        """
+        """
+
+        if fig is None:
+            fig, ax = plt.subplots()
+        elif ax is None:
+            ax = fig.add_subplot(1, 1, 1)
+
+        for i in range(len(self.coarseGrid)):
+            ix = self.samplesByGrid[i]
+            h = ax.plot(self.samples[ix,0], self.samples[ix,1], 'o')[0]
+            ax.plot(self.coarseGrid[i,0], self.coarseGrid[i,1], 'x', c=h.get_mfc(), mew=3)
+        
+        if kw_ax_set is None:
+            kw_ax_set = self._default_plot_kw()
+
+        ax.set(**kw_ax_set)
+        return fig
 #end PoissonDiscSphere
 
 
