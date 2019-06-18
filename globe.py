@@ -469,7 +469,7 @@ class PoissonDiscSphere():
         """
 
         neighborix, distance = self.neighbors(pt, return_dist=True)
-        neighborix = np.array(neighborix)
+        neighborix = np.array(neighborix, dtype=int)
 
         if ignore_zero and len(neighborix)>0:
             keepix = distance > ignore_zero
@@ -637,7 +637,7 @@ class PoissonDiscSphere():
             return 2*arcsin( np.sqrt(sin((x[:,1]-y[:,1])/2)**2 +
                              cos(x[:,1])*cos(y[:,1])*sin((x[:,0]-y[:,0])/2)**2) )
         return 2*arcsin( np.sqrt(sin((x[1]-y[1])/2)**2+cos(x[1])*cos(y[1])*sin((x[0]-y[0])/2)**2) )
-    
+
     @staticmethod
     def fast_dist(x,y):
         """Fast inaccurate Euclidean distance squared calculation accounting for periodic
@@ -808,6 +808,31 @@ class PoissonDiscSphere():
 
         ax.set(**kw_ax_set)
         return fig
+
+    def pixelate(self, xy):
+        """Assign given coordinates to pixel in self.samples.
+
+        Parameters
+        ----------
+        xy : ndarray
+            Pairs of coordinates in radians given as (phi, theta) equivalent to
+            (longitude, latitude). The coordinates phi in [0,2*pi] and theta in
+            [-pi/2,pi/2].
+
+        Returns
+        -------
+        list of indices
+            Pixel to which each coordinate belongs.
+        """
+        
+        assert ((xy[:,0]>0) & (xy[:,0]<2*pi) & (-pi/2<xy[:,1]) & (xy[:,1]<pi/2)).all()
+        
+        # only pixelate unique coordinates so we don't have to waste time repeating distance calculation
+        uxy, invix = np.unique(xy, axis=0, return_inverse=True)
+        upixIx = self.closest_neighbor(uxy, ignore_zero=False)
+
+        pixIx = [upixIx[i] for i in invix]
+        return pixIx
 #end PoissonDiscSphere
     
 def cartesian_com(phi, theta):

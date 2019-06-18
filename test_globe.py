@@ -146,11 +146,6 @@ def test_PoissonDiscSphere(use_coarse_grid=True):
             np.isclose(d[0], d[2], atol=1e-6, rtol=1).all())
     print("Test passed: pairwise distances remain unchanged.")
 
-    #print("d(1) = %1.4f\nd(1/2) = %1.4f\nd(1)' = %1.4f"%tuple([i.mean() for i in d]))
-    #assert (np.isclose(d[0].mean()/2, d[1].mean(), atol=1e-6, rtol=1) and
-    #        np.isclose(d[0].mean(), d[2].mean(), atol=1e-6, rtol=1))
-    #print("Test passed: average distance remains unchanged.")
-
     poissd.expand(10, force=True)
     assert ( (0<poissd.samples[:,0])&((2*pi)>poissd.samples[:,0]) ).all()
     assert ( ((-pi/2)<poissd.samples[:,1])&((pi/2)>poissd.samples[:,1]) ).all()
