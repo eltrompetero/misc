@@ -374,10 +374,7 @@ class PoissonDiscSphere():
         if not self.coarseGrid is None:
             if len(self.samples)>0:
                 # find the closest coarse grid point
-                d = self.dist(xy, self.coarseGrid)
-
-                # collect all children of that grid point and its neighbors which are already stored
-                allSurroundingGridIx = self.coarseNeighbors[np.argmin(d)]
+                allSurroundingGridIx = self.coarseNeighbors[self.find_first_in_r(xy, self.coarseGrid, self.r)]
                 neighbors = []
                 for ix in allSurroundingGridIx:
                     neighbors += self.samplesByGrid[ix]
@@ -637,6 +634,40 @@ class PoissonDiscSphere():
             return 2*arcsin( np.sqrt(sin((x[:,1]-y[:,1])/2)**2 +
                              cos(x[:,1])*cos(y[:,1])*sin((x[:,0]-y[:,0])/2)**2) )
         return 2*arcsin( np.sqrt(sin((x[1]-y[1])/2)**2+cos(x[1])*cos(y[1])*sin((x[0]-y[0])/2)**2) )
+    
+    @staticmethod
+    @njit
+    def find_first_in_r(xy, xyOther, r):
+        """Find index of first point that is within distance r. This avoid a distance
+        calculation between all pairs if a faster condition can be satisfied.
+        
+        Parameters
+        ----------
+        xy : ndarray
+            two elements
+        xyOther : ndarray
+            List of coordinates.
+        r : float
+
+        Returns
+        -------
+        int
+            Index of either first element within r/2 or closest point if no point is
+            within r/2.
+        """
+        
+        dmin = 4
+        minix = 0
+        for i in range(len(xyOther)):
+            d = 2*arcsin( np.sqrt(sin((xy[1]-xyOther[i,1])/2)**2 +
+                                  cos(xy[1])*cos(xyOther[i,1])*sin((xy[0]-xyOther[i,0])/2)**2) )
+            # since closest possible spacing is r, a distance of r/2 indicates a guaranteed coarse neighbor
+            if d<=(r/2):
+                return i
+            elif d<dmin:
+                dmin = d
+                minix = i
+        return minix
 
     @staticmethod
     def fast_dist(x,y):
