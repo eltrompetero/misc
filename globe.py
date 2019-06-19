@@ -656,7 +656,7 @@ class PoissonDiscSphere():
             within r/2.
         """
         
-        dmin = 4
+        dmin = 4  # knowing that max geodesic distance on spherical surface is pi
         minix = 0
         for i in range(len(xyOther)):
             d = 2*arcsin( np.sqrt(sin((xy[1]-xyOther[i,1])/2)**2 +

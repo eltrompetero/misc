@@ -110,6 +110,7 @@ def _max_dist_pair(xy):
     """Slow way of finding maximally distant pair by checking every pair.
     """
     
+    assert len(xy)>1
     dmat = pdist(xy)
     dmaxix = dmat.argmax()
     majix = ind_to_sub(len(xy), dmaxix)
