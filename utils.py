@@ -81,7 +81,7 @@ def ortho_plane(v):
     
     return r1, r2
 
-def max_dist_pair2D(xy, force_slow=False):
+def max_dist_pair2D(xy, force_slow=False, return_dist=False):
     """Find most distant pair of points in 2D Euclidean space.
 
     Maximally distant pair of points must coincide with extrema of convex hull.
@@ -92,6 +92,7 @@ def max_dist_pair2D(xy, force_slow=False):
         (x,y) coordinations
     force_slow : bool, False
         Use slow calculation computing entire matrix of pairwise distances.
+    return_dist : bool, False
 
     Returns
     -------
@@ -99,14 +100,18 @@ def max_dist_pair2D(xy, force_slow=False):
         Indices of two max separated points.
     """
     
+    # it is faster to do every pairwise computation when the size of the is small
     if force_slow or len(xy)<500:
-        return _max_dist_pair(xy)
+        return _max_dist_pair(xy, return_dist)
     
     hull = convex_hull(xy, recursive=True)
-    mxix = ind_to_sub(hull.size, pdist(xy[hull]).argmax())
+    dist = pdist(xy[hull])
+    mxix = ind_to_sub(hull.size, dist.argmax())
+    if return_dist:
+        return (hull[mxix[0]], hull[mxix[1]]), dist.max()
     return hull[mxix[0]], hull[mxix[1]]
 
-def _max_dist_pair(xy):
+def _max_dist_pair(xy, return_dist):
     """Slow way of finding maximally distant pair by checking every pair.
     """
     
@@ -114,6 +119,8 @@ def _max_dist_pair(xy):
     dmat = pdist(xy)
     dmaxix = dmat.argmax()
     majix = ind_to_sub(len(xy), dmaxix)
+    if return_dist:
+        return majix, dmat[dmaxix]
     return majix
 
 def convex_hull(xy, recursive=False, concatenate_first=False):

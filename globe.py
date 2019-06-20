@@ -199,7 +199,37 @@ def pixelate_voronoi(X, poissd, offset, lonlat=True):
     
     return splitix, np.array(clusteredPixIx), pixIxByOriginalIx
 
+def max_dist_pair(xy, return_dist=False):
+    """Pair of points maximally distance from each other on sphere.
 
+    Parameters
+    ----------
+    xy : ndarray
+        (phi, theta) limited to ranges [0,2*pi] and [-pi/2,pi/2]
+    return_dist : bool, False
+
+    Returns
+    -------
+    tuple
+    float (optional)
+    """
+    
+    from .utils import ortho_plane, max_dist_pair2D
+
+    # convert to cartesian coordinates
+    xyz = np.vstack([jitSphereCoordinate(*xy_).vec for xy_ in xy])
+    
+    uxyz = np.unique(xyz, axis=0)
+    # project down to plane to get maximally distant pair of points
+    com = xyz.mean(0)
+    r1, r2 = ortho_plane(com)
+    proj = np.vstack((uxyz.dot(r1), uxyz.dot(r2))).T
+    ix = max_dist_pair2D(proj)
+    
+    if return_dist:
+        return ix, haversine(xy[ix[0]], xy[ix[1]])
+    return ix
+            
 
 # ======= #
 # Classes #
