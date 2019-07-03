@@ -1562,6 +1562,7 @@ def bivariate_reg(x, y,
     """
 
     from scipy.optimize import minimize
+    assert x.size==y.size and x.size>1
     if initial_guess is None:
         initial_guess = np.ones(4)
 
@@ -1607,11 +1608,12 @@ def loglog_fit(x, y, p=2, iprint=False, full_output=False, symmetric=True):
     -------
     duple
         Exponent and offset (slope and intercept on log scale).
-    dict
+    dict (optional)
         Result from scipy.optimize.minimize.
     """
 
     from scipy.optimize import minimize
+    assert x.size==y.size and x.size>1
 
     if symmetric:
         def cost(params):
