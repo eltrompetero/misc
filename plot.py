@@ -1,4 +1,7 @@
+# ===================================================================================== #
 # Useful plotting functions.
+# Author : Eddie Lee, edlee@alumni.princeton.edu
+# ===================================================================================== #
 import numpy as np
 import numpy
 import matplotlib as mpl
@@ -6,6 +9,37 @@ import matplotlib.pyplot as plt
 import os
 from matplotlib import patheffects
 
+
+def bds2err(x, xbds):
+    """Convert bounds for values of x to error bars that can be used for pyplot.errorbar.
+
+    Parameters
+    ----------
+    x : ndarray
+        Vector.
+    xbds : ndarray or tuple of vectors
+        Either column or rows of tuples.
+    
+    Returns
+    -------
+    ndarray
+        (2, n_samples) that can be directly used in errorbar.
+    """
+    
+    if type(xbds) is tuple:
+        xbds = np.vstack(xbds)
+
+    if xbds.shape[0]>xbds.shape[1]:
+        xbds = xbds.T
+    elif xbds.shape==(2,2):
+        assert shape!=(2,2), "Shape is ambiguous for determining error bars."
+    assert x.size==xbds.shape[1]
+
+    errbds = np.zeros_like(xbds)
+    errbds[0] = x-xbds[0]
+    errbds[1] = xbds[1]-x
+
+    return errbds
 
 def utm_from_lon(lon):
     """
