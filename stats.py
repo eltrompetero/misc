@@ -1248,93 +1248,137 @@ class PowerLaw(DiscretePowerLaw):
 
 
 class ExpTruncPowerLaw():
-    """With upper and lower bounds."""
-    _default_alpha=2.
-    _default_lower_bound=1.
-    _default_el=.1
+    """Exponentially truncated power law distribution.
 
-    def __init__(self, alpha, el, lower_bound):
-        self.alpha=alpha
-        self.el=el
-        self.lower_bound=lower_bound
+    With upper and lower bounds."""
+    def __init__(self, alpha, el,
+                 lower_bound=1,
+                 rng=np.random.RandomState):
+        """
+        Parameters
+        ----------
+        alpha : float
+            Power law exponent.
+        el : float
+            Inverse length scale.
+        lower_bound : float, 1
+        rng : np.random.RandomState
+        """
+
+        assert el>1e-8
+        assert alpha>0
+        assert lower_bound>0
+
+        self.alpha = alpha
+        self.el = el
+        self.lower_bound = lower_bound
+        self.rng = rng
 
         # setup inverse tranform sampling
         self.setup_inverse_cdf()
 
     def setup_inverse_cdf(self, cdf_res=10000):
-        """Uses inverse transform sampling. CDF is approximated using cubic interpolation."""
+        """Uses inverse transform sampling. CDF is approximated using cubic interpolation.
+
+        This routine defines self.rvs as well.
+
+        Parameters
+        ----------
+        cdf_res : int, 10_000
+        """
+
         from scipy.interpolate import InterpolatedUnivariateSpline
-        x=np.logspace(np.log10(self.lower_bound), np.log10(10/self.el), cdf_res)
-        cdf=self.cdf(self.alpha, self.el, self.lower_bound)(x)
+        x = np.logspace( np.log10(self.lower_bound), np.log10(10/self.el), cdf_res )
+        cdf = self.cdf()(x)
         assert (cdf<=1).all()
         
         # define inverse transform
-        invcdf=InterpolatedUnivariateSpline(cdf, x, ext='const')
-        self.rvs=lambda size=1: invcdf(np.random.rand(size))
+        invcdf = InterpolatedUnivariateSpline(cdf, x, ext='const')
+        self.rvs = lambda size=1: invcdf(self.rng.rand(size))
 
-    @classmethod
-    def cdf(cls, alpha=None, el=None, lower_bound=None):
-        from scipy.special import gamma
-        from mpmath import gammainc as _gammainc
-
-        if alpha is None:
-            alpha=cls._default_alpha
-        if el is None:
-            el=cls._default_el
-        if lower_bound is None:
-            lower_bound=cls._default_lower_bound
-
-        gammainc=np.vectorize(lambda x:float(_gammainc(1-alpha,x)))
-        return lambda x: ( 1-gammainc(x*float(el))/gammainc(lower_bound*float(el)) )
-
-    @classmethod
-    def max_likelihood(cls,
-                       x,
-                       lower_bound=None,
-                       initial_guess=[2,1],
-                       full_output=False):
+    def cdf(self, alpha=None, el=None):
         """
         Parameters
         ----------
-        x : ndarray
-        lower_bound : float,None
-        initial_guess : twople,[2,1000]
-        full_output : bool,False
+        alpha : float, None
+        el : float, None
 
         Returns
         -------
-        params : ndarray
+        function
         """
-        from scipy.optimize import minimize
 
-        if lower_bound is None:
-            lower_bound=cls._default_lower_bound
-        assert (x>=lower_bound).all()
-        assert initial_guess[0]>1 and initial_guess[1]>0
+        from scipy.special import gamma
+        from mpmath import gammainc as _gammainc
+
+        alpha = alpha or self.alpha
+        el = el or self.el
+        lower_bound = self.lower_bound
+
+        gammainc = np.vectorize(lambda x:float(_gammainc(1-alpha,x)))
+        return lambda x: ( 1-gammainc(x*float(el))/gammainc(lower_bound*float(el)) )
+
+    def max_likelihood(self,
+                       x,
+                       initial_guess=[2,1],
+                       full_output=False,
+                       fast=False):
+        """Max likelihood estimate of power law exponent alpha and inverse length scale.
+
+        Parameters
+        ----------
+        x : ndarray
+        lower_bound : float, None
+        initial_guess : twople, [2,1000]
+        full_output : bool, False
+        fast : bool, False
+
+        Returns
+        -------
+        ndarray
+            Parameters.
+        """
+        
+        lower_bound = self.lower_bound
+        if not fast:
+            assert (x>=lower_bound).all()
+            assert initial_guess[0]>1 and initial_guess[1]>0
         
         def cost(params):
-            alpha, el=params
-            return -cls.log_likelihood(x, alpha, el, lower_bound, True)
+            alpha, el = params
+            return -self.log_likelihood(x, alpha, el, True, fast=fast)
 
-        soln=minimize(cost, initial_guess, bounds=[(1+1e-10,np.inf),(1e-10,np.inf)])
+        soln = minimize(cost, initial_guess, bounds=[(1+1e-10,np.inf),(1e-10,np.inf)])
         if full_output: 
             return soln['x'], soln
         return soln['x']
 
-    @classmethod
-    def log_likelihood(cls, x, alpha, el, lower_bound, normalized=False):
+    def log_likelihood(self, X, alpha=None, el=None, normalized=False, fast=False):
         """
         Parameters
         ----------
+        X : ndarray
+        alpha : float, None
+        el : float, None
+        normalized : bool, False
+        fast : bool, False
+
+        Returns
+        -------
+        float
         """
 
         from mpmath import gammainc as _gammainc
-        gammainc=lambda *args:float(_gammainc(*args))
+        alpha = alpha or self.alpha
+        el = el or self.el
+        gammainc = lambda *args:float(_gammainc(*args))
+        if not fast:
+            assert (X>=self.lower_bound).all()
 
         if normalized:
-            Z=el**(alpha-1.) * gammainc(1-alpha, lower_bound*el)
-            return -alpha*np.log(x).sum() - el*x.sum() - len(x) * np.log(Z)
-        return -alpha*np.log(x).sum() -el*x.sum()
+            Z = el**(alpha-1.) * gammainc(1-alpha, self.lower_bound*el)
+            return -alpha*np.log(X).sum() - el*X.sum() - len(X) * np.log(Z)
+        return -alpha*np.log(X).sum() -el*X.sum()
 #end ExpTruncPowerLaw
 
 
@@ -1400,6 +1444,18 @@ class ExpTruncDiscretePowerLaw(DiscretePowerLaw):
             size=(1,),
             alpha=None,
             el=None):
+        """
+        Parameters
+        ----------
+        size : tuple, (1,)
+        alpha : float, None
+        el : float, None
+
+        Returns
+        -------
+        ndarray
+        """
+
         alpha = alpha or self.alpha
         el = el or self.el
         lower_bound = self.lower_bound

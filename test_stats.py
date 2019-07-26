@@ -108,7 +108,17 @@ def test_max_likelihood_flow():
 
     alphaML, lb = PowerLaw.max_likelihood(X, lower_bound_range=(1,10), initial_guess=1.76)
     assert alphaML==1.9582463655267062 and lb==1.7
-    
+   
+    d = ExpTruncPowerLaw(2, 1e-3, rng=np.random.RandomState(0))
+    X = d.rvs(size=1000)
+    alphaML, elML = d.max_likelihood(X)
+    assert abs(2-alphaML)<1e-2 and abs(1e-3-elML)<2e-3, (alphaML, elML)
+
+    d = ExpTruncPowerLaw(1.75, 1e-3, rng=np.random.RandomState(0))
+    X = d.rvs(size=1000)
+    alphaML, elML = d.max_likelihood(X)
+    assert abs(1.75-alphaML)<1e-2 and abs(1e-3-elML)<2e-3, (alphaML, elML)
+
     # discrete
     X = DiscretePowerLaw.rvs(2., size=1000, rng=np.random.RandomState(0))
     alphaML = DiscretePowerLaw.max_likelihood(X)
