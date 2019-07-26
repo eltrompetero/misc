@@ -1253,7 +1253,7 @@ class ExpTruncPowerLaw():
     With upper and lower bounds."""
     def __init__(self, alpha, el,
                  lower_bound=1,
-                 rng=np.random.RandomState):
+                 rng=np.random):
         """
         Parameters
         ----------
@@ -1266,7 +1266,7 @@ class ExpTruncPowerLaw():
         """
 
         assert el>1e-8
-        assert alpha>0
+        assert alpha>1
         assert lower_bound>0
 
         self.alpha = alpha
@@ -1275,12 +1275,34 @@ class ExpTruncPowerLaw():
         self.rng = rng
 
         # setup inverse tranform sampling
-        self.setup_inverse_cdf()
+        #self.setup_inverse_cdf()
+
+    def _setup_inverse_cdf(self, tol=1e-10):
+        """NOTE: scipy does not support evaluation of gamma function with negative
+        arguments for the exponent which makes straightforward inversion impossible
+        
+        Parameters
+        ----------
+        tol : float, 1e-10
+        """
+
+        from scipy.special import gamma, gammainccinv
+        from mpmath import gammainc
+        def invcdf(y, alpha=self.alpha, el=self.el, x0=self.lower_bound):
+            return gammainccinv( 1-alpha, float(gammainc(1-alpha,el*x0))*(1-y) )/el
+        self._invcdf = invcdf
+        lowerCutoff = self.cdf(lower_bound=0)(self.lower_bound)
+        
+        self.rvs = lambda size=1,lowerCutoff=lowerCutoff: self._invcdf(self.rng.uniform(lowerCutoff,1,size))
 
     def setup_inverse_cdf(self, cdf_res=10000):
         """Uses inverse transform sampling. CDF is approximated using cubic interpolation.
 
         This routine defines self.rvs as well.
+
+        NOTE: This is not a great way to do this. One could write down the functional form
+        and interpolate that in a more controlled way and extrapolate it better to
+        infinity. Alternatively, could generate random samples using rejection sampling.
 
         Parameters
         ----------
@@ -1295,13 +1317,84 @@ class ExpTruncPowerLaw():
         # define inverse transform
         invcdf = InterpolatedUnivariateSpline(cdf, x, ext='const')
         self.rvs = lambda size=1: invcdf(self.rng.rand(size))
+   
+    def rvs(self, size=(1,), alpha=None, el=None, lower_bound=None):
+        """Generate random sample.
+        
+        Rejection sampling procedure by sampling from a power law distribution and then
+        using the form of the pdfs to reject samples that fall between the two curves.
 
-    def cdf(self, alpha=None, el=None):
+        Parameters
+        ----------
+        size : tuple, (1,)
+        alpha : float, None
+        el : float, None
+        lower_bound : float, None
+
+        Returns
+        -------
+        ndarray
+        """
+        
+        if not type(size) is tuple:
+            size = (size,)
+        alpha = alpha or self.alpha
+        el = el or self.el
+        lower_bound = lower_bound or self.lower_bound
+        
+        # set up sampling
+        nSamples = int(np.prod(size))
+        X = np.zeros(nSamples)
+        powlaw = PowerLaw(alpha, lower_bound=lower_bound, rng=self.rng)
+        powlawpdf = powlaw.pdf(alpha=alpha, lower_bound=lower_bound)
+        exppdf = self.pdf(alpha=alpha, el=el, lower_bound=lower_bound)
+        nObtained = 0
+
+        while nObtained<nSamples:
+            X_ = powlaw.rvs(size=nSamples-nObtained, rng=self.rng)
+            
+            # rejection step: keep anything that falls below exptruncpowlaw pdf
+            keepix = (self.rng.rand(nSamples-nObtained)*powlawpdf(X_)) <= exppdf(X_)
+            X_ = X_[keepix]
+            
+            # store new samples
+            X[nObtained:X_.size+nObtained] = X_
+            nObtained += X_.size
+
+        return X.reshape(size)
+
+    def pdf(self, alpha=None, el=None, lower_bound=None):
         """
         Parameters
         ----------
         alpha : float, None
         el : float, None
+        lower_bound : float, None
+        
+        Returns
+        -------
+        function
+        """
+        
+        from mpmath import gammainc as _gammainc
+        alpha = alpha or self.alpha
+        el = el or self.el
+        lower_bound = lower_bound or self.lower_bound
+        assert alpha>1
+        assert el>1e-8
+        assert lower_bound>0
+
+        gammainc = np.vectorize(lambda x,x0: float(_gammainc(x,x0,np.inf)))
+        return lambda x, alpha=alpha, el=el, x0=lower_bound: ( x**(-alpha)*np.exp(-el*x) /
+                                                (el**(alpha-1)*gammainc(1-alpha,el*x0)) )
+
+    def cdf(self, alpha=None, el=None, lower_bound=None):
+        """
+        Parameters
+        ----------
+        alpha : float, None
+        el : float, None
+        lower_bound : float, None
 
         Returns
         -------
@@ -1313,7 +1406,7 @@ class ExpTruncPowerLaw():
 
         alpha = alpha or self.alpha
         el = el or self.el
-        lower_bound = self.lower_bound
+        lower_bound = lower_bound or self.lower_bound
 
         gammainc = np.vectorize(lambda x:float(_gammainc(1-alpha,x)))
         return lambda x: ( 1-gammainc(x*float(el))/gammainc(lower_bound*float(el)) )
@@ -1403,13 +1496,20 @@ class ExpTruncDiscretePowerLaw(DiscretePowerLaw):
         upper_bound : int, np.inf
         rng : np.random.RandomState
         """
-
+        
+        assert alpha>0
         assert el>1e-8, "Precision errors occur when el is too small."
+        assert lower_bound<1e4, "For large numbers, just use continuous approximation."
         self.alpha = alpha
         self.el = el
         self.lower_bound = lower_bound
         self.upper_bound = upper_bound
         self.rng = rng
+        
+        # use continuous distribution for large number approximation
+        if self.upper_bound>1e4:
+            self._exptruncpowlaw = ExpTruncPowerLaw(alpha, el, lower_bound=10_001)
+            self._exptruncWeight = 1-self.cdf()(10_000)
 
     def pdf(self):
         """Function for calculating probability distribution.
@@ -1458,15 +1558,36 @@ class ExpTruncDiscretePowerLaw(DiscretePowerLaw):
 
         alpha = alpha or self.alpha
         el = el or self.el
+        if alpha!=self.alpha or el!=self.el:
+            warn("rvs is slow if alpha or el is changed.")
+            exptruncpowlaw = ExpTruncPowerLaw(alpha, el, lower_bound=self.lower_bound, rng=self.rng)
+        else:
+            exptruncpowlaw = self._exptruncpowlaw
         lower_bound = self.lower_bound
         upper_bound = self.upper_bound
-        assert upper_bound<np.inf, "(not supported) Upper bound must be some finite value."
-
+        nSample = sum(size)
+        assert nSample>1
+        
         if not '_pdf' in self.__dict__:
             self._pdf = self.pdf(alpha, el, lower_bound, upper_bound)(np.arange(lower_bound,
-                                                                                upper_bound+1))
+                                                                                min(10_001,upper_bound+1)))
         
-        return self.rng.choice(np.arange(lower_bound, upper_bound+1), size=size, p=self._pdf)
+        if upper_bound<=1e4:
+            return self.rng.choice(np.arange(lower_bound, upper_bound+1), size=size, p=self._pdf)
+        
+        nContinuousSample = self.rng.binomial(1, self._exptruncWeight)
+        X = np.zeros(nSample)
+        if nContinuousSample:
+            X[:nContinuousSample] = exptruncpowlaw.rvs(size=nContinuousSample)
+            X[nContinuousSample:] = self.rng.choice(np.arange(lower_bound, upper_bound+1),
+                                                    size=nSample-nContinuousSample,
+                                                    p=self._pdf)
+            X = self.permutation(X)
+        else:
+            X = self.rng.choice(np.arange(lower_bound, upper_bound+1),
+                                size=nSample,
+                                p=self._pdf)
+        return X.reshape(size)
 
     def max_likelihood(self, X,
                        initial_guess=(2.,1.),

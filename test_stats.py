@@ -1,8 +1,9 @@
-# ========================================================================================================= #
-# Module for helper functions with statistical analysis of data.
+# ====================================================================================== #
+# Testing module for helper functions with statistical analysis of data.
 # Author: Eddie Lee, edlee@alumni.princeton.edu
-# ========================================================================================================= #
+# ====================================================================================== #
 from .stats import *
+from scipy.integrate import quad
 ALPHA=1.5
 
 
@@ -109,15 +110,15 @@ def test_max_likelihood_flow():
     alphaML, lb = PowerLaw.max_likelihood(X, lower_bound_range=(1,10), initial_guess=1.76)
     assert alphaML==1.9582463655267062 and lb==1.7
    
-    d = ExpTruncPowerLaw(2, 1e-3, rng=np.random.RandomState(0))
-    X = d.rvs(size=1000)
-    alphaML, elML = d.max_likelihood(X)
-    assert abs(2-alphaML)<1e-2 and abs(1e-3-elML)<2e-3, (alphaML, elML)
-
-    d = ExpTruncPowerLaw(1.75, 1e-3, rng=np.random.RandomState(0))
-    X = d.rvs(size=1000)
-    alphaML, elML = d.max_likelihood(X)
-    assert abs(1.75-alphaML)<1e-2 and abs(1e-3-elML)<2e-3, (alphaML, elML)
+#    d = ExpTruncPowerLaw(2, 1e-3, rng=np.random.RandomState(0))
+#    X = d.rvs(size=1000)
+#    alphaML, elML = d.max_likelihood(X)
+#    assert abs(2-alphaML)<1e-2 and abs(1e-3-elML)<2e-3, (alphaML, elML)
+#
+#    d = ExpTruncPowerLaw(1.75, 1e-3, rng=np.random.RandomState(0))
+#    X = d.rvs(size=1000)
+#    alphaML, elML = d.max_likelihood(X)
+#    assert abs(1.75-alphaML)<1e-2 and abs(1e-3-elML)<2e-3, (alphaML, elML)
 
     # discrete
     X = DiscretePowerLaw.rvs(2., size=1000, rng=np.random.RandomState(0))
@@ -126,3 +127,10 @@ def test_max_likelihood_flow():
 
     alphaML, lb = DiscretePowerLaw.max_likelihood(X, lower_bound_range=(1,10), initial_guess=1.76)
     assert alphaML==1.9939545644486907 and lb==1
+
+def test_ExpTruncPowerLaw():
+    d = ExpTruncPowerLaw(2, 1e-3, rng=np.random.RandomState(0))
+    assert np.isclose(quad(d.pdf(), 1, np.inf)[0], 1)
+
+    X = d.rvs(size=1000)
+    assert np.isclose([2,1e-3], d.max_likelihood(X), atol=2e-3, rtol=0).all()
