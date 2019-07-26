@@ -1343,10 +1343,10 @@ class ExpTruncDiscretePowerLaw(DiscretePowerLaw):
     _default_el=1
 
     def __init__(self, alpha, el, lower_bound=1, upper_bound=np.inf):
-        self.alpha=alpha
-        self.el=el
-        self.lower_bound=lower_bound
-        self.upper_bound=upper_bound
+        self.alpha = alpha
+        self.el = el
+        self.lower_bound = lower_bound
+        self.upper_bound = upper_bound
 
     @classmethod
     def pdf(cls,
@@ -1389,7 +1389,7 @@ class ExpTruncDiscretePowerLaw(DiscretePowerLaw):
             self._pdf=self.pdf(alpha, el, lower_bound, upper_bound)(np.arange(lower_bound,
                                                                               upper_bound+1))
         
-        return np.random.choice(np.arange(lower_bound, upper_bound+1), size=size, p=self._pdf)
+        return rng.choice(np.arange(lower_bound, upper_bound+1), size=size, p=self._pdf)
 
     @classmethod
     def cdf(cls,
@@ -1591,9 +1591,9 @@ def loglog_fit(x, y, p=2, iprint=False, full_output=False, symmetric=True):
     Parameters
     ----------
     x : ndarray
-        Independent variable.
+        Independent variable. This will be compressed to log scale.
     y : ndarray
-        Dependent variable.
+        Dependent variable. This will be compressed to log scale.
     p : float, 2
         Exponent on cost function.
     iprint : bool, False
@@ -1614,6 +1614,7 @@ def loglog_fit(x, y, p=2, iprint=False, full_output=False, symmetric=True):
 
     from scipy.optimize import minimize
     assert x.size==y.size and x.size>1
+    assert (x>0).all() and (y>0).all()
 
     if symmetric:
         def cost(params):

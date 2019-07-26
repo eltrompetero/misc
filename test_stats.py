@@ -116,4 +116,3 @@ def test_max_likelihood_flow():
 
     alphaML, lb = DiscretePowerLaw.max_likelihood(X, lower_bound_range=(1,10), initial_guess=1.76)
     assert alphaML==1.9939545644486907 and lb==1
-

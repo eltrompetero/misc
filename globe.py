@@ -886,6 +886,7 @@ class PoissonDiscSphere():
             Pixel to which each coordinate belongs.
         """
         
+        # check that lon and lat are within bounds used for this code
         assert ((xy[:,0]>0) & (xy[:,0]<2*pi) & (-pi/2<xy[:,1]) & (xy[:,1]<pi/2)).all()
         
         # only pixelate unique coordinates so we don't have to waste time repeating distance calculation

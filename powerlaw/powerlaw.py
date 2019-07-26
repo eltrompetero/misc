@@ -1,9 +1,9 @@
-# ===================================================================================== #
+# ====================================================================================== #
 # Module for bias testing of power law.
 # Author : Eddie Lee, edlee@alumni.princeton.edu
 #
 # Cached functions in this module require a cache folder in the working directory.
-# ===================================================================================== #
+# ====================================================================================== #
 import numpy as np
 from workspace.utils import cached
 from ..stats import PowerLaw, DiscretePowerLaw
