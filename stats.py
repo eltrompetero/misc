@@ -11,6 +11,7 @@ from scipy.special import zeta
 from multiprocess import Pool,cpu_count
 from numba import njit
 from warnings import warn
+from mpmath import polylog
 import numpy.distutils.system_info as sysinfo
 assert sysinfo.platform_bits==64
 
@@ -1338,31 +1339,45 @@ class ExpTruncPowerLaw():
 
 
 class ExpTruncDiscretePowerLaw(DiscretePowerLaw):
-    """Analogous to DiscretePowerLaw but with exponentially truncated tail.
-    """
-    _default_el=1
+    """Exponentially truncated discrete power law distribution.
 
-    def __init__(self, alpha, el, lower_bound=1, upper_bound=np.inf):
+    Analogous to DiscretePowerLaw but with exponentially truncated tail.
+    """
+    def __init__(self, alpha, el,
+                 lower_bound=1,
+                 upper_bound=np.inf,
+                 rng=np.random):
+        """Lower and upper bounds are fixed once this distribution is determined.
+
+        Parameters
+        ----------
+        alpha : float
+            Power law exponent.
+        el : float
+            Inverse length scale.
+        lower_bound : int, 1
+        upper_bound : int, np.inf
+        rng : np.random.RandomState
+        """
+
+        assert el>1e-8, "Precision errors occur when el is too small."
         self.alpha = alpha
         self.el = el
         self.lower_bound = lower_bound
         self.upper_bound = upper_bound
+        self.rng = rng
 
-    @classmethod
-    def pdf(cls,
-            alpha=None,
-            el=None,
-            lower_bound=1,
-            upper_bound=np.inf):
-        from mpmath import polylog
-        assert upper_bound<np.inf, "Upper bound must be some finite value."
+    def pdf(self):
+        """Function for calculating probability distribution.
+        """
 
-        alpha=alpha or cls._default_alpha
-        el=el or cls._default_el
-        
-        p=( np.arange(int(lower_bound), int(upper_bound)+1)**-float(alpha) *
-            np.exp(-el*np.arange(int(lower_bound), int(upper_bound)+1)) )
-        p/=p.sum()
+        lower_bound = self.lower_bound
+        upper_bound = self.upper_bound
+        assert upper_bound<np.inf, "(not suppported) Upper bound must be some finite value."
+
+        p = ( np.arange(int(lower_bound), int(upper_bound)+1)**-float(self.alpha) *
+            np.exp(-self.el*np.arange(int(lower_bound), int(upper_bound)+1)) )
+        p /= p.sum()
         
         def pdf(x, p=p):
             if type(x) is int:
@@ -1373,35 +1388,7 @@ class ExpTruncDiscretePowerLaw(DiscretePowerLaw):
 
         return pdf
 
-    def rvs(self,
-            size=(1,),
-            alpha=None,
-            el=None,
-            lower_bound=None,
-            upper_bound=None):
-        alpha=alpha or self.alpha
-        el=el or self.el
-        lower_bound=lower_bound or self.lower_bound
-        upper_bound=upper_bound or self.upper_bound
-        assert upper_bound<np.inf, "Upper bound must be some finite value."
-
-        if not '_pdf' in self.__dict__:
-            self._pdf=self.pdf(alpha, el, lower_bound, upper_bound)(np.arange(lower_bound,
-                                                                              upper_bound+1))
-        
-        return rng.choice(np.arange(lower_bound, upper_bound+1), size=size, p=self._pdf)
-
-    @classmethod
-    def cdf(cls,
-            alpha=None,
-            el=None,
-            lower_bound=1,
-            upper_bound=np.inf):
-        from mpmath import polylog
-
-        alpha=alpha or cls._default_alpha
-        el=el or cls._default_el
-
+    def cdf(self):
         if upper_bound==np.inf:
             Z=( float(polylog(alpha, np.exp(-el))) - (np.arange(1,lower_bound)**-float(alpha) *
                 np.exp(-el*np.arange(1,lower_bound))).sum() )
@@ -1409,23 +1396,35 @@ class ExpTruncDiscretePowerLaw(DiscretePowerLaw):
                                             np.exp(-el*np.arange(lower_bound, int(x)+1)) ).sum()/Z)
         raise NotImplementedError
 
-    @classmethod
-    def max_likelihood(cls, X,
+    def rvs(self,
+            size=(1,),
+            alpha=None,
+            el=None):
+        alpha = alpha or self.alpha
+        el = el or self.el
+        lower_bound = self.lower_bound
+        upper_bound = self.upper_bound
+        assert upper_bound<np.inf, "(not supported) Upper bound must be some finite value."
+
+        if not '_pdf' in self.__dict__:
+            self._pdf = self.pdf(alpha, el, lower_bound, upper_bound)(np.arange(lower_bound,
+                                                                                upper_bound+1))
+        
+        return self.rng.choice(np.arange(lower_bound, upper_bound+1), size=size, p=self._pdf)
+
+    def max_likelihood(self, X,
                        initial_guess=(2.,1.),
-                       lower_bound=1,
-                       upper_bound=np.inf,
                        minimize_kw={},
                        full_output=False):
         """
-        Find the best fit power law exponent for a discrete power law distribution. 
+        Find the best fit power law exponent for a discrete power law distribution with
+        exponential tail. 
 
         Parameters
         ----------
         X : ndarray
         initial_guess : twople, (2.,1.)
             Guess for power law exponent alpha and cutoff el.
-        lower_bound : int, 1
-        upper_bound : float, np.inf
         minimize_kw : dict, {}
 
         Returns
@@ -1435,49 +1434,51 @@ class ExpTruncDiscretePowerLaw(DiscretePowerLaw):
         """
 
         if type(X) is list:
-            X=np.array(X)
-        assert ((X>=lower_bound)&(X<=upper_bound)).all(),"All elements must be within bounds."
+            X = np.array(X)
+        assert ((X>=self.lower_bound)&(X<=self.upper_bound)).all(),"All elements must be within bounds."
 
         def f(params):
-            alpha, el=params
+            alpha, el = params
             return -cls.log_likelihood(X, alpha, el, lower_bound, upper_bound, normalize=True)
 
         soln = minimize(f, initial_guess, **minimize_kw, bounds=[(1.0001,7), (1e-6,np.inf)])
+        self.alpha, self.el = soln['x']
         if full_output:
             return soln['x'], soln
         return soln['x']
        
-    @classmethod
-    def log_likelihood(cls, X, alpha, el,
-                       lower_bound=1,
-                       upper_bound=np.inf, 
+    def log_likelihood(X,
+                       alpha=None,
+                       el=None,
                        normalize=False):
-        """Log likelihood of the discrete power law with exponent X^-alpha.
+        """Log likelihood of given data.
 
         Parameters
         ----------
         X : ndarray
-        alpha : float
-        lower_bound : int,1
-        upper_bound : int,np.inf
-        normalize : bool,False
+        alpha : float, None
+        el : float, None
+        normalize : bool, False
+            The calculation will be faster when not normalizing.
 
         Returns
         -------
         log_likelihood : ndarray
         """
-
-        from mpmath import polylog
+        
+        alpha = alpha or self.alpha
+        el = el or self.el
+        lower_bound = self.lower_bound
+        upper_bound = self.upper_bound
         assert ((X>=lower_bound) & (X<=upper_bound)).all()
-        assert el>1e-8, "Precision errors occur when el is too small."
 
         if not normalize:
             return -alpha*np.log(X).sum() -el*X.sum()
 
         # simply calculate Z by summing up to infinity and then subtracting all terms up to the
         # lower_bound that should be ignored
-        Z=( float(polylog(alpha, np.exp(-el))) - (np.arange(1,lower_bound)**-float(alpha) *
-            np.exp(-el*np.arange(1, lower_bound))).sum() )
+        Z = ( float(polylog(alpha, np.exp(-el))) - (np.arange(1,lower_bound)**-float(alpha) *
+              np.exp(-el*np.arange(1, lower_bound))).sum() )
         return ( -alpha*np.log(X) - el*X - np.log(Z) ).sum()
 #end ExpTruncDiscretePowerLaw
 
