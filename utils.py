@@ -100,6 +100,9 @@ def max_dist_pair2D(xy, force_slow=False, return_dist=False):
         Indices of two max separated points.
     """
     
+    if type(xy) is list:
+        xy = np.vstack(xy)
+
     # it is faster to do every pairwise computation when the size of the is small
     if force_slow or len(xy)<500:
         return _max_dist_pair(xy, return_dist)
