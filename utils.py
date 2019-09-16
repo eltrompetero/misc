@@ -100,6 +100,9 @@ def max_dist_pair2D(xy, force_slow=False, return_dist=False):
         Indices of two max separated points.
     """
     
+    if type(xy) is list:
+        xy = np.vstack(xy)
+    
     # it is faster to do every pairwise computation when the size of the is small
     if force_slow or len(xy)<500:
         return _max_dist_pair(xy, return_dist)
@@ -1184,26 +1187,27 @@ def hist_log(data,bins,
              density=False,
              x0=None,x1=None,base=10.):
     """
-    Return log histogram of data. Usage just like regular histogram.
-    2013-06-27
+    Return log histogram of data. Usage similar to regular histogram.
 
-    Params:
-    -------
-    data (ndarray)
-    bins (ndarray or int)
-    x0,x1 (float)
+    Parameters
+    ----------
+    data : ndarray
+    bins : ndarray or int
+    x0, x1 : float
         min and max x's
-    base (float)
+    base : float
         base of histogram binning
 
-    Values:
+    Returns
     -------
-    n (ndarray)
+    ndarray
         frequency count or probability density per bin
-    x (ndarray)
+    ndarray
         centered bins for plotting with n
-    xedges (ndarray)
+    ndarray
+        xedges
     """
+
     if x0==None:
         x0 = np.min(data)
     if x1==None:
@@ -1214,9 +1218,9 @@ def hist_log(data,bins,
                                  bins=bins,
                                  density=density )
     else:
-        bins = np.logspace(np.log(x0)/np.log(base), np.log(x1)/np.log(base), bins+1 )
+        bins = np.logspace(np.log(x0)/np.log(base), np.log(x1)/np.log(base), bins+1)
         bins[-1] = np.ceil(bins[-1])
-        n,xedges = np.histogram( data, bins=bins, density=density )
+        n, xedges = np.histogram( data, bins=bins, density=density )
 
     # take difference in log space to center bins
     dx = base**(np.diff(np.log(xedges)/np.log(base))/2.0)

@@ -313,15 +313,11 @@ class DiscretePowerLaw():
             X = rng.choice(xRange, p=p/p.sum(), size=size).astype(int)  # random sample
             tailix = rng.rand(*size)<ptail
             if tailix.any():
-                X[tailix] = np.around( PowerLaw.rvs(alpha=alpha,
-                                                    lower_bound=xRange[-1],
-                                                    upper_bound=x1,
-                                                    size=int(tailix.sum())) ).astype(int)
+                pl = PowerLaw(alpha, lower_bound=xRange[-1], upper_bound=x1)
+                X[tailix] = np.around( pl.rvs(size=int(tailix.sum())) ).astype(int)
         else:
-            X = np.around( PowerLaw.rvs(alpha=alpha,
-                                        lower_bound=x0,
-                                        upper_bound=x1,
-                                        size=size ).astype(int) )
+            pl = PowerLaw(alpha, lower_bound=x0, upper_bound=x1)
+            X = np.around( pl.rvs(size=size).astype(int) )
         
         if (X<0).any():
             print("Some samples exceeded numerical precision range for int. Bounding them to 2^62.")
@@ -848,24 +844,24 @@ class PowerLaw(DiscretePowerLaw):
     _default_upper_bound=np.inf
 
     def __init__(self, alpha, lower_bound=1, upper_bound=np.inf, rng=None):
-        self.alpha=alpha
-        self.lower_bound=lower_bound
-        self.upper_bound=upper_bound
+        self.alpha = alpha
+        self.lower_bound = lower_bound
+        self.upper_bound = upper_bound
         self.rng = rng or np.random
 
-    @classmethod
-    def rvs(cls, alpha=None,
+    def rvs(self,
+            size=(1,),
+            alpha=None,
             lower_bound=None,
             upper_bound=None,
-            size=(1,),
             rng=None):
         """
         Parameters
         ----------
+        size : tuple, (1,)
         alpha : float, None
         lower_bound : float, None
         upper_bound : float, None
-        size : tuple, (1,)
         rng : numpy.random.RandomState
 
         Returns
@@ -875,10 +871,8 @@ class PowerLaw(DiscretePowerLaw):
         """
         
         # Input checking.
-        if alpha is None:
-            alpha=cls._default_alpha
-        else:
-            assert alpha>0
+        alpha = alpha or self.alpha
+        assert alpha>0
         assert type(size) is int or type(size) is tuple, "Size must be an int or tuple."
         if type(size) is int:
             size=(size,)
@@ -886,16 +880,8 @@ class PowerLaw(DiscretePowerLaw):
         alpha*=1.
         rng = rng or np.random
 
-        if upper_bound is None:
-            if 'self.upper_bound' in vars():
-                upper_bound = self.upper_bound
-            else:
-                upper_bound = cls._default_upper_bound
-        if lower_bound is None:
-            if 'self.lower_bound' in vars():
-                lower_bound = self.lower_bound
-            else:
-                lower_bound = cls._default_lower_bound
+        upper_bound = upper_bound or self.upper_bound
+        lower_bound = lower_bound or self.lower_bound
 
         return lower_bound * ( 1 - (1-(upper_bound/lower_bound)**(1.-alpha))*rng.rand(*size) )**(1./(1-alpha))
     
@@ -1318,7 +1304,11 @@ class ExpTruncPowerLaw():
         invcdf = InterpolatedUnivariateSpline(cdf, x, ext='const')
         self.rvs = lambda size=1: invcdf(self.rng.rand(size))
    
-    def rvs(self, size=(1,), alpha=None, el=None, lower_bound=None):
+    def rvs(self,
+            size=(1,),
+            alpha=None,
+            el=None,
+            lower_bound=None):
         """Generate random sample.
         
         Rejection sampling procedure by sampling from a power law distribution and then

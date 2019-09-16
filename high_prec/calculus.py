@@ -122,12 +122,12 @@ class LevyGaussQuad():
         
         prevdx=np.inf
         for i in range(n_iters):
-            p, pp=mp.polyval(coeffs, root, derivative=1)
-            dx=p/pp
+            p, pp = mp.polyval(coeffs, root, derivative=1)
+            dx = p/pp
             if abs(dx)>abs(prevdx) and abs(dx)>1e-2:
                 raise Exception(prevdx,dx)
             root -= dx
-            prevdx=dx
+            prevdx = dx
         return root
 
     def bisection(self, coeffs, a, b, tol=1e-6, n_iters=10):
