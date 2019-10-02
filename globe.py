@@ -786,7 +786,8 @@ class PoissonDiscSphere():
         # center everything about (phi, theta) = (0,0)
         dangle = np.array([-np.mean(self.width), -np.mean(self.height)])[None,:]
         samples += dangle
-        coarseGrid += dangle
+        if not coarseGrid is None:
+            coarseGrid += dangle
         
         # now run the expansion and contraction about the center of the tiling
         samples *= factor
