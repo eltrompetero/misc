@@ -739,7 +739,7 @@ class PoissonDiscSphere():
         theta[:] -= pi/2
         return reverseix
 
-    def expand(self, factor, force=False):
+    def expand(self, factor, force=False, truncate_to_bounds=True):
         """Expand or contract grid by a constant factor. This operation maintains the
         center of mass projected onto the surface of the sphere fixed.
 
@@ -748,6 +748,8 @@ class PoissonDiscSphere():
         factor : float
         force : bool, False
             If True, carries out expansion even if points must be deleted.
+        truncate_to_bounds : bool, True
+            If True, then only keep points that fall within the bounds of the class.
         """
 
         samples = self.samples.copy()
@@ -796,11 +798,17 @@ class PoissonDiscSphere():
 
         # remove all sample points that wrap around sphere including both individual points that exceed
         # boundaries and all children of coarse grained points that exceed boundaries
-        samplesToRemove = np.where((samples[:,0]<-pi) | (samples[:,0]>pi) |
-                                   (samples[:,1]<(-pi/2)) | (samples[:,1]>(pi/2)))[0].tolist()
+        if truncate_to_bounds:
+            width = self.width[0]+dangle[0,0], self.width[1]+dangle[0,1]
+            height = self.height[0]+dangle[0,1], self.height[1]+dangle[0,1]
+        else:
+            width = -pi, pi
+            height = -pi/2, pi/2
+        samplesToRemove = np.where((samples[:,0]<width[0]) | (samples[:,0]>width[1]) |
+                                   (samples[:,1]<height[0]) | (samples[:,1]>height[1]))[0].tolist()
         if not coarseGrid is None:
-            coarseToRemove = np.where((coarseGrid[:,0]<-pi) | (coarseGrid[:,0]>pi) |
-                                      (coarseGrid[:,1]<(-pi/2)) | (coarseGrid[:,1]>(pi/2)))[0].tolist()
+            coarseToRemove = np.where((coarseGrid[:,0]<width[0]) | (coarseGrid[:,0]>width[1]) |
+                                      (coarseGrid[:,1]<height[0]) | (coarseGrid[:,1]>height[1]))[0].tolist()
         else:
             coarseToRemove = False
         
@@ -813,7 +821,8 @@ class PoissonDiscSphere():
             if self.iprint:
                 print("Removing %d samples."%len(samplesToRemove))
             samples = np.delete(samples, samplesToRemove, axis=0)
-            coarseGrid = np.delete(coarseGrid, coarseToRemove, axis=0)
+            if not coarseGrid is None:
+                coarseGrid = np.delete(coarseGrid, coarseToRemove, axis=0)
             
             if samples.size==0:
                 raise Exception("No samples left in domain after expansion.")
