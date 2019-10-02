@@ -339,6 +339,8 @@ class PoissonDiscSphere():
 
         self.coarseGrid = coarse_grid
         if not self.coarseGrid is None:
+            assert type(coarse_grid) is np.ndarray
+            assert coarse_grid.shape[1]==2
             self.preprocess_coarse_grid()
             self.samplesByGrid = [[] for i in self.coarseGrid]
 
@@ -404,7 +406,7 @@ class PoissonDiscSphere():
         if not self.coarseGrid is None:
             if len(self.samples)>0:
                 # find the closest coarse grid point
-                allSurroundingGridIx = self.coarseNeighbors[self.find_first_in_r(xy, self.coarseGrid, self.r)]
+                allSurroundingGridIx = self.coarseNeighbors[find_first_in_r(xy, self.coarseGrid, self.r)]
                 neighbors = []
                 for ix in allSurroundingGridIx:
                     neighbors += self.samplesByGrid[ix]
@@ -664,40 +666,6 @@ class PoissonDiscSphere():
             return 2*arcsin( np.sqrt(sin((x[:,1]-y[:,1])/2)**2 +
                              cos(x[:,1])*cos(y[:,1])*sin((x[:,0]-y[:,0])/2)**2) )
         return 2*arcsin( np.sqrt(sin((x[1]-y[1])/2)**2+cos(x[1])*cos(y[1])*sin((x[0]-y[0])/2)**2) )
-    
-    @staticmethod
-    @njit
-    def find_first_in_r(xy, xyOther, r):
-        """Find index of first point that is within distance r. This avoid a distance
-        calculation between all pairs if a faster condition can be satisfied.
-        
-        Parameters
-        ----------
-        xy : ndarray
-            two elements
-        xyOther : ndarray
-            List of coordinates.
-        r : float
-
-        Returns
-        -------
-        int
-            Index of either first element within r/2 or closest point if no point is
-            within r/2.
-        """
-        
-        dmin = 4  # knowing that max geodesic distance on spherical surface is pi
-        minix = 0
-        for i in range(len(xyOther)):
-            d = 2*arcsin( np.sqrt(sin((xy[1]-xyOther[i,1])/2)**2 +
-                                  cos(xy[1])*cos(xyOther[i,1])*sin((xy[0]-xyOther[i,0])/2)**2) )
-            # since closest possible spacing is r, a distance of r/2 indicates a guaranteed coarse neighbor
-            if d<=(r/2):
-                return i
-            elif d<dmin:
-                dmin = d
-                minix = i
-        return minix
 
     @staticmethod
     def fast_dist(x,y):
@@ -722,8 +690,10 @@ class PoissonDiscSphere():
     
     @classmethod
     def wrap_phi(cls, phi):
-        wrapix = phi>pi
-        phi[wrapix] = phi[wrapix]%pi - pi
+        if hasattr(phi, '__len__'):
+            wrapix = phi>pi
+            phi[wrapix] = phi[wrapix]%pi - pi
+        return phi%pi - pi
 
     @classmethod
     def unwrap_phi(cls, phi):
@@ -799,7 +769,7 @@ class PoissonDiscSphere():
         # remove all sample points that wrap around sphere including both individual points that exceed
         # boundaries and all children of coarse grained points that exceed boundaries
         if truncate_to_bounds:
-            width = self.width[0]+dangle[0,0], self.width[1]+dangle[0,1]
+            width = self.width[0]+dangle[0,0], self.width[1]+dangle[0,0]
             height = self.height[0]+dangle[0,1], self.height[1]+dangle[0,1]
         else:
             width = -pi, pi
@@ -919,6 +889,38 @@ def cartesian_com(phi, theta):
     com = np.array([np.arctan2(com[1], com[0]), np.arccos(com[2])-pi/2])
     return com
 
+@njit
+def find_first_in_r(xy, xyOther, r):
+    """Find index of first point that is within distance r. This avoid a distance
+    calculation between all pairs if a faster condition can be satisfied.
+    
+    Parameters
+    ----------
+    xy : ndarray
+        two elements
+    xyOther : ndarray
+        List of coordinates.
+    r : float
+
+    Returns
+    -------
+    int
+        Index of either first element within r/2 or closest point if no point is
+        within r/2.
+    """
+    
+    dmin = 4  # knowing that max geodesic distance on spherical surface is pi
+    minix = 0
+    for i in range(len(xyOther)):
+        d = 2*arcsin( np.sqrt(sin((xy[1]-xyOther[i,1])/2)**2 +
+                              cos(xy[1])*cos(xyOther[i,1])*sin((xy[0]-xyOther[i,0])/2)**2) )
+        # since closest possible spacing is r, a distance of r/2 indicates a guaranteed coarse neighbor
+        if d<=(r/2):
+            return i
+        elif d<dmin:
+            dmin = d
+            minix = i
+    return minix
 
 
 class SphereCoordinate():
