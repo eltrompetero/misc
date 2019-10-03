@@ -366,6 +366,10 @@ class PoissonDiscSphere():
         
         warn("PoissonDiscSphere.get_neighbours() is now deprecated. Use neighbors() instead.")
         return self.neighbors(*args, **kwargs)
+    
+    def delete_coarse_grid(self):
+        self.coarseGrid = None
+        self.coarseNeighbors = None
 
     def neighbors(self, xy,
                   fast=False,
@@ -782,20 +786,22 @@ class PoissonDiscSphere():
         else:
             coarseToRemove = False
         
-        if coarseToRemove:
-            # collect all children of coarse nodes to remove
-            for ix in coarseToRemove:
-                samplesToRemove += self.samplesByGrid[ix]
-            samplesToRemove = list(set(samplesToRemove))  # remove duplicates
+        #    # collect all children of coarse nodes to remove
+        #    for ix in coarseToRemove:
+        #        samplesToRemove += self.samplesByGrid[ix]
+        #    samplesToRemove = list(set(samplesToRemove))  # remove duplicates
+        # remove all samples
         if samplesToRemove:
             if self.iprint:
                 print("Removing %d samples."%len(samplesToRemove))
             samples = np.delete(samples, samplesToRemove, axis=0)
-            if not coarseGrid is None:
-                coarseGrid = np.delete(coarseGrid, coarseToRemove, axis=0)
-            
             if samples.size==0:
-                raise Exception("No samples left in domain after expansion.")
+                raise NoVoronoiTilesRemaining("No samples left in domain after expansion.")
+        # remove all coarse grid centers
+        if not coarseGrid is None and coarseToRemove:
+            coarseGrid = np.delete(coarseGrid, coarseToRemove, axis=0)
+            if len(coarseGrid)==0:
+                coarseGrid = None
         
         # Undo earlier offsets
         samples -= dangle
@@ -823,7 +829,9 @@ class PoissonDiscSphere():
                 self.unwrap_phi(coarseGrid[:,0])
         
         self.samples = samples
-        if not coarseGrid is None:
+        if coarseGrid is None:
+            self.delete_coarse_grid()
+        else:
             self.set_coarse_grid(coarseGrid)
     
     def _default_plot_kw(self):
@@ -1410,3 +1418,7 @@ class Quaternion():
             return True
         return False
 #end Quaternion
+
+
+class NoVoronoiTilesRemaining(Exception):
+    pass
