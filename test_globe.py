@@ -126,12 +126,13 @@ def test_PoissonDiscSphere(use_coarse_grid=True):
     assert not poissd.within_limits(np.array([.5, .2]))
     assert poissd.within_limits(np.array([[0, .2]]))
     assert not poissd.within_limits(np.array([[.5, .2]]))
+    print("Test passed: Boundaries checking works.")
 
-    # make sure that closest neighbor is the closest one in the entire sample
     pt = np.array([.2,.3])
     nearestix = poissd.closest_neighbor(pt)
     d = poissd.dist(pt, poissd.samples)
     assert nearestix==np.argmin(d)
+    print("Test passed: Closest neighbor is the closest one in the entire sample.")
 
     samples = poissd.samples.copy()
     poissd.expand(1)

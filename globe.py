@@ -929,6 +929,23 @@ class PoissonDiscSphere():
                     (self.height[0]<=xy[:,1]) & (xy[:,1]<=self.height[1])).all()
         return ((self.width[0]<=xy[:,0]) & (xy[:,0]<=self.width[1]) &
                 (self.height[0]<=xy[:,1]) & (xy[:,1]<=self.height[1])).all()
+
+    def slow_neighbor(self, xy):
+        """Find closest neighbor by comparison with all pairwise distances. This is meant
+        as a check for the fast algorithm.
+
+        Parameters
+        ----------
+        xy : ndarray
+            Only a single coordinate.
+
+        Returns
+        -------
+        int
+        """
+        
+        assert xy.ndim==1
+        return np.argmin(self.dist(xy, self.samples))
 #end PoissonDiscSphere
     
 def cartesian_com(phi, theta):
