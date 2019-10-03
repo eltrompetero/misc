@@ -6,15 +6,18 @@ import numpy as np
 from numpy import sin,cos,arcsin,arccos,arctan2,pi
 
 
-def mod_angle(angle):
+def mod_angle(angle, radians=True):
     """
-    Modulus into (-pi,pi).
+    Modulus into (-pi,pi) or (-180,180).
     
-    Params:
-    -------
-    angle (ndarray)
+    Parameters
+    ----------
+    angle : ndarray
     """
-    return np.mod(angle+np.pi,2*np.pi)-np.pi
+    
+    if radians:
+        return np.mod(angle+np.pi,2*np.pi)-np.pi
+    return np.mod(angle+180,2*180)-180
 
 def phase_dist(phi1,phi2=None):
     """

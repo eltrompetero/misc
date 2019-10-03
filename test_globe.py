@@ -102,6 +102,7 @@ def test_PoissonDiscSphere(use_coarse_grid=True):
     from scipy.spatial.distance import pdist
     
     # Generate coarse grid
+    # These include the discontinuity in phi in the interval.
     if use_coarse_grid:
         poissdCoarse = PoissonDiscSphere(pi/50*3,
                                    fast_sample_size=5,
@@ -121,11 +122,17 @@ def test_PoissonDiscSphere(use_coarse_grid=True):
                                rng=np.random.RandomState(1))
     poissd.sample()
 
-    # make sure that closest neighbor is the closest one in the entire sample
+    assert poissd.within_limits(np.array([0, .2]))
+    assert not poissd.within_limits(np.array([.5, .2]))
+    assert poissd.within_limits(np.array([[0, .2]]))
+    assert not poissd.within_limits(np.array([[.5, .2]]))
+    print("Test passed: Boundaries checking works.")
+
     pt = np.array([.2,.3])
     nearestix = poissd.closest_neighbor(pt)
     d = poissd.dist(pt, poissd.samples)
     assert nearestix==np.argmin(d)
+    print("Test passed: Closest neighbor is the closest one in the entire sample.")
 
     samples = poissd.samples.copy()
     poissd.expand(1)
@@ -146,7 +153,8 @@ def test_PoissonDiscSphere(use_coarse_grid=True):
             np.isclose(d[0], d[2], atol=1e-6, rtol=1).all())
     print("Test passed: pairwise distances remain unchanged.")
 
-    poissd.expand(10, force=True)
+    # allow samples to grow to entire region of globe to test whether cutoffs work properly or not
+    poissd.expand(10, force=True, truncate_to_bounds=False)
     assert ( (0<poissd.samples[:,0])&((2*pi)>poissd.samples[:,0]) ).all()
     assert ( ((-pi/2)<poissd.samples[:,1])&((pi/2)>poissd.samples[:,1]) ).all()
     assert ( (0<poissd.coarseGrid[:,0])&((2*pi)>poissd.coarseGrid[:,0]) ).all()

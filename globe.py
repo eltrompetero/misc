@@ -307,8 +307,8 @@ class PoissonDiscSphere():
         """
 
         assert r>0,r
-        assert 0<=width_bds[0]<=2*pi and 0<=width_bds[1]<=2*pi
-        assert -pi/2<=height_bds[0]<=height_bds[1]<=pi/2
+        assert 0<=width_bds[0]<2*pi and 0<=width_bds[1]<2*pi
+        assert -pi/2<=height_bds[0]<height_bds[1]<=pi/2
 
         self.width, self.height = width_bds, height_bds
         self.r = r
@@ -339,6 +339,8 @@ class PoissonDiscSphere():
 
         self.coarseGrid = coarse_grid
         if not self.coarseGrid is None:
+            assert type(coarse_grid) is np.ndarray
+            assert coarse_grid.shape[1]==2
             self.preprocess_coarse_grid()
             self.samplesByGrid = [[] for i in self.coarseGrid]
 
@@ -364,6 +366,10 @@ class PoissonDiscSphere():
         
         warn("PoissonDiscSphere.get_neighbours() is now deprecated. Use neighbors() instead.")
         return self.neighbors(*args, **kwargs)
+    
+    def delete_coarse_grid(self):
+        self.coarseGrid = None
+        self.coarseNeighbors = None
 
     def neighbors(self, xy,
                   fast=False,
@@ -404,7 +410,7 @@ class PoissonDiscSphere():
         if not self.coarseGrid is None:
             if len(self.samples)>0:
                 # find the closest coarse grid point
-                allSurroundingGridIx = self.coarseNeighbors[self.find_first_in_r(xy, self.coarseGrid, self.r)]
+                allSurroundingGridIx = self.coarseNeighbors[find_first_in_r(xy, self.coarseGrid, self.r)]
                 neighbors = []
                 for ix in allSurroundingGridIx:
                     neighbors += self.samplesByGrid[ix]
@@ -664,40 +670,6 @@ class PoissonDiscSphere():
             return 2*arcsin( np.sqrt(sin((x[:,1]-y[:,1])/2)**2 +
                              cos(x[:,1])*cos(y[:,1])*sin((x[:,0]-y[:,0])/2)**2) )
         return 2*arcsin( np.sqrt(sin((x[1]-y[1])/2)**2+cos(x[1])*cos(y[1])*sin((x[0]-y[0])/2)**2) )
-    
-    @staticmethod
-    @njit
-    def find_first_in_r(xy, xyOther, r):
-        """Find index of first point that is within distance r. This avoid a distance
-        calculation between all pairs if a faster condition can be satisfied.
-        
-        Parameters
-        ----------
-        xy : ndarray
-            two elements
-        xyOther : ndarray
-            List of coordinates.
-        r : float
-
-        Returns
-        -------
-        int
-            Index of either first element within r/2 or closest point if no point is
-            within r/2.
-        """
-        
-        dmin = 4  # knowing that max geodesic distance on spherical surface is pi
-        minix = 0
-        for i in range(len(xyOther)):
-            d = 2*arcsin( np.sqrt(sin((xy[1]-xyOther[i,1])/2)**2 +
-                                  cos(xy[1])*cos(xyOther[i,1])*sin((xy[0]-xyOther[i,0])/2)**2) )
-            # since closest possible spacing is r, a distance of r/2 indicates a guaranteed coarse neighbor
-            if d<=(r/2):
-                return i
-            elif d<dmin:
-                dmin = d
-                minix = i
-        return minix
 
     @staticmethod
     def fast_dist(x,y):
@@ -722,8 +694,10 @@ class PoissonDiscSphere():
     
     @classmethod
     def wrap_phi(cls, phi):
-        wrapix = phi>pi
-        phi[wrapix] = phi[wrapix]%pi - pi
+        if hasattr(phi, '__len__'):
+            wrapix = phi>pi
+            phi[wrapix] = phi[wrapix]%pi - pi
+        return phi%pi - pi
 
     @classmethod
     def unwrap_phi(cls, phi):
@@ -739,7 +713,7 @@ class PoissonDiscSphere():
         theta[:] -= pi/2
         return reverseix
 
-    def expand(self, factor, force=False):
+    def expand(self, factor, force=False, truncate_to_bounds=True):
         """Expand or contract grid by a constant factor. This operation maintains the
         center of mass projected onto the surface of the sphere fixed.
 
@@ -748,6 +722,8 @@ class PoissonDiscSphere():
         factor : float
         force : bool, False
             If True, carries out expansion even if points must be deleted.
+        truncate_to_bounds : bool, True
+            If True, then only keep points that fall within the bounds of the class.
         """
 
         samples = self.samples.copy()
@@ -796,27 +772,36 @@ class PoissonDiscSphere():
 
         # remove all sample points that wrap around sphere including both individual points that exceed
         # boundaries and all children of coarse grained points that exceed boundaries
-        samplesToRemove = np.where((samples[:,0]<-pi) | (samples[:,0]>pi) |
-                                   (samples[:,1]<(-pi/2)) | (samples[:,1]>(pi/2)))[0].tolist()
+        if truncate_to_bounds:
+            width = self.width[0]+dangle[0,0], self.width[1]+dangle[0,0]
+            height = self.height[0]+dangle[0,1], self.height[1]+dangle[0,1]
+        else:
+            width = -pi, pi
+            height = -pi/2, pi/2
+        samplesToRemove = np.where((samples[:,0]<width[0]) | (samples[:,0]>width[1]) |
+                                   (samples[:,1]<height[0]) | (samples[:,1]>height[1]))[0].tolist()
         if not coarseGrid is None:
-            coarseToRemove = np.where((coarseGrid[:,0]<-pi) | (coarseGrid[:,0]>pi) |
-                                      (coarseGrid[:,1]<(-pi/2)) | (coarseGrid[:,1]>(pi/2)))[0].tolist()
+            coarseToRemove = np.where((coarseGrid[:,0]<width[0]) | (coarseGrid[:,0]>width[1]) |
+                                      (coarseGrid[:,1]<height[0]) | (coarseGrid[:,1]>height[1]))[0].tolist()
         else:
             coarseToRemove = False
         
-        if coarseToRemove:
-            # collect all children of coarse nodes to remove
-            for ix in coarseToRemove:
-                samplesToRemove += self.samplesByGrid[ix]
-            samplesToRemove = list(set(samplesToRemove))  # remove duplicates
+        #    # collect all children of coarse nodes to remove
+        #    for ix in coarseToRemove:
+        #        samplesToRemove += self.samplesByGrid[ix]
+        #    samplesToRemove = list(set(samplesToRemove))  # remove duplicates
+        # remove all samples
         if samplesToRemove:
             if self.iprint:
                 print("Removing %d samples."%len(samplesToRemove))
             samples = np.delete(samples, samplesToRemove, axis=0)
-            coarseGrid = np.delete(coarseGrid, coarseToRemove, axis=0)
-            
             if samples.size==0:
-                raise Exception("No samples left in domain after expansion.")
+                raise NoVoronoiTilesRemaining("No samples left in domain after expansion.")
+        # remove all coarse grid centers
+        if not coarseGrid is None and coarseToRemove:
+            coarseGrid = np.delete(coarseGrid, coarseToRemove, axis=0)
+            if len(coarseGrid)==0:
+                coarseGrid = None
         
         # Undo earlier offsets
         samples -= dangle
@@ -844,15 +829,27 @@ class PoissonDiscSphere():
                 self.unwrap_phi(coarseGrid[:,0])
         
         self.samples = samples
-        if not coarseGrid is None:
+        if coarseGrid is None:
+            self.delete_coarse_grid()
+        else:
             self.set_coarse_grid(coarseGrid)
     
     def _default_plot_kw(self):
-        return {'xlabel':'phi', 'ylabel':'theta', 'xlim':(0,2*pi),'ylim':(-pi/2,pi/2)}
+        return {'xlabel':r'$\phi$', 'ylabel':r'$\theta$', 'xlim':self.width,'ylim':self.height}
 
-    def plot(self, fig=None, ax=None,
-             kw_ax_set=None):
+    def plot(self,
+             fig=None,
+             ax=None,
+             kw_ax_set=None,
+             apply_mod=False):
         """
+        Parameters
+        ----------
+        fig : matplotlib.Figure, None
+        ax : matplotlib.Axes, None
+        kw_ax_set : dict, None
+        apply_mod : bool, False
+            If True, wrap phi to [-pi,pi].
         """
 
         if fig is None:
@@ -862,11 +859,17 @@ class PoissonDiscSphere():
 
         for i in range(len(self.coarseGrid)):
             ix = self.samplesByGrid[i]
-            h = ax.plot(self.samples[ix,0], self.samples[ix,1], 'o')[0]
-            ax.plot(self.coarseGrid[i,0], self.coarseGrid[i,1], 'x', c=h.get_mfc(), mew=3)
+            if apply_mod:
+                h = ax.plot(mod_angle(self.samples[ix,0]), self.samples[ix,1], 'o')[0]
+                ax.plot(mod_angle(self.coarseGrid[i,0]), self.coarseGrid[i,1], 'x', c=h.get_mfc(), mew=3)
+            else:
+                h = ax.plot(self.samples[ix,0], self.samples[ix,1], 'o')[0]
+                ax.plot(self.coarseGrid[i,0], self.coarseGrid[i,1], 'x', c=h.get_mfc(), mew=3)
         
         if kw_ax_set is None:
             kw_ax_set = self._default_plot_kw()
+            if apply_mod:
+                kw_ax_set['xlim'] = mod_angle(kw_ax_set['xlim'][0]), mod_angle(kw_ax_set['xlim'][1])
 
         ax.set(**kw_ax_set)
         return fig
@@ -896,6 +899,53 @@ class PoissonDiscSphere():
 
         pixIx = [upixIx[i] for i in invix]
         return pixIx
+
+    def within_limits(self, xy):
+        """Check if given points are within the boundaries of this tesselation.
+        
+        Parameters
+        ----------
+        xy : ndarray
+            Assuming that this is already within bounds phi in [0,2pi] and theta in
+            [-pi/2,pi/2].
+
+        Returns
+        -------
+        bool
+        """
+
+        assert type(xy) is np.ndarray
+        if xy.ndim==1:
+            # case where the interval includes the discontinuity at 2pi
+            if self.width[0]>self.width[1]:
+                return (((self.width[0]<=xy[0]) or (xy[0]<=self.width[1])) and
+                        (self.height[0]<=xy[1]<=self.height[1]))
+            return ((self.width[0]<=xy[0]<=self.width[1]) and
+                    (self.height[0]<=xy[1]<=self.height[1]))
+        
+        assert xy.shape[1]==2
+        if self.width[0]>self.width[1]:
+            return (((self.width[0]<=xy[:,0]) | (xy[:,0]<=self.width[1])) &
+                    (self.height[0]<=xy[:,1]) & (xy[:,1]<=self.height[1])).all()
+        return ((self.width[0]<=xy[:,0]) & (xy[:,0]<=self.width[1]) &
+                (self.height[0]<=xy[:,1]) & (xy[:,1]<=self.height[1])).all()
+
+    def slow_neighbor(self, xy):
+        """Find closest neighbor by comparison with all pairwise distances. This is meant
+        as a check for the fast algorithm.
+
+        Parameters
+        ----------
+        xy : ndarray
+            Only a single coordinate.
+
+        Returns
+        -------
+        int
+        """
+        
+        assert xy.ndim==1
+        return np.argmin(self.dist(xy, self.samples))
 #end PoissonDiscSphere
     
 def cartesian_com(phi, theta):
@@ -910,6 +960,38 @@ def cartesian_com(phi, theta):
     com = np.array([np.arctan2(com[1], com[0]), np.arccos(com[2])-pi/2])
     return com
 
+@njit
+def find_first_in_r(xy, xyOther, r):
+    """Find index of first point that is within distance r. This avoid a distance
+    calculation between all pairs if a faster condition can be satisfied.
+    
+    Parameters
+    ----------
+    xy : ndarray
+        two elements
+    xyOther : ndarray
+        List of coordinates.
+    r : float
+
+    Returns
+    -------
+    int
+        Index of either first element within r/2 or closest point if no point is
+        within r/2.
+    """
+    
+    dmin = 4  # knowing that max geodesic distance on spherical surface is pi
+    minix = 0
+    for i in range(len(xyOther)):
+        d = 2*arcsin( np.sqrt(sin((xy[1]-xyOther[i,1])/2)**2 +
+                              cos(xy[1])*cos(xyOther[i,1])*sin((xy[0]-xyOther[i,0])/2)**2) )
+        # since closest possible spacing is r, a distance of r/2 indicates a guaranteed coarse neighbor
+        if d<=(r/2):
+            return i
+        elif d<dmin:
+            dmin = d
+            minix = i
+    return minix
 
 
 class SphereCoordinate():
@@ -1399,3 +1481,7 @@ class Quaternion():
             return True
         return False
 #end Quaternion
+
+
+class NoVoronoiTilesRemaining(Exception):
+    pass
