@@ -835,7 +835,7 @@ class PoissonDiscSphere():
             self.set_coarse_grid(coarseGrid)
     
     def _default_plot_kw(self):
-        return {'xlabel':'phi', 'ylabel':'theta', 'xlim':(0,2*pi),'ylim':(-pi/2,pi/2)}
+        return {'xlabel':r'$\phi$', 'ylabel':r'$\theta$', 'xlim':self.width,'ylim':self.height}
 
     def plot(self, fig=None, ax=None,
              kw_ax_set=None):
