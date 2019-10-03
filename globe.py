@@ -307,8 +307,8 @@ class PoissonDiscSphere():
         """
 
         assert r>0,r
-        assert 0<=width_bds[0]<=2*pi and 0<=width_bds[1]<=2*pi
-        assert -pi/2<=height_bds[0]<=height_bds[1]<=pi/2
+        assert 0<=width_bds[0]<2*pi and 0<=width_bds[1]<2*pi
+        assert -pi/2<=height_bds[0]<height_bds[1]<=pi/2
 
         self.width, self.height = width_bds, height_bds
         self.r = r
@@ -837,9 +837,19 @@ class PoissonDiscSphere():
     def _default_plot_kw(self):
         return {'xlabel':r'$\phi$', 'ylabel':r'$\theta$', 'xlim':self.width,'ylim':self.height}
 
-    def plot(self, fig=None, ax=None,
-             kw_ax_set=None):
+    def plot(self,
+             fig=None,
+             ax=None,
+             kw_ax_set=None,
+             apply_mod=False):
         """
+        Parameters
+        ----------
+        fig : matplotlib.Figure, None
+        ax : matplotlib.Axes, None
+        kw_ax_set : dict, None
+        apply_mod : bool, False
+            If True, wrap phi to [-pi,pi].
         """
 
         if fig is None:
@@ -849,11 +859,17 @@ class PoissonDiscSphere():
 
         for i in range(len(self.coarseGrid)):
             ix = self.samplesByGrid[i]
-            h = ax.plot(self.samples[ix,0], self.samples[ix,1], 'o')[0]
-            ax.plot(self.coarseGrid[i,0], self.coarseGrid[i,1], 'x', c=h.get_mfc(), mew=3)
+            if apply_mod:
+                h = ax.plot(mod_angle(self.samples[ix,0]), self.samples[ix,1], 'o')[0]
+                ax.plot(mod_angle(self.coarseGrid[i,0]), self.coarseGrid[i,1], 'x', c=h.get_mfc(), mew=3)
+            else:
+                h = ax.plot(self.samples[ix,0], self.samples[ix,1], 'o')[0]
+                ax.plot(self.coarseGrid[i,0], self.coarseGrid[i,1], 'x', c=h.get_mfc(), mew=3)
         
         if kw_ax_set is None:
             kw_ax_set = self._default_plot_kw()
+            if apply_mod:
+                kw_ax_set['xlim'] = mod_angle(kw_ax_set['xlim'][0]), mod_angle(kw_ax_set['xlim'][1])
 
         ax.set(**kw_ax_set)
         return fig
@@ -883,6 +899,36 @@ class PoissonDiscSphere():
 
         pixIx = [upixIx[i] for i in invix]
         return pixIx
+
+    def within_limits(self, xy):
+        """Check if given points are within the boundaries of this tesselation.
+        
+        Parameters
+        ----------
+        xy : ndarray
+            Assuming that this is already within bounds phi in [0,2pi] and theta in
+            [-pi/2,pi/2].
+
+        Returns
+        -------
+        bool
+        """
+
+        assert type(xy) is np.ndarray
+        if xy.ndim==1:
+            # case where the interval includes the discontinuity at 2pi
+            if self.width[0]>self.width[1]:
+                return (((self.width[0]<=xy[0]) or (xy[0]<=self.width[1])) and
+                        (self.height[0]<=xy[1]<=self.height[1]))
+            return ((self.width[0]<=xy[0]<=self.width[1]) and
+                    (self.height[0]<=xy[1]<=self.height[1]))
+        
+        assert xy.shape[1]==2
+        if self.width[0]>self.width[1]:
+            return (((self.width[0]<=xy[:,0]) | (xy[:,0]<=self.width[1])) &
+                    (self.height[0]<=xy[:,1]) & (xy[:,1]<=self.height[1])).all()
+        return ((self.width[0]<=xy[:,0]) & (xy[:,0]<=self.width[1]) &
+                (self.height[0]<=xy[:,1]) & (xy[:,1]<=self.height[1])).all()
 #end PoissonDiscSphere
     
 def cartesian_com(phi, theta):

@@ -102,6 +102,7 @@ def test_PoissonDiscSphere(use_coarse_grid=True):
     from scipy.spatial.distance import pdist
     
     # Generate coarse grid
+    # These include the discontinuity in phi in the interval.
     if use_coarse_grid:
         poissdCoarse = PoissonDiscSphere(pi/50*3,
                                    fast_sample_size=5,
@@ -120,6 +121,11 @@ def test_PoissonDiscSphere(use_coarse_grid=True):
                                height_bds=(0,.5),
                                rng=np.random.RandomState(1))
     poissd.sample()
+
+    assert poissd.within_limits(np.array([0, .2]))
+    assert not poissd.within_limits(np.array([.5, .2]))
+    assert poissd.within_limits(np.array([[0, .2]]))
+    assert not poissd.within_limits(np.array([[.5, .2]]))
 
     # make sure that closest neighbor is the closest one in the entire sample
     pt = np.array([.2,.3])
