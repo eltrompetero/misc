@@ -1168,12 +1168,26 @@ def acf(x, length=20,iters=0,nonan=True):
                 for i in range(1, length)]), samp
 
 def fix_err_bars(y, yerr, ymn, ymx, dy=1e-10):
-    """
-    Return 2xN array of low error and high error points having removed negative
+    """Return 2xN array of low error and high error points having removed negative
     values. Might need this when extent of error bars return negative values that are
     impossible.
 
     This fits right into pyplot.errorbar() xerr or yerr options
+
+    Parameters
+    ----------
+    y : ndarray
+    yerr : ndarray
+        Vector of errors, one for each value in y.
+    ymn : float or ndarray
+    ymx : float or ndarray
+    dy : float, 1e-10
+        Padding to put at lower and upper bounds.
+
+    Returns
+    -------
+    ndarray
+        Array that can be put into errorbar yerr or xerr options.
     """
 
     yerru = yerr.copy()
@@ -1181,7 +1195,9 @@ def fix_err_bars(y, yerr, ymn, ymx, dy=1e-10):
     yerrl = yerr.copy()
     yerrl[(y-yerr)<=ymn] += (y-yerr)[(y-yerr)<=ymn] -dy
 
-    return np.vstack((yerrl,yerru))
+    yerr = np.vstack((yerrl,yerru))
+    yerr[yerr<0] = 0
+    return yerr
 
 def hist_log(data,bins,
              density=False,
