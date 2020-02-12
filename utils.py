@@ -81,6 +81,7 @@ def ortho_plane(v):
     
     return r1, r2
 
+
 def max_dist_pair2D(xy, force_slow=False, return_dist=False):
     """Find most distant pair of points in 2D Euclidean space.
 

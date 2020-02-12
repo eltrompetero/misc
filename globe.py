@@ -1,14 +1,15 @@
-# ===================================================================================== #
+# ====================================================================================== #
 # Module for useful functions on the 2D sphere.
-# Author: Eddie Lee, edl56@cornell.edu
-# ===================================================================================== #
+# Author: Eddie Lee, edlee@santafe.edu
+# ====================================================================================== #
 import numpy as np
-from numpy import cos,sin,arctan2,arccos,arcsin,pi
-from .angle import Quaternion
+from numpy import cos, sin, arctan2, arccos, arcsin, pi
 from numba import jitclass, float64, njit, jit
 from warnings import warn
-from .angle import mod_angle
+from .angle import mod_angle, Quaternion
 import matplotlib.pyplot as plt
+from scipy.spatial.distance import pdist
+from .utils import ind_to_sub
 
 
 def rand(n=1, degree=True):
@@ -199,7 +200,7 @@ def pixelate_voronoi(X, poissd, offset, lonlat=True):
     
     return splitix, np.array(clusteredPixIx), pixIxByOriginalIx
 
-def max_dist_pair(xy, return_dist=False):
+def __max_dist_pair(xy, return_dist=False):
     """Pair of points maximally distance from each other on sphere.
 
     Parameters
@@ -229,7 +230,68 @@ def max_dist_pair(xy, return_dist=False):
     if return_dist:
         return ix, haversine(xy[ix[0]], xy[ix[1]])
     return ix
-            
+
+def max_geodist_pair(phitheta, force_slow=False, return_dist=False):
+    """Find approximately most distant pair of points on surface of the sphere. First,
+    collapse points onto 2D plane that is orthogonal to vector to center of mass of
+    points. Then, assume that the convex hull contains the most distant pair of points.
+    This is different from max_dist_pair2D() because we use the haversine distance for
+    this last step.
+
+    Parameters
+    ----------
+    xy : ndarray
+        (x,y) coordinations
+    force_slow : bool, False
+        Use slow calculation computing entire matrix of pairwise distances.
+    return_dist : bool, False
+
+    Returns
+    -------
+    tuple
+        Indices of two max separated points.
+    """
+    
+    from .utils import convex_hull, ind_to_sub, ortho_plane
+
+    if type(phitheta) is list:
+        phitheta = np.vstack(phitheta)
+    
+    # it is faster to do every pairwise computation when the size of the is small
+    if force_slow or len(phitheta)<500:
+        return _max_dist_pair(phitheta, return_dist)
+
+    xyz = np.zeros((len(phitheta), 3))
+    xyz[:,0] = np.sin(phitheta[:,1]) * np.cos(phitheta[:,0])
+    xyz[:,1] = np.sin(phitheta[:,1]) * np.sin(phitheta[:,0])
+    xyz[:,2] = np.cos(phitheta[:,1])
+
+    # collapse points down to plane orthogonal to center of mass
+    mxyz = xyz.mean(0)
+    mxyz /= np.linalg.norm(mxyz)
+    v1, v2 = ortho_plane(mxyz)
+
+    xy = np.vstack((xyz.dot(v1), xyz.dot(v2))).T
+    
+    hull = convex_hull(xy, recursive=True)
+    dist = pdist(phitheta[hull], jithaversine)
+    mxix = ind_to_sub(hull.size, dist.argmax())
+    if return_dist:
+        return (hull[mxix[0]], hull[mxix[1]]), dist.max()
+    return hull[mxix[0]], hull[mxix[1]]
+          
+def _max_dist_pair(phitheta, return_dist):
+    """Slow way of finding maximally distant pair by checking every pair.
+    """
+    
+    assert len(phitheta)>1
+    dmat = pdist(phitheta, jithaversine)
+    dmaxix = dmat.argmax()
+    majix = ind_to_sub(len(phitheta), dmaxix)
+    if return_dist:
+        return majix, dmat[dmaxix]
+    return majix
+
 
 # ======= #
 # Classes #
@@ -306,20 +368,19 @@ class PoissonDiscSphere():
         rng : np.random.RandomState, None
         """
 
-        assert r>0,r
+        assert r>0, r
         assert 0<=width_bds[0]<2*pi and 0<=width_bds[1]<2*pi
         assert -pi/2<=height_bds[0]<height_bds[1]<=pi/2
 
         self.width, self.height = width_bds, height_bds
         self.r = r
         self.nTries = n_tries
+        # this determines how far away new neighboring points are allowed to be from from
+        # the starting point
         self.unif_theta_bounds = (1+np.cos(r))/2, (1+np.cos(2*r))/2
         self.fastSampleSize = fast_sample_size
         self.iprint = iprint
-        if rng is None:
-            self.rng = np.random.RandomState()
-        else:
-            self.rng = rng
+        self.rng = rng or np.random.RandomState()
         
         # set up grid
         self.kCoarse = k_coarse
@@ -444,7 +505,8 @@ class PoissonDiscSphere():
                 neighbors = np.argsort(d)[:top_n]
                 if apply_dist_threshold:
                     # calculate true distance for applying cutoff
-                    neighbors = neighbors[self.dist(self.samples[neighbors],xy)<=(2*self.r*apply_dist_threshold)]
+                    ix = self.dist(self.samples[neighbors],xy)<=(2*self.r*apply_dist_threshold)
+                    neighbors = neighbors[ix]
             else:
                 d = self.dist(xy, np.vstack(self.samples))
                 neighbors = np.argsort(d)[:top_n]
@@ -513,17 +575,20 @@ class PoissonDiscSphere():
         return neighborix[np.argmin(distance)]
 
     def closest_neighbor_dist(self, pt, ignore_zero=1e-9):
-        """
+        """Given a point on the globe, find the sample of closest distance to it. Assumes
+        that we have nonzero number of samples.
+
         Parameters
         ----------
         pt : tuple
+            Angular specification of point.
         ignore_zero : float,1e-9
             Distances smaller than this are ignored for returning the min distance.
 
         Returns
         -------
-        mindist : float
-            On a unit sphere. Multiply by the radius to get it in the desired units.
+        float
+            Min distance on a unit sphere (units of radians).
         """
 
         distance = self.dist(pt, self.samples[self.neighbors(pt)])
@@ -560,6 +625,7 @@ class PoissonDiscSphere():
         sphereRefpt = jitSphereCoordinate(refpt[0]%(2*pi), refpt[1]+pi/2)
         i = 0
         while i < self.nTries:
+            # generate a random perturbation of this point within allowed bounds
             pt = sphereRefpt.random_shift_controlled(self.unif_theta_bounds, *self.rng.rand(2))
             # put theta back into same range as this class (since SphereCoordinate uses [0,pi]
             pt = np.array([pt[0], pt[1]-pi/2])
@@ -607,8 +673,9 @@ class PoissonDiscSphere():
         if not self.coarseGrid is None:
             self.samplesByGrid = [[] for i in self.coarseGrid]
             
-        # must account for periodic boundary conditions when generating new points and checking validity of
-        # proposed points. By temporarily changing the boundary conditions, we can ensure that such tasks will
+        # must account for periodic boundary conditions when generating new points and
+        # checking validity of proposed points. By temporarily changing the boundary
+        # conditions, we can ensure that such tasks will
         # be performed correctly.
         if self.width[0]>self.width[1]:
             self.width = self.width[0]-2*pi, self.width[1]
@@ -620,7 +687,8 @@ class PoissonDiscSphere():
         if not self.coarseGrid is None:
             self.samplesByGrid[self.assign_grid_point(pt)].append(0)
 
-        # and it is active, in the sense that we're going to look for more points in its neighborhood.
+        # and it is active, in the sense that we're going to look for more points in its
+        # neighborhood.
         active = [0]
 
         # As long as there are points in the active list, keep looking for samples.
@@ -638,13 +706,13 @@ class PoissonDiscSphere():
                 if not self.coarseGrid is None:
                     self.samplesByGrid[self.assign_grid_point(pt[0])].append(len(self.samples)-1)
             else:
-                # We had to give up looking for valid points near refpt, so remove it from the list of
-                # "active" points.
+                # We had to give up looking for valid points near refpt, so remove it from
+                # the list of "active" points.
                 active.remove(idx)
         
         self.samples = np.vstack(self.samples)
-        # When doing a fast distance computation, we cannot take a sample smaller than the size of the system
-        # so cap the number of comparisons to the total sample size.
+        # When doing a fast distance computation, we cannot take a sample smaller than the
+        # size of the system so cap the number of comparisons to the total sample size.
         if len(self.samples)<self.fastSampleSize:
             self.fastSampleSize = len(self.samples)
         if not self.coarseGrid is None:
