@@ -178,16 +178,20 @@ def ECDF(x, conf_interval=None, n_boot_samples=250, as_delta=True):
     if as_delta:
         return (ecdf,
                 interp1d(ux, ecdf(ux)-np.percentile(ecdfSample, conf_interval[0], axis=0),
+                         kind='previous',
                          fill_value=(0,1),
                          bounds_error=False),
                 interp1d(ux, np.percentile(ecdfSample, conf_interval[1], axis=0)-ecdf(ux),
+                         kind='previous',
                          fill_value=(0,1),
                          bounds_error=False))
     return (ecdf,
             interp1d(ux, np.percentile(ecdfSample, conf_interval[0], axis=0),
+                     kind='previous',
                      fill_value=(0,1),
                      bounds_error=False),
             interp1d(ux, np.percentile(ecdfSample, conf_interval[1], axis=0),
+                     kind='previous',
                      fill_value=(0,1),
                      bounds_error=False))
 
@@ -878,7 +882,7 @@ class PowerLaw(DiscretePowerLaw):
             size=(size,)
         assert all([type(s) is int for s in size])
         alpha*=1.
-        rng = rng or np.random
+        rng = rng or self.random
 
         upper_bound = upper_bound or self.upper_bound
         lower_bound = lower_bound or self.lower_bound
@@ -887,9 +891,9 @@ class PowerLaw(DiscretePowerLaw):
     
     @classmethod
     def cdf(cls, alpha=None, lower_bound=None, upper_bound=None):
-        alpha=alpha or cls._default_alpha
-        lower_bound=lower_bound or cls._default_lower_bound
-        upper_bound=upper_bound or cls._default_upper_bound
+        alpha = alpha or cls._default_alpha
+        lower_bound = lower_bound or cls._default_lower_bound
+        upper_bound = upper_bound or cls._default_upper_bound
         
         if upper_bound is None:
             def cdf(x, alpha=alpha, lower_bound=lower_bound):
@@ -1703,7 +1707,8 @@ def bivariate_reg(x, y,
                   initial_guess=None,
                   iprint=False,
                   full_output=False,
-                  min_kw={'bounds':[(-np.inf,np.inf),(-np.inf,np.inf),(1e-4,np.inf),(1e-4,np.inf)]}):
+                  min_kw={'bounds':[(-np.inf,np.inf),(-np.inf,np.inf),
+                                    (1e-4,np.inf),(1e-4,np.inf)]}):
     """Bivariate regression. Assuming Gaussian errors on both x and y axes. The width of
     errors is part of the fitting process.
     
@@ -1719,6 +1724,8 @@ def bivariate_reg(x, y,
         If True, also print helpful messages.
     full_output : bool, False
         If True, also return output from scipy.optimize.minimize.
+    min_kw : dict, {'bounds':[(-np.inf,np.inf),(-np.inf,np.inf),
+                              (1e-4,np.inf),(1e-4,np.inf)]}
 
     Returns
     -------
@@ -1787,11 +1794,12 @@ def loglog_fit(x, y, p=2, iprint=False, full_output=False, symmetric=True):
     if symmetric:
         def cost(params):
             a,b=params
-            return (np.abs(a*np.log(x)+b-np.log(y))**p).sum()+(np.abs(np.log(x)+b/a-np.log(y)/a)**p).sum()
+            return ( (np.abs(a*np.log(x)+b-np.log(y))**p).sum() +
+                     (np.abs(np.log(x)+b/a-np.log(y)/a)**p).sum() )
     else:
         def cost(params):
             a,b=params
-            return (np.abs(a*np.log(x)+b-np.log(y))**p).sum()
+            return (np.abs(a*np.log(x) + b - np.log(y))**p).sum()
 
     soln = minimize(cost, [1,0])
     if iprint and not soln['success']:
