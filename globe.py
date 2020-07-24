@@ -14,25 +14,26 @@ from .utils import ind_to_sub
 
 
 def rand(n=1, degree=True):
-    """Sample points from the surface of a sphere.
+    """Randomly sample points from the surface of a sphere.
 
     Parameters
     ----------
-    n : int,1
-    degree : bool,True
+    n : int, 1
+    degree : bool, True
 
     Returns
     -------
     randlon : float
     randlat : float
     """
+
     if degree:
-        randlat=arccos(2*np.random.rand(n)-1)/pi*180-90
-        randlon=np.random.uniform(-180,180,size=n)
-        return randlon,randlat
-    randlat=arccos(2*np.random.rand(n)-1)-pi/2
-    randlon=np.random.uniform(-pi,pi,size=n)
-    return randlon,randlat
+        randlat = arccos(2*np.random.rand(n)-1)/pi*180-90
+        randlon = np.random.uniform(-180,180,size=n)
+        return randlon, randlat
+    randlat = arccos(2*np.random.rand(n)-1)-pi/2
+    randlon = np.random.uniform(-pi,pi,size=n)
+    return randlon, randlat
 
 def haversine(x, y, r=1):
     """
@@ -139,7 +140,7 @@ def pixelate_voronoi(X, poissd, offset, lonlat=True):
     Parameters
     ----------
     X : pandas.DataFrame or ndarray
-        DataFrame: must have 'LONGITUDE' and 'LATITUDE' columns in units of degrees.
+        DataFrame: must have 'longitude' and 'latitude' columns in units of degrees.
         ndarray: must be columns in order of lat and lon.
     poissd : PoissonDiscSphere
         Used to determine neighbors.
@@ -164,10 +165,10 @@ def pixelate_voronoi(X, poissd, offset, lonlat=True):
         # consistent with the dataframe's.
         originalix = X.index
         if lonlat:
-            lat, lon=X.loc[:,'LATITUDE'].values, X.loc[:,'LONGITUDE'].values%360-offset
+            lat, lon=X.loc[:,'latitude'].values, X.loc[:,'longitude'].values%360-offset
             pixIx = poissd.closest_neighbor(np.vstack(lonlat2angle(lon, lat)).T, ignore_zero=False)
         else:
-            theta, phi = X.loc[:,'LATITUDE'].values, X.loc[:,'LONGITUDE'].values
+            theta, phi = X.loc[:,'latitude'].values, X.loc[:,'longitude'].values
             pixIx = poissd.closest_neighbor(np.vstack((phi, theta)).T, ignore_zero=False)
         uniqIx = np.unique(pixIx)
 
