@@ -1,14 +1,15 @@
 # ===================================================================================== #
 # Module for useful functions.
-# Author : Eddie Lee, edlee@alumni.princeton.edu
+# Author : Eddie Lee, edlee@santafe.edu
 # ===================================================================================== #
 import numpy as np
 import math
 from multiprocess import Pool,cpu_count
-from numba import jit,njit
+from numba import jit, njit
 from numbers import Number
 from scipy.spatial.distance import pdist
 from .easy_jit import *
+from warnings import warn
 i0p=(9.999999999999997e-1,2.466405579426905e-1,
 	1.478980363444585e-2,3.826993559940360e-4,5.395676869878828e-6,
 	4.700912200921704e-8,2.733894920915608e-10,1.115830108455192e-12,
@@ -1063,7 +1064,8 @@ def unique_rows(mat, return_inverse=False):
     idx : ndarray
         Row indices of given mat that will give unique array.
     """
-
+    
+    warn("It is faster to call np.unique.")
     b = np.ascontiguousarray(mat).view(np.dtype((np.void, mat.dtype.itemsize * mat.shape[1])))
     if not return_inverse:
         _, idx = np.unique(b, return_index=True)
