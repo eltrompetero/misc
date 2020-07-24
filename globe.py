@@ -4,7 +4,8 @@
 # ====================================================================================== #
 import numpy as np
 from numpy import cos, sin, arctan2, arccos, arcsin, pi
-from numba import jitclass, float64, njit, jit
+from numba import float64, njit, jit
+from numba.experimental import jitclass
 from warnings import warn
 from .angle import mod_angle, Quaternion
 import matplotlib.pyplot as plt
@@ -427,17 +428,13 @@ class PoissonDiscSphere():
         
         warn("PoissonDiscSphere.get_neighbours() is now deprecated. Use neighbors() instead.")
         return self.neighbors(*args, **kwargs)
-    
-    def delete_coarse_grid(self):
-        self.coarseGrid = None
-        self.coarseNeighbors = None
 
     def neighbors(self, xy,
                   fast=False,
                   top_n=None,
                   apply_dist_threshold=False,
                   return_dist=False):
-        """Return top_n neighbors in the grid according to the fast Euclidean distance
+        """Return top_n neighbors in the grid with option to use fast Euclidean distance
         calculation. All neighbors are guaranteed to be within 2*r*apply_dist_threshold
         though neighbors may not be the closest ones (or sorted) if the fast heuristic is
         used.
@@ -466,25 +463,24 @@ class PoissonDiscSphere():
         """
 
         top_n = top_n or self.fastSampleSize
+        threshold = 2 * self.r * apply_dist_threshold
         
         # case where coarse grid is defined
         if not self.coarseGrid is None:
-            if len(self.samples)>0:
+            if len(self.samples):
                 # find the closest coarse grid point
                 allSurroundingGridIx = self.coarseNeighbors[find_first_in_r(xy, self.coarseGrid, self.r)]
+                
+                # concatenate list of all neighbors that are within the surrounding grid pts
                 neighbors = []
                 for ix in allSurroundingGridIx:
                     neighbors += self.samplesByGrid[ix]
+
                 if apply_dist_threshold:
                     d = self.dist(self.samples[neighbors], xy)
-                    # sorting is unnecessary and may slow things down...
-                    sortix = np.argsort(d)
-                    d = d[sortix]
-                    neighbors = neighbors[sortix]
-                    cutoffix = np.searchsorted(d, 2*self.r*apply_dist_threshold)+1
-                    neighbors = neighbors[:cutoffix] 
-                    d = d[:cutoffix]
-                    neighbors = neighbors.tolist()
+                    # select elements satisfying distance criterion
+                    neighbors = [neighbors[i] for i, d_ in enumerate(d) if d_<=threshold]
+                    d = [d_ for d_ in d if d_<=threshold]
 
                 if return_dist and apply_dist_threshold:
                     return neighbors, d
@@ -496,7 +492,7 @@ class PoissonDiscSphere():
                 return [], []
             return []
 
-        if len(self.samples)>0:
+        if len(self.samples):
             if self.iprint: "No coarse grid available, all pairwise comparisons to find neighbors."
 
             # find the closest point
@@ -505,14 +501,14 @@ class PoissonDiscSphere():
                 neighbors = np.argsort(d)[:top_n]
                 if apply_dist_threshold:
                     # calculate true distance for applying cutoff
-                    ix = self.dist(self.samples[neighbors],xy)<=(2*self.r*apply_dist_threshold)
+                    ix = self.dist(self.samples[neighbors], xy) <= threshold
                     neighbors = neighbors[ix]
             else:
                 d = self.dist(xy, np.vstack(self.samples))
                 neighbors = np.argsort(d)[:top_n]
                 if apply_dist_threshold:
                     # can reuse results of distance calculation in this case
-                    neighbors = neighbors[d[neighbors]<=(2*self.r*apply_dist_threshold)]
+                    neighbors = neighbors[d[neighbors]<=threshold]
             if return_dist:
                 return neighbors.tolist(), d[neighbors]
             return neighbors.tolist()
