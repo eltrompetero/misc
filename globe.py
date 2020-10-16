@@ -3,6 +3,7 @@
 # Author: Eddie Lee, edlee@santafe.edu
 # ====================================================================================== #
 import numpy as np
+import pandas as pd
 from numpy import cos, sin, arctan2, arccos, arcsin, pi
 from numba import float64, njit, jit
 from numba.experimental import jitclass
@@ -11,6 +12,7 @@ from .angle import mod_angle, Quaternion
 import matplotlib.pyplot as plt
 from scipy.spatial.distance import pdist
 from .utils import ind_to_sub
+
 
 
 def rand(n=1, degree=True):
@@ -66,6 +68,12 @@ def jithaversine(x, y):
 
     return 2. * arcsin(np.sqrt( sin((x[1]-y[1])/2)**2 +
                                 cos(x[1])*cos(y[1])*sin((x[0]-y[0])/2)**2 ))
+
+def lonlat2angle(lon, lat):
+    return lon/180*np.pi, lat/180*np.pi
+
+def latlon2angle(lat, lon):
+    return lat/180*np.pi, lon/180*np.pi
 
 def vincenty(point1, point2, a, f, MAX_ITERATIONS=200, CONVERGENCE_THRESHOLD=1e-12):
     """
