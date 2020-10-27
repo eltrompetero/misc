@@ -8,9 +8,11 @@ from numpy import cos, sin, arctan2, arccos, arcsin, pi
 from numba import float64, njit, jit
 from numba.experimental import jitclass
 from warnings import warn
-from .angle import mod_angle, Quaternion
 import matplotlib.pyplot as plt
 from scipy.spatial.distance import pdist
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
+from .angle import mod_angle, Quaternion
 from .utils import ind_to_sub
 
 
@@ -916,7 +918,8 @@ class PoissonDiscSphere():
              ax=None,
              kw_ax_set=None,
              apply_mod=False):
-        """
+        """Plot coarse grid square plot of angles theta by phi.
+
         Parameters
         ----------
         fig : matplotlib.Figure, None
@@ -947,6 +950,49 @@ class PoissonDiscSphere():
 
         ax.set(**kw_ax_set)
         return fig
+
+    def plot_on_map(self,
+                    fig=None,
+                    ax=None,
+                    fig_kw={'figsize':(5,5)},
+                    ax_kw={},
+                    plot_kw={'s':8, 'alpha':.2, 'color':'k','lw':0},
+                    lon_offset=330):
+        """Scatter plot on map of Earth.
+
+        Parameters
+        ----------
+        fig : matplotlib.Figure, None
+        ax : matplotlib.Axes, None
+        fig_kw : dict, {'figsize':(5,5)}
+        ax_kw : dict, {}
+        plot_kw : dict, {'s':8, 'alpha':.2, 'color':'k','lw':0}
+        lon_offset : float, 330
+            To center voronoi grid above Africa.
+
+        Returns
+        -------
+        matplotlib.Figure
+        matplotlib.Axes
+        """
+
+        if fig is None:
+            fig = plt.figure(**fig_kw)
+            ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
+        elif ax is None:
+            ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
+
+        ax.add_feature(cfeature.LAND)
+        ax.add_feature(cfeature.OCEAN)
+        ax.add_feature(cfeature.COASTLINE)
+        ax.add_feature(cfeature.BORDERS)
+
+        # show centers of voronoi cells
+        ax.scatter(self.samples[:,0]/np.pi*180+lon_offset,
+                   self.samples[:,1]/np.pi*180,
+                   transform=ccrs.PlateCarree(),
+                   **plot_kw)
+        return fig, ax 
 
     def pixelate(self, xy):
         """Assign given coordinates to pixel in self.samples.
