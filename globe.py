@@ -71,11 +71,17 @@ def jithaversine(x, y):
     return 2. * arcsin(np.sqrt( sin((x[1]-y[1])/2)**2 +
                                 cos(x[1])*cos(y[1])*sin((x[0]-y[0])/2)**2 ))
 
-def lonlat2angle(lon, lat):
-    return lon/180*np.pi, lat/180*np.pi
+def latlon2angle(*args):
+    """
+    Parameters
+    ----------
+    lonlat as one or lon,lat
+    """
 
-def latlon2angle(lat, lon):
-    return lat/180*np.pi, lon/180*np.pi
+    if len(args)==2:
+        lat, lon = args
+        return lat/180*np.pi, lon/180*np.pi
+    return args[0]/180*np.pi
 
 def vincenty(point1, point2, a, f, MAX_ITERATIONS=200, CONVERGENCE_THRESHOLD=1e-12):
     """
@@ -981,16 +987,20 @@ class PoissonDiscSphere():
             ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
         elif ax is None:
             ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
-
-        ax.add_feature(cfeature.LAND)
-        ax.add_feature(cfeature.OCEAN)
-        ax.add_feature(cfeature.COASTLINE)
-        ax.add_feature(cfeature.BORDERS)
+        
+        # add geographic features
+        ax.add_feature(cfeature.LAND, zorder=0)
+        ax.add_feature(cfeature.OCEAN, zorder=0)
+        ax.add_feature(cfeature.COASTLINE, zorder=0)
+        ax.add_feature(cfeature.BORDERS, zorder=0)
+        ax.add_feature(cfeature.RIVERS, zorder=0)
+        ax.add_feature(cfeature.LAKES, zorder=0)
 
         # show centers of voronoi cells
         ax.scatter(self.samples[:,0]/np.pi*180+lon_offset,
                    self.samples[:,1]/np.pi*180,
                    transform=ccrs.PlateCarree(),
+                   zorder=1,
                    **plot_kw)
         return fig, ax 
 
@@ -1011,7 +1021,7 @@ class PoissonDiscSphere():
         """
         
         # check that lon and lat are within bounds used for this code
-        assert ((xy[:,0]>0) & (xy[:,0]<2*pi) & (-pi/2<xy[:,1]) & (xy[:,1]<pi/2)).all()
+        assert ((xy[:,0]>=0) & (xy[:,0]<2*pi) & (-pi/2<=xy[:,1]) & (xy[:,1]<=pi/2)).all()
         
         # only pixelate unique coordinates so we don't have to waste time repeating distance calculation
         uxy, invix = np.unique(xy, axis=0, return_inverse=True)
