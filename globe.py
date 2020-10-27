@@ -460,6 +460,7 @@ class PoissonDiscSphere():
             If True, that value will be multiplied to the distance window 2*self.r and
             only points within that distance will be returned as potential neighbors.
         return_dist : bool, False
+            If True, return solid angle to top_n neighbors that were compared.
             If no coarse grid available, distance to each point in self.samples can be
             returned.
 
@@ -468,7 +469,7 @@ class PoissonDiscSphere():
         list of lists
             neighbor_ix
         ndarray
-            Distance to neighbors.
+            Solid angle distance to neighbors.
         """
 
         top_n = top_n or self.fastSampleSize
@@ -492,7 +493,7 @@ class PoissonDiscSphere():
                     d = [d_ for d_ in d if d_<=threshold]
 
                 if return_dist and apply_dist_threshold:
-                    return neighbors, d
+                    return neighbors, np.array(d)  # dist has already been calculated for this
                 elif return_dist:
                     d = self.dist(self.samples[neighbors], xy)
                     return neighbors, d
