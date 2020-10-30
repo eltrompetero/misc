@@ -1,6 +1,6 @@
 # ====================================================================================== #
 # Testing suite for globe.py
-# Author: Eddie Lee, edl56@cornell.edu
+# Author: Eddie Lee, edlee@santafe.edu
 # ====================================================================================== #
 from .globe import *
 from numpy import pi
@@ -8,8 +8,28 @@ import numpy as np
 
 
 def test_haversine():
-    assert haversine([0,0],[0,0])==0
-    assert np.isclose(haversine([0,0],[2*pi,0]),0)
+    np.random.RandomState(0)
+    # simple checks for distances between the same point
+    assert haversine([0,0], [0,0])==0
+    assert np.isclose(haversine([0,0], [2*pi,0]), 0)
+    
+    # make sure that random rotations don't change distances
+    x = SphereCoordinate(1,0,0)
+    y = SphereCoordinate(0,1,0)
+    z = SphereCoordinate(0,0,1)
+    assert np.isclose([x.geo_dist(z), z.geo_dist(x), y.geo_dist(z)], pi/2).all()
+    
+    for i in range(3):
+        # some random rotation axis
+        rotvec = np.random.normal(size=3)
+        d = np.random.uniform(0, 2*pi)
+
+        x = x.rotate(rotvec, d)
+        y = y.rotate(rotvec, d)
+        z = z.rotate(rotvec, d)
+
+        # these should all be the same
+        assert np.isclose([x.geo_dist(z), z.geo_dist(x), y.geo_dist(z)], pi/2).all()
 
 def test_quaternion():
     from numpy import sin,cos,pi
@@ -105,10 +125,10 @@ def test_PoissonDiscSphere(use_coarse_grid=True):
     # These include the discontinuity in phi in the interval.
     if use_coarse_grid:
         poissdCoarse = PoissonDiscSphere(pi/50*3,
-                                   fast_sample_size=5,
-                                   width_bds=(2*pi-.25,.25),
-                                   height_bds=(0,.5),
-                                   rng=np.random.RandomState(0))
+                                         fast_sample_size=5,
+                                         width_bds=(2*pi-.25,.25),
+                                         height_bds=(0,.5),
+                                         rng=np.random.RandomState(0))
         poissdCoarse.sample()
         cg = poissdCoarse.samples
     else:

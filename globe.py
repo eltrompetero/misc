@@ -4,7 +4,7 @@
 # ====================================================================================== #
 import numpy as np
 import pandas as pd
-from numpy import cos, sin, arctan2, arccos, arcsin, pi
+from numpy import cos, sin, arctan2, arccos, arcsin, pi, arctan
 from numba import float64, njit, jit
 from numba.experimental import jitclass
 from warnings import warn
@@ -44,16 +44,24 @@ def haversine(x, y, r=1):
     Parameters
     ----------
     x,y : tuple
-        (phi, theta)
-    radius : float,1
+        (phi, theta) azimuthal angle first
+    radius : float, 1
 
     Returns
     -------
     dist : float
     """
+    
+    dphi = y[0] - x[0]
+    # assuming that convention of theta in [0,pi] holds, this shift of coordinate system
+    # will vastly enhance accuracy of calculation
+    th1 = x[1] - pi/2
+    th2 = y[1] - pi/2
 
-    return r * 2. * arcsin(np.sqrt( sin((x[1]-y[1])/2)**2 +
-                                    cos(x[1])*cos(y[1])*sin((x[0]-y[0])/2)**2 ))
+    num = np.sqrt((cos(th2) * sin(dphi))**2 + (cos(th1)*sin(th2) -
+                  sin(th1) * cos(th2) * cos(dphi))**2)
+    den = sin(th1) * sin(th2) + cos(th1) * cos(th2) * cos(dphi)
+    return r * arctan2(num, den)
 
 @njit
 def jithaversine(x, y):
@@ -68,8 +76,16 @@ def jithaversine(x, y):
     dist : float
     """
 
-    return 2. * arcsin(np.sqrt( sin((x[1]-y[1])/2)**2 +
-                                cos(x[1])*cos(y[1])*sin((x[0]-y[0])/2)**2 ))
+    dphi = y[0] - x[0]
+    # assuming that convention of theta in [0,pi] holds, this shift of coordinate system
+    # will vastly enhance accuracy of calculation
+    th1 = x[1] - pi/2
+    th2 = y[1] - pi/2
+
+    num = np.sqrt((cos(th2) * sin(dphi))**2 + (cos(th1)*sin(th2) -
+                  sin(th1) * cos(th2) * cos(dphi))**2)
+    den = sin(th1) * sin(th2) + cos(th1) * cos(th2) * cos(dphi)
+    return arctan2(num, den)
 
 def latlon2angle(*args):
     """
@@ -84,8 +100,7 @@ def latlon2angle(*args):
     return args[0]/180*np.pi
 
 def vincenty(point1, point2, a, f, MAX_ITERATIONS=200, CONVERGENCE_THRESHOLD=1e-12):
-    """
-    Vincenty's formula (inverse method) to calculate the distance between two points on
+    """Vincenty's formula (inverse method) to calculate the distance between two points on
     the surface of a spheroid
 
     Parameters
@@ -1054,7 +1069,7 @@ class PoissonDiscSphere():
                     (self.height[0]<=xy[1]<=self.height[1]))
         
         assert xy.shape[1]==2
-        if self.width[0]>self.width[1]:
+        if self.width[1]>self.width[1]:
             return (((self.width[0]<=xy[:,0]) | (xy[:,0]<=self.width[1])) &
                     (self.height[0]<=xy[:,1]) & (xy[:,1]<=self.height[1])).all()
         return ((self.width[0]<=xy[:,0]) & (xy[:,0]<=self.width[1]) &
@@ -1128,7 +1143,6 @@ class SphereCoordinate():
     """Coordinate on unit sphere. Contains methods for easy manipulation and translation
     of points. Sphere is normalized to unit sphere.
     """
-
     def __init__(self, *args, rng=None):
         """
         Parameters
@@ -1146,19 +1160,22 @@ class SphereCoordinate():
     def update_xy(self, *args):
         """Store both Cartesian and spherical representation of point."""
 
-        if len(args)==2:
+        if len(args)==2:  # assuming angles are given
+            # theta is angle off z-axis
+            # phi is that around x-y plane
             phi, theta = args
             assert 0<=phi<=(2*pi)
             assert 0<=theta<=pi
             self.vec = np.array([cos(phi)*sin(theta), sin(phi)*sin(theta), cos(theta)])
             self.phi, self.theta = phi, theta
-        else:
+        else:  # assuming separate vector components are given
             assert len(args)==3 or len(args[0])==3
             if len(args)==3:
                 self.vec = np.array(args)
             else:
                 self.vec = args[0]
-                
+            
+            # enforce unit normalization
             self.vec = self.vec / (np.nextafter(0,1) + np.linalg.norm(self.vec))
             self.phi, self.theta = self._vec_to_angle(*self.vec)
     
@@ -1173,20 +1190,20 @@ class SphereCoordinate():
         return arctan2(y, x)%(2*pi), arccos(min(z, 1))
            
     def random_shift(self,return_angle=True,bds=[0,1]):
-        """
-        Return a vector that is randomly shifted away from this coordinate. This is done by
-        imagining that the north pole is aligned along this vector and then adding a random angle
-        and then rotating the north pole to align with this vector.
+        """Return a vector that is randomly shifted away from this coordinate. This is
+        done by imagining that the north pole is aligned along this vector and then adding
+        a random angle and then rotating the north pole to align with this vector.
 
-        Angles are given relative to the north pole; that is, theta in [0,pi] and phi in [0,2*pi].
+        Angles are given relative to the north pole; that is, theta in [0,pi] and phi in
+        [0,2*pi].
 
         Parameters
         ----------
         return_angle : bool,False
             If True, return random vector in form of a (phi,theta) pair.
         bds : tuple,[0,1]
-            Bounds on uniform number generator to only sample between fixed limits of theta. This
-            can be calculated using the formula
+            Bounds on uniform number generator to only sample between fixed limits of
+            theta. This can be calculated using the formula
                 (1+cos(theta)) / 2 = X
             where 0<=x<=1
 
@@ -1262,6 +1279,8 @@ class SphereCoordinate():
 
     def rotate_to_north_pole(self):
         """Parameters for rotating vector to north pole.
+
+        To rotate back from north pole, just take the negative of the calculated angle.
         
         Returns
         -------
@@ -1277,9 +1296,49 @@ class SphereCoordinate():
 
         return rotvec, d
 
+    def geo_dist(self, y):
+        """Great circle distance to other point y.
+        
+        Parameters
+        ----------
+        y : SphereCoordinate or twople
+
+        Returns
+        -------
+        float
+        """
+
+        if not isinstance(y, type(self)):
+            return haversine([self.phi, self.theta], y)
+
+        return haversine([self.phi, self.theta],
+                         [y.phi, y.theta])
+
+    def dot(self, y):
+        assert isinstance(y, type(self))
+        return self.vec.dot(y.vec)
+
+    def __repr__(self):
+        coord = self.vec[0], self.vec[1], self.vec[2], self.phi, self.theta
+        return "misc.globe.SphereCoordinate\nx=%1.4f\ny=%1.4f\nz=%1.4f\n\nphi=%1.4f\ntheta=%1.4f"%coord
+
     def __str__(self):
         coord = self.vec[0], self.vec[1], self.vec[2], self.phi, self.theta
         return "misc.globe.SphereCoordinate\nx=%1.4f\ny=%1.4f\nz=%1.4f\n\nphi=%1.4f\ntheta=%1.4f"%coord
+
+    def __add__(self, y):
+        assert isinstance(y, type(self))
+        newvec = self.vec + y.vec
+        if (newvec==0).all():
+            raise Exception("Vectors are parallel. No well-defined average.")
+        return SphereCoordinate(newvec)
+
+    def __sub__(self, y):
+        assert isinstance(y, type(self))
+        newvec = self.vec - y.vec
+        if (newvec==0).all():
+            raise Exception("Vectors are parallel. No well-defined average.")
+        return SphereCoordinate(newvec)
 #end SphereCoordinate
 
 
@@ -1542,8 +1601,8 @@ class jitQuaternion():
                          [2*(qi*qk-qj*qr), 2*(qj*qk+qi*qr), 1-2*(qi**2+qj**2)]])
 
     def rotate(self,r):
-        """Rotate this quaternion by the rotation specified in the given quaternion. The rotation
-        quaternion must be of form cos(theta/2) + (a i, b j, c k)*sin(theta/2)
+        """Rotate this quaternion by the rotation specified in the given quaternion. The
+        rotation quaternion must be of form cos(theta/2) + (a i, b j, c k)*sin(theta/2)
 
         Parameters
         ----------
@@ -1560,41 +1619,46 @@ class jitQuaternion():
 
 
 class Quaternion():
-    """Basic quaternion class.
+    """Basic quaternion class. This can be used to represent vectors and efficient
+    rotation operations on them.
     """
-    def __init__(self,a,b,c,d):
-        self.real=a
-        self.vec=np.array([b,c,d])
+    def __init__(self, a, b, c, d):
+        self.real = a  # magnitude of vector
+        self.vec = np.array([b,c,d])  # normalized components of vector
         
     def inv(self):
-        negvec=-self.vec
-        return Quaternion(self.real,*negvec)
+        negvec = -self.vec
+        return Quaternion(self.real, *negvec)
     
     def hprod(self,t):
-        """Right side Hamiltonian product."""
-        p=[self.real]+self.vec.tolist()
-        t=[t.real]+t.vec.tolist()
-        """Hamiltonian product between two quaternions."""
+        """Right side Hamiltonian product.
+        """
+
+        p = [self.real] + self.vec.tolist()
+        t = [t.real] + t.vec.tolist()
+
+        # Hamiltonian product between two quaternions
         return Quaternion( p[0]*t[0] -p[1]*t[1] -p[2]*t[2] -p[3]*t[3],
                            p[0]*t[1] +p[1]*t[0] +p[2]*t[3] -p[3]*t[2],
                            p[0]*t[2] -p[1]*t[3] +p[2]*t[0] +p[3]*t[1],
                            p[0]*t[3] +p[1]*t[2] -p[2]*t[1] +p[3]*t[0] )
     
     def rotmat(self):
-        qr=self.real
-        qi, qj, qk=self.vec
+        qr = self.real
+        qi, qj, qk = self.vec
         return np.array([[1-2*(qj**2+qk**2), 2*(qi*qj-qk*qr), 2*(qi*qk+qj*qr)],
                          [2*(qi*qj+qk*qr), 1-2*(qi**2+qk**2), 2*(qj*qk-qi*qr)],
                          [2*(qi*qk-qj*qr), 2*(qj*qk+qi*qr), 1-2*(qi**2+qj**2)]])
 
-    def rotate(self,r):
-        """Rotate this quaternion by the rotation specified in the given quaternion. The rotation
-        quaternion must be of form cos(theta/2) + (a i, b j, c k)*sin(theta/2)
+    def rotate(self, r):
+        """Rotate this quaternion by the rotation specified in the given quaternion. The
+        rotation quaternion must be of form cos(theta/2) + (a i, b j, c k)*sin(theta/2)
 
         Parameters
         ----------
         r : Quaternion
         """
+
         return r.hprod( self.hprod( r.inv() ) )
 
     def __str__(self):
