@@ -32,10 +32,8 @@ def test_haversine():
         assert np.isclose([x.geo_dist(z), z.geo_dist(x), y.geo_dist(z)], pi/2).all()
 
 def test_quaternion():
-    from numpy import sin,cos,pi
-    
     # Check that rotations combine approriately
-    theta=pi/4
+    theta = pi/4
     r=Quaternion(cos(theta/2),0,0,sin(theta/2))
     r2=r.hprod(r)
     assert np.isclose(r2.real,cos(pi/4)) and np.isclose(r2.vec[-1],sin(pi/4)),r2
@@ -141,7 +139,7 @@ def test_PoissonDiscSphere(use_coarse_grid=True):
                                height_bds=(0,.5),
                                rng=np.random.RandomState(1))
     poissd.sample()
-
+    
     assert poissd.within_limits(np.array([0, .2]))
     assert not poissd.within_limits(np.array([.5, .2]))
     assert poissd.within_limits(np.array([[0, .2]]))

@@ -1068,8 +1068,8 @@ class PoissonDiscSphere():
             return ((self.width[0]<=xy[0]<=self.width[1]) and
                     (self.height[0]<=xy[1]<=self.height[1]))
         
-        assert xy.shape[1]==2
-        if self.width[1]>self.width[1]:
+        assert xy.shape[1]==2, "Dimensions don't agree with angular coordinates."
+        if self.width[0]>self.width[1]:
             return (((self.width[0]<=xy[:,0]) | (xy[:,0]<=self.width[1])) &
                     (self.height[0]<=xy[:,1]) & (xy[:,1]<=self.height[1])).all()
         return ((self.width[0]<=xy[:,0]) & (xy[:,0]<=self.width[1]) &
