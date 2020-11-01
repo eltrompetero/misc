@@ -1,5 +1,5 @@
 # ====================================================================================== #
-# Module for useful functions on the 2D sphere.
+# Module for useful functions on the 2D surface of a sphere.
 # Author: Eddie Lee, edlee@santafe.edu
 # ====================================================================================== #
 import numpy as np
@@ -12,10 +12,37 @@ import matplotlib.pyplot as plt
 from scipy.spatial.distance import pdist
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
+from scipy.optimize import minimize
+from itertools import combinations
 from .angle import mod_angle, Quaternion
 from .utils import ind_to_sub
 
 
+
+# ==================== #
+# Standalone functions #
+# ==================== #
+def plot_unit_sphere(ax, radius=.98):
+    """Plot transparent unit sphere.
+    
+    Parameters
+    ----------
+    ax : mpl.Axes
+    radius : float, .98
+
+    Returns
+    -------
+    None
+    """
+
+    u = np.linspace(0, 2 * np.pi, 100)
+    v = np.linspace(0, np.pi, 100)
+    x = np.outer(np.cos(u), np.sin(v)) * radius
+    y = np.outer(np.sin(u), np.sin(v)) * radius
+    z = np.outer(np.ones(np.size(u)), np.cos(v)) * radius
+
+    # Plot the surface
+    ax.plot_surface(x, y, z, alpha=.2, color='k')
 
 def rand(n=1, degree=True):
     """Randomly sample points from the surface of a sphere.
@@ -96,8 +123,8 @@ def latlon2angle(*args):
 
     if len(args)==2:
         lat, lon = args
-        return lat/180*np.pi, lon/180*np.pi
-    return args[0]/180*np.pi
+        return lat/180*pi, lon/180*pi
+    return args[0]/180*pi
 
 def vincenty(point1, point2, a, f, MAX_ITERATIONS=200, CONVERGENCE_THRESHOLD=1e-12):
     """Vincenty's formula (inverse method) to calculate the distance between two points on
@@ -1012,8 +1039,8 @@ class PoissonDiscSphere():
         ax.add_feature(cfeature.LAKES, zorder=0)
 
         # show centers of voronoi cells
-        ax.scatter(self.samples[:,0]/np.pi*180+lon_offset,
-                   self.samples[:,1]/np.pi*180,
+        ax.scatter(self.samples[:,0]/pi*180+lon_offset,
+                   self.samples[:,1]/pi*180,
                    transform=ccrs.PlateCarree(),
                    zorder=1,
                    **plot_kw)
@@ -1307,24 +1334,30 @@ class SphereCoordinate():
         -------
         float
         """
-
+        
         if not isinstance(y, type(self)):
-            return haversine([self.phi, self.theta], y)
+            if len(y)==2:
+                return haversine([self.phi, self.theta], y)
+            elif len(y)==3:
+                return haversine((self.phi, self.theta),
+                                 self._vec_to_angle(*y))
+            raise Exception("Bad arg.")
 
         return haversine([self.phi, self.theta],
                          [y.phi, y.theta])
 
     def dot(self, y):
-        assert isinstance(y, type(self))
-        return self.vec.dot(y.vec)
+        if isinstance(y, type(self)):
+            return self.vec.dot(y.vec)
+        return self.vec.dot(y)
 
     def __repr__(self):
         coord = self.vec[0], self.vec[1], self.vec[2], self.phi, self.theta
-        return "misc.globe.SphereCoordinate\nx=%1.4f\ny=%1.4f\nz=%1.4f\n\nphi=%1.4f\ntheta=%1.4f"%coord
+        return "misc.globe.SphereCoordinate\nx=%1.4f, y=%1.4f, z=%1.4f\nphi=%1.4f, theta=%1.4f"%coord
 
     def __str__(self):
         coord = self.vec[0], self.vec[1], self.vec[2], self.phi, self.theta
-        return "misc.globe.SphereCoordinate\nx=%1.4f\ny=%1.4f\nz=%1.4f\n\nphi=%1.4f\ntheta=%1.4f"%coord
+        return "misc.globe.SphereCoordinate\nx=%1.4f, y=%1.4f, z=%1.4f\nphi=%1.4f, theta=%1.4f"%coord
 
     def __add__(self, y):
         assert isinstance(y, type(self))
@@ -1339,6 +1372,18 @@ class SphereCoordinate():
         if (newvec==0).all():
             raise Exception("Vectors are parallel. No well-defined average.")
         return SphereCoordinate(newvec)
+
+    def __lt__(self, y):
+        assert isinstance(y, type(self))
+        return self.vec < y.vec
+
+    def __gt__(self, y):
+        assert isinstance(y, type(self))
+        return self.vec > y.vec
+
+    def __eq__(self, y):
+        assert isinstance(y, type(self))
+        return np.array_equal(self.vec, y.vec)
 #end SphereCoordinate
 
 
@@ -1677,5 +1722,523 @@ class Quaternion():
 #end Quaternion
 
 
+
+class GreatCircle():
+    """Great circle that lives on unit sphere in 3D. This keeps track of it by using the
+    orthogonal plane and defining an arbitrary starting point for generating the full ring
+    of points.
+    """
+    def __init__(self, w, startvec=None):
+        """
+        Parameters
+        ----------
+        w : ndarray
+            Vector normal to defining plane.
+        startvec : ndarray, None
+            Always start tracing out great circle from this point. If not specified, try
+            to calculate some arbitrary starting point.
+        """
+        
+        assert w.size==3
+        
+        self.w = w / np.linalg.norm(w)
+        if startvec is None:
+            # choose arbitrary point along great circle as a starting point for cycling
+            randvec = np.random.normal(size=3)
+            self.startvec = np.cross(randvec, w)
+            self.startvec /= np.linalg.norm(self.startvec)
+        else:
+            assert startvec.size==3
+            self.startvec = startvec
+            assert np.isclose(self.startvec.dot(w), 0)
+        
+    def ring(self, as_angle=False):
+        """Define a function to trace out a great circle given a vector normal to its
+        plane and parameterized by the angle of rotation around the circle.
+
+        Parameters
+        ----------
+        as_angle : bool, False
+            If True, returned function gives ring in terms of angular coordinates.
+        
+        Returns
+        -------
+        function
+        """
+        
+        G0 = SphereCoordinate(self.startvec)
+        
+        if as_angle:
+            def ring_fcn(omega, G0=G0, w=self.w):
+                result = G0.rotate(w, omega)
+                return result.phi, result.theta
+            return ring_fcn
+        
+        def ring_fcn(omega, G0=G0, w=self.w):
+            result = G0.rotate(w, omega)
+            return result.vec
+        return ring_fcn
+
+    def intersect(self, v):
+        """Find the intersections of two great circles using their normal vectors.
+
+        Parameters
+        ----------
+        v : ndarray or GreatCircle
+
+        Returns
+        -------
+        ndarray
+            Two solutions as xyz coordinations.
+        """
+        
+        if isinstance(v, type(self)) or 'w' in v.__dict__.keys():
+            v = v.w
+        else:
+            assert np.linalg.norm(v)==1 and v.size==3
+        w = self.w
+        if np.array_equal(v, w):
+            raise Exception("Great circles are the same.")
+
+        fancyD = (v[0]*w[2] - w[0]*v[2]) / (w[1]*v[2] - v[1]*w[2])
+        xyz = np.zeros(3)
+        xyz[0] = np.sqrt(w[2]**2 / ((1+fancyD**2)*w[2]**2 + (w[0]+w[1]*fancyD)**2))
+        xyz[1] = np.sqrt(fancyD**2 * xyz[0]**2)
+        xyz[2] = np.sqrt(1-xyz[0]**2-xyz[1]**2)
+        
+        # meet condition for plane passing through origin
+        if np.isclose(w.dot(xyz), 0):  #+++
+            signsAreCorrect = True
+        else:
+            signsAreCorrect = False
+            
+        if not signsAreCorrect:  #-++
+            xyz[0] *= -1
+            if np.isclose(w.dot(xyz), 0):
+                signsAreCorrect = True
+        if not signsAreCorrect:  #+-+
+            xyz[0] *= -1
+            xyz[1] *= -1
+            if np.isclose(w.dot(xyz), 0):
+                signsAreCorrect = True
+        if not signsAreCorrect:  #--+
+            xyz[0] *= -1
+            if np.isclose(w.dot(xyz), 0):
+                signsAreCorrect = True
+        assert signsAreCorrect
+
+        return np.vstack((xyz, -xyz))
+
+    @classmethod
+    def bisector(cls, x, y):
+        """Given two points on the sphere, return an equation for the great circle passing
+        between the two equidistantly. Great circle is oriented towards y.
+
+        Parameters
+        ----------
+        x : SphereCoordinate
+        y : SphereCoordinate
+
+        Returns
+        -------
+        function
+            Parameterized by angle theta where theta=0 is the point that is halfway
+            between x and y on the sphere.
+            Plane is oriented towards y from x.
+        """
+
+        assert y!=x
+        w = y.vec - x.vec  # rotation axis (normal to plane of great circle)
+        G0 = x + y  # midpoint vector that points to one point along great circle
+
+        return GreatCircle(w, startvec=G0.vec)
+    
+    @classmethod
+    def ortho(cls, v, w0):
+        """Define great circle that passes thru w0 and forms a plane orthogonal to the
+        geodesic from v to w0.
+        
+        Plane is oriented such that normal vector points towards v.
+        
+        Parameters
+        ----------
+        v : SphereCoordinate
+            Start of geodesic.
+        w0 : SphereCoordinate
+            Point on great circle to be of minimal distance from v.
+            
+        Returns
+        -------
+        GreatCircle
+        """
+        
+        # construct normal vector for defining great circle
+        comp1 = v.vec.dot(w0.vec) * w0.vec
+        w = v.vec - comp1
+        
+        return GreatCircle(w, startvec=w0.vec)
+
+    def __str__(self):
+        return f"misc.globe.GreatCircle: omega={self.w}"
+
+    def __repr__(self):
+        return f"misc.globe.GreatCircle: omega={self.w}"
+#end GreatCircle
+
+
+
+class GreatCircleIntersect():
+    """Intersection of two great circles.
+    """
+    def __init__(self, g1, g2, xyz, d):
+        """
+        Parameters
+        ----------
+        g1 : GreatCircle
+        g2 : GreatCircle
+        xyz : ndarray
+            Point of intersection.
+        d : float
+            Distance from center point bounded by great circles.
+        """
+        
+        self.g1 = g1
+        self.g2 = g2
+        self.xyz = xyz
+        self.d = d
+        
+    def __eq__(self, y):
+        return ((((np.array_equal(self.g1, y.g1) and np.array_equal(self.g2, y.g2)) or
+                  (np.array_equal(self.g1, y.g2) and np.array_equal(self.g2, y.g1)))) and
+                 np.array_equal(self.xyz, y.xyz))
+
+    def __str__(self):
+        return f"misc.globe.GreatCircleIntersect\n{self.g1}\n{self.g2}"
+
+    def __repr__(self):
+        return f"misc.globe.GreatCircleIntersect\n{self.g1}\n{self.g2}"
+#end GreatCircleIntersect
+
+
+
+class VoronoiCell():
+    """Voronoi cell defined by the set of vertices denoting intersections of edges.
+
+    This can be used to determine cell boundaries. There are many places this could be
+    sped up including with the insertion and consideration of new edges.
+
+    Note that terminology "edges", "boundaries", "cuts", and "facets" are used
+    interchangeably.
+    """
+    def __init__(self, center, rng=None):
+        """
+        Parameters
+        ----------
+        center : SphereCoordinate
+            Center of cell.
+        rng : np.random.RandomState, None
+        """
+
+        self.center = center
+        self.vertices = []
+        self.edges = []
+        self.rng = rng or np.random
+
+        # Generate a plane passing thru center and tangential to sphere. This will be used
+        # to determine angular coordinates about the center.
+        self.x = np.cross(self.rng.normal(size=3), center.vec)
+        self.x /= np.linalg.norm(self.x)
+        self.y = np.cross(self.x, -center.vec)
+
+    def initialize_with_tri(self, pts):
+        """Initialize cell with a triangle generated from closest possible set of points.
+
+        Parameters
+        ----------
+        pts : list of SphereCoordinate
+
+        Returns
+        -------
+        list of ints
+            Indices of the points that are used to determine bisecting great circles that
+            define triangle boundaries.
+        """
+
+        # find lip wrapping center starting with pair of closests points to center
+        d = np.array([self.center.geo_dist(p) for p in pts])
+        assert (d>0).all(), "Center point shouldn't be included."
+        closepts = [pts[i] for i in np.argsort(d)[:2]]
+
+        # find intersections of the encompassing two geodesics
+        lipEdges = [GreatCircle.bisector(p, self.center) for p in closepts]
+        vertices = lipEdges[0].intersect(lipEdges[1])
+   
+        # determine third edge to cut out first vertex (this is arbitrary)
+        try:
+            thisV = vertices[0]
+            thisVix = 0
+            remainingPts, checkResult = self._third_edge(thisV, pts, d)
+        except AssertionError:  # try other vertex
+            thisV = vertices[1]
+            thisVix = 1
+            remainingPts, checkResult = self._third_edge(thisV, pts, d)
+        
+        # go thru other points to try to find a good bisector that will successfully
+        # remove thisV from the list of vertices
+        for i in range(np.isfinite(checkResult).sum()):
+            bg = GreatCircle.bisector(remainingPts[i], self.center)
+
+            # must be on positive side of the two great circles generating the
+            # intersection to encompass the center
+            # the center must also be on the positive side of the new plane
+            # now find two new vertices
+            xyz = bg.intersect(lipEdges[0])
+            sign = (lipEdges[1].w[None,:] * xyz).sum(1)>0
+            #assert any(sign)
+            #assert self.center.dot(lipEdges[1].w)>0
+            xyz = xyz[sign].ravel()
+            toConsider = [SphereCoordinate(xyz)]
+
+            xyz = bg.intersect(lipEdges[1])
+            sign = (lipEdges[0].w[None,:] * xyz).sum(1)>0
+            #assert any(sign)
+            #assert self.center.dot(lipEdges[0].w)>0
+            xyz = xyz[sign].ravel()
+            toConsider.append(SphereCoordinate(xyz))
+
+            # check that center is on the correct side
+            # oriented towards the vertex to be eliminated and thus away from the center
+            w = np.cross(toConsider[0].vec, toConsider[1].vec)
+            if w.dot(thisV) < 0:
+                w *= -1
+            if self.center.dot(w) < 0:
+                toAdd = toConsider
+                break
+        
+        self.edges = []
+        self.vertices = []
+        try:
+            for p1, p2 in combinations(toAdd + [vertices[1-thisVix]], 2):
+                self.add_edge(p1, p2)
+        except NameError:
+            raise Exception("Unsuccessful attempt at initializing a triangle. Only a lip found.")
+        
+        ix = np.argsort(d).tolist()
+        return ix[:2] + [ix[2:][np.argsort(checkResult)[i]]]
+    
+    def _third_edge(self, thisV, pts, d):
+        # check for any points that are on the same side as thisV and are close enough
+        posPlane = GreatCircle.ortho(SphereCoordinate(thisV), self.center)
+        twiced = self.center.geo_dist(thisV) * 2
+        checkResult = [self._check_pt(pts[i], posPlane, twiced) for i in np.argsort(d)[2:]]
+        assert any(np.isfinite(checkResult))
+
+        # sort remaining points by distance
+        remainingPts = [pts[i] for i in np.argsort(d)[2:]]
+        remainingPts = [remainingPts[i] for i in np.argsort(checkResult)]
+        return remainingPts, checkResult
+
+    def _check_pt(self, pt, posPlane, d):
+        """Return distance to pt if it is on positive side of plane and within distance of center.
+        """
+        
+        if pt.dot(posPlane.w)<=0:
+            return np.inf
+        
+        thisd = pt.geo_dist(self.center)
+        if thisd<d:
+            return thisd
+        return np.inf
+
+    def add_edge(self, p1, p2, G=None):
+        """Add edge by specifying the two vertices. These should be ordered such that the
+        cross product p1xp2 points into the cell. Otherwise, this can be done
+        automatically by specifying the center.
+        
+        Parameters
+        ----------
+        p1 : SphereCoordinate
+        p2 : SphereCoordinate
+        G : GreatCircle, None
+            Option to specify the great circle through which the edge passes.
+
+        Returns
+        -------
+        bool
+        """
+        
+        if isinstance(p1, np.ndarray):
+            p1 = SphereCoordinate(p1)
+        if isinstance(p2, np.ndarray):
+            p2 = SphereCoordinate(p2)
+        
+        if G is None:
+            w = np.cross(p1.vec, p2.vec)
+            if self.center.dot(w)<0:
+                temp = p1
+                p1 = p2
+                p2 = temp
+
+            if np.array_equal(p1.vec, -p2.vec):
+                raise Exception("Hemispheric edges not allowed.")
+
+            newEdge = (p1, p2, GreatCircle(np.cross(p1.vec, p2.vec)))
+        else:
+            # could insert check here to make sure that the order of p1 and p2 is
+            # consistent with the orientation of the GreatCircle
+            newEdge = (p1, p2, G)
+
+        # first check that new edge isn't extraneous
+        if len(self.edges)>2:
+            if not (self.inside(newEdge[0]) and self.inside(newEdge[1])):
+                return False
+
+        self.add_vertex(p1)
+        self.add_vertex(p2)
+        self.edges.append(newEdge)
+        return True
+    
+    def add_vertex(self, newv):
+        """Add vertex that isn't already in list.
+
+        Parameters
+        ----------
+        newv : SphereCoordinate
+        """
+
+        if all([v!=newv for v in self.vertices]):
+            self.vertices.append(newv)
+
+    def order_vertices(self):
+        """Order vertices in a counterclockwise fashion about the center.
+        """
+        
+        self.angle = np.zeros(len(self.vertices))
+        for i in range(self.angle.size):
+            self.angle[i] = arctan2(self.vertices[i].dot(self.y),
+                                    self.vertices[i].dot(self.x))
+        sortix = np.argsort(self.angle)
+        self.angle = self.angle[sortix]
+        self.vertices = [self.vertices[i] for i in sortix]
+
+    def add_cut(self, G):
+        """Determine new edge that should be added to cell given a cut of the cell with a
+        great circle.
+
+        Parameters
+        ----------
+        G : GreatCircle
+        """
+
+        assert len(self.edges)>1
+        
+        # there are at most two points of intersection
+        # first get all points of intersection with existing edges to find ones that are
+        # on the boundaries of the existing cell
+        xyz = np.vstack([G.intersect(edge[2]) for edge in self.edges])
+        xyz = [xyz_ for xyz_ in xyz if self.inside(xyz_)]
+        # if new cut goes through an existing vertex, there will seemingly be more than
+        # two intersections, so we must count the number of unique vertices carefully by
+        # accounting for precision errors
+        if len(xyz)>2:
+            # if this assertion statement is tripping, then the precision may be too high
+            # for accurate comparison
+            uxyz, uix = np.unique(np.around(xyz, 7), axis=0, return_inverse=True)
+            assert uxyz.shape[0]==2
+            uix = uix.tolist()
+            xyz = [xyz[uix.index(0)], xyz[uix.index(1)]]
+
+        # if zero points of intersection or one point of intersection at an already
+        # existing vertex, then disregard
+        if len(xyz)<=1: return False
+
+        self.add_edge(xyz[0], xyz[1])  # will be auto-oriented towards center
+        
+        # now eliminate extraneous vertices by accounting for this new edge
+        goodVertices = []
+        for v in self.vertices: 
+            if self.inside(v):
+                goodVertices.append(v)
+        self.vertices = goodVertices
+        self.reconstruct_hull()
+    
+    def reconstruct_hull(self):
+        """Reconstruct hull by looping around outside."""
+
+        self.order_vertices()
+        self.edges = []
+        for i in range(len(self.vertices)):
+            p1 = self.vertices[i]
+            p2 = self.vertices[(i+1)%len(self.vertices)]
+            G = GreatCircle(np.cross(p1.vec, p2.vec))
+            self.edges.append((p1, p2, G))
+
+    def inside(self, p, tol=1e-7, detailed=False):
+        """Check if given point is inside or outside Voronoi cell.
+
+        TODO: Faster loop method would stop loop as quick as there was at least one
+        outside point.
+        
+        Parameters
+        ----------
+        p : SphereCoordinate
+        tol : float, 1e-7
+            Allow for potentially this much precision error for calculating whether or not
+            boundary condition is positive.
+        detailed : bool, False
+            If True, return full list of edge-by-edge comparison.
+        
+        Returns
+        -------
+        bool (or list of bool)
+            True if inside.
+        """
+        
+        if detailed:
+            return [(p.dot(edge[2].w) + tol)>0 for edge in self.edges]
+        return all([(p.dot(edge[2].w) + tol)>0 for edge in self.edges])
+    
+    def outside(self, p):
+        return (not self.inside(p))
+
+    def boundaries(self, stepsize=1e-2):
+        """Return list of points outlining boundaries of the cell.
+
+        Parameters
+        ----------
+        stepsize : float, 1e-2
+        """
+
+        xyz = []
+        for i in range(len(self.edges)):
+            p1, p2, thisEdge = self.edges[i]
+
+            x = thisEdge.startvec
+            y = -np.cross(x, thisEdge.w)
+            
+            theta1 = arctan2(p1.dot(y), p1.dot(x))
+            theta2 = arctan2(p2.dot(y), p2.dot(x))
+
+            # if this passes thru discontinuity must account for jump
+            # remember that edges are defined such that the normal vector points towards
+            # the center
+            if (theta2-theta1)>pi:
+                theta1 += 2*pi
+            elif (theta2-theta1)<-pi:
+                theta1 -= 2*pi
+            #assert theta2 > theta1
+
+            f = thisEdge.ring()
+            theta = np.arange(int((theta2-theta1)/stepsize)+1) * stepsize + theta1
+            xyz.append(np.vstack([f(i) for i in theta]))
+
+        return xyz
+#end VoronoiCell
+
+
+
+# ================= #
+# Exception classes #
+# ================= #
 class NoVoronoiTilesRemaining(Exception):
     pass

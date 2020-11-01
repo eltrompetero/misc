@@ -7,6 +7,35 @@ from numpy import pi
 import numpy as np
 
 
+def test_VoronoiCell():
+    np.random.seed(0)
+    
+    for i in range(5):
+        # generate random points
+        pts = [SphereCoordinate(*np.random.normal(size=3)) for i in range(50)]
+        # by placing center at center of mass, we can avoid absurdly large cells that
+        # occur in open regions and boundaries of clusters
+        center = SphereCoordinate(np.vstack([pt.vec for pt in pts]).mean(0))
+
+        cell = VoronoiCell(center)
+        assert np.isclose(np.cross(cell.x, cell.y), center.vec).all()
+
+        newVertexIx = cell.initialize_with_tri(pts)
+
+def test_ortho_great_circle():
+    np.random.seed(0)
+    
+    for i in range(10):
+        # random points confined to the positive octant
+        v = SphereCoordinate(np.random.rand(3))
+        w0 = SphereCoordinate(np.random.rand(3))
+        G = GreatCircle.ortho(v, w0)
+        f = G.ring(as_angle=True)
+        d0 = v.geo_dist(w0)
+        assert np.isclose(v.geo_dist(f(.01)), v.geo_dist(f(-.01))), "Not symmetric."
+        assert (d0 < v.geo_dist(f(.001))) and (d0 < v.geo_dist(f(-.001))), "Not min distance."
+        assert v.dot(G.w)>0
+
 def test_haversine():
     np.random.RandomState(0)
     # simple checks for distances between the same point
