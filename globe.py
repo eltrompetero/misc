@@ -353,6 +353,7 @@ def _max_dist_pair(phitheta, return_dist):
     return majix
 
 
+
 # ======= #
 # Classes #
 # ======= #
@@ -383,6 +384,7 @@ class PoissonDiscSphere():
     r : float
     rng : np.randomRandomState
     samples : ndarray
+        Azimuthal angle comes first.
     samplesByGrid : list
     unif_theta_bounds : tuple
         For sampling neighbors when generating the random tiling.
@@ -856,8 +858,8 @@ class PoissonDiscSphere():
         else:
             coarseGrid = None
         
-        # To make discontinuities easier to work with, center everything about phi=0 where phi in [-pi,pi] and
-        # theta=0 in [-pi/2,pi/2].
+        # To make discontinuities easier to work with, center everything about phi=0 where
+        # phi in [-pi,pi] and theta=0 in [-pi/2,pi/2].
         assert factor>0
         try:
             # wrap sample phi's to [-pi,pi]
@@ -1205,6 +1207,7 @@ class SphereCoordinate():
             # enforce unit normalization
             self.vec = self.vec / (np.nextafter(0,1) + np.linalg.norm(self.vec))
             self.phi, self.theta = self._vec_to_angle(*self.vec)
+        self.angle = np.array([self.phi, self.theta])
     
     @classmethod
     def _angle_to_vec(cls, phi, theta):
@@ -1950,6 +1953,32 @@ class VoronoiCell():
         self.x /= np.linalg.norm(self.x)
         self.y = np.cross(self.x, -center.vec)
 
+    def lip(self, pts):
+        """Find lip bounding the center with closest two points.
+
+        Parameters
+        ----------
+        pts : list of SphereCoordinate
+
+        Returns
+        -------
+        list of ints
+            Indices of the points that are used to determine bisecting great circles that
+            define lips boundaries.
+        """
+
+        # find lip wrapping center starting with pair of closests points to center
+        d = np.array([self.center.geo_dist(p) for p in pts])
+        assert (d>0).all(), "Center point shouldn't be included."
+        closeptsIx = np.argsort(d)[:2].tolist()
+        closepts = pts[closeptsIx[0]], pts[closeptsIx[1]]
+
+        # find intersections of the encompassing two geodesics
+        lipEdges = [GreatCircle.bisector(p, self.center) for p in closepts]
+        vertices = lipEdges[0].intersect(lipEdges[1])
+
+        return vertices, lipEdges
+
     def initialize_with_tri(self, pts):
         """Initialize cell with a triangle generated from closest possible set of points.
 
@@ -1967,76 +1996,78 @@ class VoronoiCell():
         # find lip wrapping center starting with pair of closests points to center
         d = np.array([self.center.geo_dist(p) for p in pts])
         assert (d>0).all(), "Center point shouldn't be included."
-        closepts = [pts[i] for i in np.argsort(d)[:2]]
+        closeptsIx = np.argsort(d)[:2].tolist()
+        closepts = pts[closeptsIx[0]], pts[closeptsIx[1]]
 
         # find intersections of the encompassing two geodesics
         lipEdges = [GreatCircle.bisector(p, self.center) for p in closepts]
         vertices = lipEdges[0].intersect(lipEdges[1])
-   
+
         # determine third edge to cut out first vertex (this is arbitrary)
         try:
             thisV = vertices[0]
             thisVix = 0
-            remainingPts, checkResult = self._third_edge(thisV, pts, d)
+            sortix, checkResult = self._third_edge(thisV, pts, closeptsIx)
         except AssertionError:  # try other vertex
             thisV = vertices[1]
             thisVix = 1
-            remainingPts, checkResult = self._third_edge(thisV, pts, d)
+            sortix, checkResult = self._third_edge(thisV, pts, closeptsIx)
         
         # go thru other points to try to find a good bisector that will successfully
         # remove thisV from the list of vertices
         for i in range(np.isfinite(checkResult).sum()):
-            bg = GreatCircle.bisector(remainingPts[i], self.center)
+            if not sortix[i] in closeptsIx:  # skip points that define lip edges
+                bg = GreatCircle.bisector(pts[sortix[i]], self.center)
 
-            # must be on positive side of the two great circles generating the
-            # intersection to encompass the center
-            # the center must also be on the positive side of the new plane
-            # now find two new vertices
-            xyz = bg.intersect(lipEdges[0])
-            sign = (lipEdges[1].w[None,:] * xyz).sum(1)>0
-            #assert any(sign)
-            #assert self.center.dot(lipEdges[1].w)>0
-            xyz = xyz[sign].ravel()
-            toConsider = [SphereCoordinate(xyz)]
+                # must be on positive side of the two great circles generating the
+                # intersection to encompass the center
+                # the center must also be on the positive side of the new plane
+                # now find two new vertices
+                xyz = bg.intersect(lipEdges[0])
+                sign = (lipEdges[1].w[None,:] * xyz).sum(1)>0
+                #assert any(sign)
+                #assert self.center.dot(lipEdges[1].w)>0
+                xyz = xyz[sign].ravel()
+                toConsider = [SphereCoordinate(xyz)]
 
-            xyz = bg.intersect(lipEdges[1])
-            sign = (lipEdges[0].w[None,:] * xyz).sum(1)>0
-            #assert any(sign)
-            #assert self.center.dot(lipEdges[0].w)>0
-            xyz = xyz[sign].ravel()
-            toConsider.append(SphereCoordinate(xyz))
+                xyz = bg.intersect(lipEdges[1])
+                sign = (lipEdges[0].w[None,:] * xyz).sum(1)>0
+                #assert any(sign)
+                #assert self.center.dot(lipEdges[0].w)>0
+                xyz = xyz[sign].ravel()
+                toConsider.append(SphereCoordinate(xyz))
 
-            # check that center is on the correct side
-            # oriented towards the vertex to be eliminated and thus away from the center
-            w = np.cross(toConsider[0].vec, toConsider[1].vec)
-            if w.dot(thisV) < 0:
-                w *= -1
-            if self.center.dot(w) < 0:
-                toAdd = toConsider
-                break
-        
+                # check that center is on the correct side
+                # oriented towards the vertex to be eliminated and thus away from the center
+                w = np.cross(toConsider[0].vec, toConsider[1].vec)
+                if w.dot(thisV) < 0:
+                    w *= -1
+                if self.center.dot(w) < 0:
+                    toAdd = toConsider
+                    break
+
         self.edges = []
         self.vertices = []
         try:
             for p1, p2 in combinations(toAdd + [vertices[1-thisVix]], 2):
                 self.add_edge(p1, p2)
-        except NameError:
+        except UnboundLocalError:
             raise Exception("Unsuccessful attempt at initializing a triangle. Only a lip found.")
         
-        ix = np.argsort(d).tolist()
-        return ix[:2] + [ix[2:][np.argsort(checkResult)[i]]]
+        return sorted(closeptsIx + [sortix[i]])
     
-    def _third_edge(self, thisV, pts, d):
+    def _third_edge(self, thisV, pts, closeptsIx):
         # check for any points that are on the same side as thisV and are close enough
         posPlane = GreatCircle.ortho(SphereCoordinate(thisV), self.center)
         twiced = self.center.geo_dist(thisV) * 2
-        checkResult = [self._check_pt(pts[i], posPlane, twiced) for i in np.argsort(d)[2:]]
+        checkResult = [self._check_pt(pt, posPlane, twiced) for pt in pts]
+        checkResult[closeptsIx[0]] = np.inf
+        checkResult[closeptsIx[1]] = np.inf
         assert any(np.isfinite(checkResult))
 
         # sort remaining points by distance
-        remainingPts = [pts[i] for i in np.argsort(d)[2:]]
-        remainingPts = [remainingPts[i] for i in np.argsort(checkResult)]
-        return remainingPts, checkResult
+        sortix = np.argsort(checkResult)
+        return sortix, checkResult
 
     def _check_pt(self, pt, posPlane, d):
         """Return distance to pt if it is on positive side of plane and within distance of center.
@@ -2046,7 +2077,7 @@ class VoronoiCell():
             return np.inf
         
         thisd = pt.geo_dist(self.center)
-        if thisd<d:
+        if thisd < d:
             return thisd
         return np.inf
 
@@ -2140,12 +2171,11 @@ class VoronoiCell():
         # if new cut goes through an existing vertex, there will seemingly be more than
         # two intersections, so we must count the number of unique vertices carefully by
         # accounting for precision errors
-        if len(xyz)>2:
-            # if this assertion statement is tripping, then the precision may be too high
-            # for accurate comparison
-            uxyz, uix = np.unique(np.around(xyz, 7), axis=0, return_inverse=True)
-            assert uxyz.shape[0]==2
+        if len(xyz)>=2:
+            uxyz, uix = np.unique(np.around(xyz, 10), axis=0, return_inverse=True)
             uix = uix.tolist()
+            assert len(uxyz)<=2, uxyz
+            if len(uxyz)==1: return False
             xyz = [xyz[uix.index(0)], xyz[uix.index(1)]]
 
         # if zero points of intersection or one point of intersection at an already
@@ -2201,12 +2231,13 @@ class VoronoiCell():
     def outside(self, p):
         return (not self.inside(p))
 
-    def boundaries(self, stepsize=1e-2):
+    def boundaries(self, stepsize=1e-2, as_angle=False):
         """Return list of points outlining boundaries of the cell.
 
         Parameters
         ----------
         stepsize : float, 1e-2
+        as_angle : bool, False
         """
 
         xyz = []
@@ -2228,7 +2259,7 @@ class VoronoiCell():
                 theta1 -= 2*pi
             #assert theta2 > theta1
 
-            f = thisEdge.ring()
+            f = thisEdge.ring(as_angle=as_angle)
             theta = np.arange(int((theta2-theta1)/stepsize)+1) * stepsize + theta1
             xyz.append(np.vstack([f(i) for i in theta]))
 
