@@ -2002,8 +2002,8 @@ class VoronoiCell():
         # find intersections of the encompassing two geodesics
         lipEdges = [GreatCircle.bisector(p, self.center) for p in closepts]
         vertices = lipEdges[0].intersect(lipEdges[1])
-
-        # determine third edge to cut out first vertex (this is arbitrary)
+        
+        # determine third edge to cut out one vertex (this is arbitrary)
         try:
             thisV = vertices[0]
             thisVix = 0
@@ -2013,48 +2013,16 @@ class VoronoiCell():
             thisVix = 1
             sortix, checkResult = self._third_edge(thisV, pts, closeptsIx)
         
-        # go thru other points to try to find a good bisector that will successfully
-        # remove thisV from the list of vertices
-        for i in range(np.isfinite(checkResult).sum()):
-            if not sortix[i] in closeptsIx:  # skip points that define lip edges
-                bg = GreatCircle.bisector(pts[sortix[i]], self.center)
+        # build lip cell as a starting point
+        # note that direction of rotation about lip is arbitrary, and you could check this
+        # be reversing the order of defn
+        v1, v2 = SphereCoordinate(vertices[0]), SphereCoordinate(vertices[1])
+        self.edges = [(v1, v2, lipEdges[0]),
+                      (v1, v2, lipEdges[1])]
+        self.vertices = [v1, v2]
+        self.add_cut(GreatCircle.bisector(pts[sortix[0]], self.center))
 
-                # must be on positive side of the two great circles generating the
-                # intersection to encompass the center
-                # the center must also be on the positive side of the new plane
-                # now find two new vertices
-                xyz = bg.intersect(lipEdges[0])
-                sign = (lipEdges[1].w[None,:] * xyz).sum(1)>0
-                #assert any(sign)
-                #assert self.center.dot(lipEdges[1].w)>0
-                xyz = xyz[sign].ravel()
-                toConsider = [SphereCoordinate(xyz)]
-
-                xyz = bg.intersect(lipEdges[1])
-                sign = (lipEdges[0].w[None,:] * xyz).sum(1)>0
-                #assert any(sign)
-                #assert self.center.dot(lipEdges[0].w)>0
-                xyz = xyz[sign].ravel()
-                toConsider.append(SphereCoordinate(xyz))
-
-                # check that center is on the correct side
-                # oriented towards the vertex to be eliminated and thus away from the center
-                w = np.cross(toConsider[0].vec, toConsider[1].vec)
-                if w.dot(thisV) < 0:
-                    w *= -1
-                if self.center.dot(w) < 0:
-                    toAdd = toConsider
-                    break
-
-        self.edges = []
-        self.vertices = []
-        try:
-            for p1, p2 in combinations(toAdd + [vertices[1-thisVix]], 2):
-                self.add_edge(p1, p2)
-        except UnboundLocalError:
-            raise Exception("Unsuccessful attempt at initializing a triangle. Only a lip found.")
-        
-        return sorted(closeptsIx + [sortix[i]])
+        return sorted(closeptsIx + [sortix[0]])
     
     def _third_edge(self, thisV, pts, closeptsIx):
         # check for any points that are on the same side as thisV and are close enough
@@ -2073,7 +2041,7 @@ class VoronoiCell():
         """Return distance to pt if it is on positive side of plane and within distance of center.
         """
         
-        if pt.dot(posPlane.w)<=0:
+        if pt.dot(posPlane.w)<0:
             return np.inf
         
         thisd = pt.geo_dist(self.center)
