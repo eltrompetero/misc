@@ -16,6 +16,7 @@ from scipy.optimize import minimize
 from itertools import combinations
 from .angle import mod_angle, Quaternion
 from .utils import ind_to_sub
+PRECISION = 6
 
 
 
@@ -2140,7 +2141,7 @@ class VoronoiCell():
         # two intersections, so we must count the number of unique vertices carefully by
         # accounting for precision errors
         if len(xyz)>=2:
-            uxyz, uix = np.unique(np.around(xyz, 10), axis=0, return_inverse=True)
+            uxyz, uix = np.unique(np.around(xyz, PRECISION), axis=0, return_inverse=True)
             uix = uix.tolist()
             assert len(uxyz)<=2, uxyz
             if len(uxyz)==1: return False
