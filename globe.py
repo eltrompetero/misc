@@ -1784,7 +1784,8 @@ class GreatCircle():
         return ring_fcn
 
     def intersect(self, v):
-        """Find the intersections of two great circles using their normal vectors.
+        """Find the intersections of two great circles using their normal vectors. This
+        assumes that the vectors are normalized.
 
         Parameters
         ----------
@@ -1803,12 +1804,18 @@ class GreatCircle():
         w = self.w
         if np.array_equal(v, w):
             raise Exception("Great circles are the same.")
-
+        
+        # need a way of keeping track of whether or not the following calculate converges
         fancyD = (v[0]*w[2] - w[0]*v[2]) / (w[1]*v[2] - v[1]*w[2])
         xyz = np.zeros(3)
         xyz[0] = np.sqrt(w[2]**2 / ((1+fancyD**2)*w[2]**2 + (w[0]+w[1]*fancyD)**2))
         xyz[1] = np.sqrt(fancyD**2 * xyz[0]**2)
-        xyz[2] = np.sqrt(1-xyz[0]**2-xyz[1]**2)
+        # being careful for precision errors that could drive this to be negative
+        # just set this to 0 if that is the case and accept that x and y coordinates will
+        # be slightly wrong
+        z2 = 1-xyz[0]**2-xyz[1]**2
+        if z2>0:
+            xyz[2] = np.sqrt(z2)
         
         # meet condition for plane passing through origin
         if np.isclose(w.dot(xyz), 0):  #+++
