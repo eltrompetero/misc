@@ -9,14 +9,14 @@ from numba import float64, njit, jit
 from numba.experimental import jitclass
 from warnings import warn
 import matplotlib.pyplot as plt
-from scipy.spatial.distance import pdist
+from scipy.spatial.distance import pdist, squareform
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 from scipy.optimize import minimize
 from itertools import combinations
 from .angle import mod_angle, Quaternion
 from .utils import ind_to_sub
-PRECISION = 6
+PRECISION = 2e-7  # b/c of linearity, this is PRECISION * RADIUS distance
 
 
 
@@ -1981,7 +1981,8 @@ class VoronoiCell():
         return vertices, lipEdges
 
     def initialize_with_tri(self, pts):
-        """Initialize cell with a triangle generated from closest possible set of points.
+        """Initialize cell with a triangle generated from closest possible set of points,
+        which may indeed be the three closest points but not necessarily.
 
         Parameters
         ----------
@@ -2125,9 +2126,20 @@ class VoronoiCell():
         """Determine new edge that should be added to cell given a cut of the cell with a
         great circle.
 
+        There are several cases that give poor cuts that are avoided below.
+            1. No intersections.
+            2. Intersection at one vertex, which doesn't add a new facet.
+            3. Intersection at two vertices, which doesn't add a new facet. This could
+               only be the case if the shape to be cut is a lip.
+
         Parameters
         ----------
         G : GreatCircle
+
+        REturns
+        -------
+        bool
+            Returns False if unsuccessful cut.
         """
 
         assert len(self.edges)>1
@@ -2141,16 +2153,21 @@ class VoronoiCell():
         # two intersections, so we must count the number of unique vertices carefully by
         # accounting for precision errors
         if len(xyz)>=2:
-            uxyz, uix = np.unique(np.around(xyz, PRECISION), axis=0, return_inverse=True)
+            uxyz, uix = np.unique(xyz, axis=0, return_inverse=True)
+            if uxyz.shape[0]>1:
+                uxyz, newuix = self._combine_close_rows(uxyz)
+                uix = uix[newuix]
             uix = uix.tolist()
-            assert len(uxyz)<=2, uxyz
-            if len(uxyz)==1: return False
-            xyz = [xyz[uix.index(0)], xyz[uix.index(1)]]
+            assert len(uxyz)<=2, uxyz  # there is a persistent precision issue if this is
+                                       # not satisfied b/c there could only be two
+                                       # intersections
+            if len(uxyz)==1 or np.array_equal(uxyz[0], -uxyz[1]): return False
+            xyz = [uxyz[0], uxyz[1]]
 
         # if zero points of intersection or one point of intersection at an already
         # existing vertex, then disregard
         if len(xyz)<=1: return False
-
+        
         self.add_edge(xyz[0], xyz[1])  # will be auto-oriented towards center
         
         # now eliminate extraneous vertices by accounting for this new edge
@@ -2160,6 +2177,7 @@ class VoronoiCell():
                 goodVertices.append(v)
         self.vertices = goodVertices
         self.reconstruct_hull()
+        return True
     
     def reconstruct_hull(self):
         """Reconstruct hull by looping around outside."""
@@ -2172,18 +2190,22 @@ class VoronoiCell():
             G = GreatCircle(np.cross(p1.vec, p2.vec))
             self.edges.append((p1, p2, G))
 
-    def inside(self, p, tol=1e-7, detailed=False):
+    def inside(self, p, tol=1e-8, detailed=False):
         """Check if given point is inside or outside Voronoi cell.
 
-        TODO: Faster loop method would stop loop as quick as there was at least one
+        TODO: Faster loop method would stop loop immediately after detecting at least one
         outside point.
         
         Parameters
         ----------
         p : SphereCoordinate
-        tol : float, 1e-7
+        tol : float, 1e-8
             Allow for potentially this much precision error for calculating whether or not
             boundary condition is positive.
+            This needs to be small enough that the distance check used in .add_cut() won't
+            have issues distinguishing true intersections from seemings ones that are just
+            close to the boundary. I think a good guide is that this should be smaller
+            than the global precision tol used for that.
         detailed : bool, False
             If True, return full list of edge-by-edge comparison.
         
@@ -2233,6 +2255,34 @@ class VoronoiCell():
             xyz.append(np.vstack([f(i) for i in theta]))
 
         return xyz
+
+    @staticmethod
+    def _combine_close_rows(X, tol=PRECISION):
+        """Combine rows that are within tolerance.
+        """
+        
+        groups = []
+        d = squareform(pdist(X))
+
+        remainingix = list(range(len(X)))
+        while remainingix:
+            thisix = remainingix.pop(0)
+            groups.append([thisix])
+
+            ix = np.where((0<d[thisix])&(d[thisix]<tol))[0].tolist()
+            for ix_ in ix:
+                # we are going to assume that the groups are obviously identifiable,
+                # such that we don't need to make sure we haven't already counted this
+                # in another group of points that's further away from this one but closer
+                # to points in between
+                groups[-1].append(remainingix.pop(remainingix.index(ix_)))
+        
+        newCenters = np.zeros((len(groups), 3))
+        newix = np.zeros(len(groups), dtype=int)
+        for i, g in enumerate(groups):
+            newCenters[i] = X[g].mean(0)
+            newix[i] = g[0]
+        return newCenters, newix
 #end VoronoiCell
 
 
