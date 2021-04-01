@@ -882,7 +882,7 @@ class PowerLaw(DiscretePowerLaw):
             size=(size,)
         assert all([type(s) is int for s in size])
         alpha*=1.
-        rng = rng or self.random
+        rng = rng or self.rng
 
         upper_bound = upper_bound or self.upper_bound
         lower_bound = lower_bound or self.lower_bound
@@ -1005,7 +1005,7 @@ class PowerLaw(DiscretePowerLaw):
         n_cpus = n_cpus or (cpu_count()-1)
       
         # try all possible lower bounds in the given range (with some coarse-grained resolution for speed)
-        boundix = (X>=lower_bound_range[0])&(X<=lower_bound_range[1])
+        boundix = (X>=lower_bound_range[0]) & (X<=lower_bound_range[1])
         uniqLowerBounds = np.unique(np.around(X, decimal_resolution)[boundix])
         if uniqLowerBounds[-1]>=X.max():
             uniqLowerBounds = uniqLowerBounds[:-1]

@@ -468,7 +468,7 @@ class PoissonDiscSphere():
             self.preprocess_coarse_grid()
             self.samplesByGrid = [[] for i in self.coarseGrid]
 
-            for i,pt in enumerate(self.samples):
+            for i, pt in enumerate(self.samples):
                 self.samplesByGrid[self.assign_grid_point(pt)].append(i)
             if self.iprint: print("Coarse grid done.")
         elif self.iprint:
@@ -980,7 +980,7 @@ class PoissonDiscSphere():
             If True, wrap phi to [-pi,pi].
         """
 
-        if fig is None:
+        if fig is None and ax is None:
             fig, ax = plt.subplots()
         elif ax is None:
             ax = fig.add_subplot(1, 1, 1)
@@ -1027,7 +1027,7 @@ class PoissonDiscSphere():
         matplotlib.Axes
         """
 
-        if fig is None:
+        if fig is None and ax is None:
             fig = plt.figure(**fig_kw)
             ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
         elif ax is None:
