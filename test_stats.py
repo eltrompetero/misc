@@ -134,3 +134,34 @@ def test_ExpTruncPowerLaw():
 
     X = d.rvs(size=1000)
     assert np.isclose([2,1e-3], d.max_likelihood(X), atol=2e-3, rtol=0).all()
+    print("Test passed: probability distribution is normalized.")
+
+    dpl = ExpTruncPowerLaw(2., el=.001, rng=np.random.RandomState(0))
+    y = dpl.rvs(100_000)
+    soln = dpl.max_likelihood(y)
+    assert abs(soln[0] - 2)<=1e-2 and abs(soln[1] - 1e-3)<=5e-4
+
+    dpl = ExpTruncPowerLaw(1.5,
+                           el=.001,
+                           rng=np.random.RandomState(0),
+                           lower_bound=10)
+    y = dpl.rvs(100_000)
+    soln = dpl.max_likelihood(y)
+    assert abs(soln[0] - 1.5)<=1e-2 and abs(soln[1] - 1e-3)<=5e-4
+    print("Test passed: Max likelihood recovers correct parameters.")
+
+def test_ExpTruncDiscretePowerLaw():
+    dpl = ExpTruncDiscretePowerLaw(2., el=.001, rng=np.random.RandomState(0))
+    y = dpl.rvs(100_000)
+    soln = dpl.max_likelihood(y)
+    assert abs(soln[0] - 2)<=1e-2 and abs(soln[1] - 1e-3)<=5e-4
+    print("Test passed: Max likelihood recovers correct parameters.")
+
+    dpl = ExpTruncDiscretePowerLaw(1.5,
+                                   el=.001,
+                                   rng=np.random.RandomState(0),
+                                   lower_bound=10)
+    y = dpl.rvs(100_000)
+    soln = dpl.max_likelihood(y)
+    assert abs(soln[0] - 1.5)<=1e-2 and abs(soln[1] - 1e-3)<=5e-4
+    print("Test passed: Max likelihood recovers correct parameters.")

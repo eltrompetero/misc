@@ -1,9 +1,10 @@
 # ====================================================================================== #
 # Module for helper functions with statistical analysis of data.
-# Author: Eddie Lee, edlee@alumni.princeton.edu
+# Author: Eddie Lee, edlee@csh.ac.at
 # NOTES:
 # 2018-12-05 : only DiscretePowerLaw and PowerLaw are updated most recently
 # ====================================================================================== #
+
 import numpy as np
 from numpy import fft
 from scipy.optimize import minimize
@@ -13,7 +14,9 @@ from numba import njit
 from warnings import warn
 from mpmath import polylog
 import numpy.distutils.system_info as sysinfo
+
 assert sysinfo.platform_bits==64
+
 
 
 def acf(x,axis=-1,return_power=False):
@@ -201,7 +204,7 @@ class DiscretePowerLaw():
     _default_upper_bound=np.inf
     _default_alpha=2.
 
-    def __init__(self, alpha, lower_bound=1, upper_bound=np.inf, data=None, rng=None):
+    def __init__(self, alpha=2., lower_bound=1, upper_bound=np.inf, rng=None):
         self.alpha = alpha
         self.lower_bound = lower_bound
         self.upper_bound = upper_bound
@@ -390,20 +393,20 @@ class DiscretePowerLaw():
                 if type(X) is list:
                     X=np.array(X)
                 msg = "All elements must be within bounds. Given array includes range (%d, %d)."%(X.min(),X.max())
-                assert ((X>=lower_bound)&(X<=upper_bound)).all(), msg
+                assert ((X>=lower_bound) & (X<=upper_bound)).all(), msg
 
             logXsum = np.log(X).sum()
             if upper_bound==np.inf:
                 # don't waste cycles computing upper bound term of 0.
                 def f(alpha): 
                     # faster to eval log likelihood here
-                    return alpha*logXsum + X.size*np.log(zeta(alpha, lower_bound))
+                    return alpha * logXsum + X.size * np.log(zeta(alpha, lower_bound))
             else:
                 def f(alpha): 
                     # faster to eval log likelihood here
                     return alpha*logXsum + X.size*np.log(zeta(alpha, lower_bound) - zeta(alpha, upper_bound+1))
 
-            soln = minimize(f, initial_guess, bounds=[(1.0001,max_alpha)], **minimize_kw)
+            soln = minimize(f, initial_guess, bounds=[(1.0001, max_alpha)], **minimize_kw)
             if full_output:
                 return soln['x'][0], soln
             return soln['x'][0]
@@ -518,8 +521,9 @@ class DiscretePowerLaw():
     @classmethod
     def alpha_range(cls, x, alpha, dL, lower_bound=None, upper_bound=np.inf):
         """
-        Upper and lower values for alpha that correspond to a likelihood increase/drop of dL. You must be at
-        a peak of likelihood otherwise the results will be nonsensical.
+        Upper and lower values for alpha that correspond to a likelihood
+        increase/drop of dL. You must be at a peak of likelihood otherwise the
+        results will be nonsensical.
 
         Parameters
         ----------
@@ -597,17 +601,19 @@ class DiscretePowerLaw():
                      correction=None,
                      decimal_resolution=None,
                      n_cpus=None):
-        """
-        Run bootstrapped test for significance of the max deviation from a power law fit to the
-        sample distribution X. If there is a non-power law region part of the distribution, you need
-        to define the sample_below_cutoff kwarg to draw samples from that part of the distribution.
+        """Run bootstrapped test for significance of the max deviation from a
+        power law fit to the sample distribution X. If there is a non-power law
+        region part of the distribution, you need to define the
+        sample_below_cutoff kwarg to draw samples from that part of the
+        distribution.
 
         Parameters
         ----------
         X : ndarray
             Samples from the distribution.
         ksstat : float
-            The max deviation from the empirical cdf of X given the model specified.
+            The max deviation from the empirical cdf of X given the model
+            specified.
         lower_bound_range : duple, None
         bootstrap_samples : int, 1000
             Number of times to bootstrap to calculate p-value.
@@ -622,7 +628,8 @@ class DiscretePowerLaw():
         Returns
         -------
         float
-            Fraction of random samples with deviations larger than the distribution of X.
+            Fraction of random samples with deviations larger than the
+            distribution of X.
         ndarray
             Sample of KS statistics used to measure p-value.
         tuple of (ndarray, ndarray), optional
@@ -673,8 +680,8 @@ class DiscretePowerLaw():
                     return_all=False,
                     correction=None,
                     decimal_resolution=None):
-        """Generate a random sample from and fit to random distribution  given by specified power
-        law model. This is used to generate a KS statistic.
+        """Generate a random sample from and fit to random distribution  given
+        by specified power law model. This is used to generate a KS statistic.
         
         Parameters
         ----------
@@ -683,8 +690,8 @@ class DiscretePowerLaw():
         lower_bound_range : duple, None
             (lb0, lb1)
         samples_below_cutoff : ndarray, None
-            If provided, these are included as part of the random cdf (by bootstrap sampling) and in the model
-            as specified in Clauset 2007.
+            If provided, these are included as part of the random cdf (by
+            bootstrap sampling) and in the model as specified in Clauset 2007.
         return_all : bool, False
         correction : function, None
         decimal_resolution : int, None
@@ -1238,61 +1245,77 @@ class PowerLaw(DiscretePowerLaw):
 
 
 class ExpTruncPowerLaw():
-    """Exponentially truncated power law distribution.
+    """Exponentially truncated power law distribution."""
 
-    With upper and lower bounds."""
-    def __init__(self, alpha, el,
+    def __init__(self,
+                 alpha=2.,
+                 el=.01,
                  lower_bound=1,
-                 rng=np.random):
+                 rng=None):
         """
         Parameters
         ----------
-        alpha : float
+        alpha : float, 2.
             Power law exponent.
-        el : float
+        el : float, .01
             Inverse length scale.
         lower_bound : float, 1
         rng : np.random.RandomState
         """
 
-        assert el>1e-8
-        assert alpha>1
-        assert lower_bound>0
+        assert el > 1e-8
+        assert alpha > 1
+        assert lower_bound > 0
+
+        if lower_bound > (1/el):
+            # aberrant cutoff means that the distribution does not have a proper
+            # lower cutoff given the exponential tail
+            self.aberrant_cutoff = True
+        else:
+            self.aberrant_cutoff = False
 
         self.alpha = alpha
         self.el = el
         self.lower_bound = lower_bound
-        self.rng = rng
+        self.rng = rng or np.random
 
         # setup inverse tranform sampling
-        #self.setup_inverse_cdf()
+        if not self.aberrant_cutoff:
+            self.setup_inverse_cdf()
 
     def _setup_inverse_cdf(self, tol=1e-10):
-        """NOTE: scipy does not support evaluation of gamma function with negative
-        arguments for the exponent which makes straightforward inversion impossible
+        """
+        NOTE: This code does not work because scipy does not support evaluation
+        of gamma function with negative arguments for the exponent which makes
+        straightforward inversion impossible.
         
         Parameters
         ----------
         tol : float, 1e-10
         """
 
-        from scipy.special import gamma, gammainccinv
+        from scipy.special import gammainccinv
         from mpmath import gammainc
-        def invcdf(y, alpha=self.alpha, el=self.el, x0=self.lower_bound):
-            return gammainccinv( 1-alpha, float(gammainc(1-alpha,el*x0))*(1-y) )/el
-        self._invcdf = invcdf
-        lowerCutoff = self.cdf(lower_bound=0)(self.lower_bound)
         
-        self.rvs = lambda size=1,lowerCutoff=lowerCutoff: self._invcdf(self.rng.uniform(lowerCutoff,1,size))
+        if ~self.aberrant_cutoff:
+            def invcdf(y, alpha=self.alpha, el=self.el, x0=self.lower_bound):
+                return gammainccinv(1-alpha, float(gammainc(1-alpha, el*x0))*(1-y)) / el
+
+            self._invcdf = invcdf
+            lower_cutoff = self.cdf(lower_bound=0)(self.lower_bound)
+            
+            self.rvs = lambda size=1, lower_cutoff=lower_cutoff: self._invcdf(self.rng.uniform(lower_cutoff, 1, size))
 
     def setup_inverse_cdf(self, cdf_res=10000):
-        """Uses inverse transform sampling. CDF is approximated using cubic interpolation.
+        """Uses inverse transform sampling. CDF is approximated using cubic
+        interpolation.
 
         This routine defines self.rvs as well.
 
-        NOTE: This is not a great way to do this. One could write down the functional form
-        and interpolate that in a more controlled way and extrapolate it better to
-        infinity. Alternatively, could generate random samples using rejection sampling.
+        NOTE: This is not a great way to do this. One could write down the
+        functional form and interpolate that in a more controlled way and
+        extrapolate it better to infinity. Alternatively, could generate random
+        samples using rejection sampling.
 
         Parameters
         ----------
@@ -1300,13 +1323,15 @@ class ExpTruncPowerLaw():
         """
 
         from scipy.interpolate import InterpolatedUnivariateSpline
-        x = np.logspace( np.log10(self.lower_bound), np.log10(10/self.el), cdf_res )
-        cdf = self.cdf()(x)
-        assert (cdf<=1).all()
         
-        # define inverse transform
-        invcdf = InterpolatedUnivariateSpline(cdf, x, ext='const')
-        self.rvs = lambda size=1: invcdf(self.rng.rand(size))
+        if not self.aberrant_cutoff:
+            x = np.logspace(np.log10(self.lower_bound), np.log10(10/self.el), cdf_res)
+            cdf = self.cdf()(x)
+            assert (cdf<=1).all()
+            
+            # define inverse transform
+            invcdf = InterpolatedUnivariateSpline(cdf, x, ext='const')
+            self.rvs = lambda size=1: invcdf(self.rng.rand(size))
    
     def rvs(self,
             size=(1,),
@@ -1407,7 +1432,7 @@ class ExpTruncPowerLaw():
 
     def max_likelihood(self,
                        x,
-                       initial_guess=[2,1],
+                       initial_guess=(2,1),
                        full_output=False,
                        fast=False):
         """Max likelihood estimate of power law exponent alpha and inverse length scale.
@@ -1416,7 +1441,7 @@ class ExpTruncPowerLaw():
         ----------
         x : ndarray
         lower_bound : float, None
-        initial_guess : twople, [2,1000]
+        initial_guess : twople, (2,1)
         full_output : bool, False
         fast : bool, False
 
@@ -1429,18 +1454,23 @@ class ExpTruncPowerLaw():
         lower_bound = self.lower_bound
         if not fast:
             assert (x>=lower_bound).all()
-            assert initial_guess[0]>1 and initial_guess[1]>0
+            assert initial_guess[0] > 1 and initial_guess[1] > 0
         
         def cost(params):
             alpha, el = params
+            el = np.exp(el)
             return -self.log_likelihood(x, alpha, el, True, fast=fast)
 
-        soln = minimize(cost, initial_guess, bounds=[(1+1e-10,np.inf),(1e-10,np.inf)])
+        soln = minimize(cost, initial_guess, bounds=[(1.0001,5),(-np.inf,np.inf)])
         if full_output: 
-            return soln['x'], soln
-        return soln['x']
+            return np.array([soln['x'][0], np.exp(soln['x'][1])]), soln
+        return np.array([soln['x'][0], np.exp(soln['x'][1])])
 
-    def log_likelihood(self, X, alpha=None, el=None, normalized=False, fast=False):
+    def log_likelihood(self, X,
+                       alpha=None,
+                       el=None,
+                       normalized=False,
+                       fast=False):
         """
         Parameters
         ----------
@@ -1449,6 +1479,7 @@ class ExpTruncPowerLaw():
         el : float, None
         normalized : bool, False
         fast : bool, False
+            If True, skip checks.
 
         Returns
         -------
@@ -1456,17 +1487,19 @@ class ExpTruncPowerLaw():
         """
 
         from mpmath import gammainc as _gammainc
+
         alpha = alpha or self.alpha
         el = el or self.el
-        gammainc = lambda *args:float(_gammainc(*args))
+        gammainc = lambda *args : float(_gammainc(*args))
         if not fast:
             assert (X>=self.lower_bound).all()
 
         if normalized:
-            Z = el**(alpha-1.) * gammainc(1-alpha, self.lower_bound*el)
-            return -alpha*np.log(X).sum() - el*X.sum() - len(X) * np.log(Z)
-        return -alpha*np.log(X).sum() -el*X.sum()
+            Z = el**(alpha-1.) * gammainc(1.-alpha, self.lower_bound * el)
+            return -alpha * np.log(X).sum() - el * X.sum() - len(X) * np.log(Z)
+        return -alpha * np.log(X).sum() - el * X.sum()
 #end ExpTruncPowerLaw
+
 
 
 class ExpTruncDiscretePowerLaw(DiscretePowerLaw):
@@ -1474,70 +1507,101 @@ class ExpTruncDiscretePowerLaw(DiscretePowerLaw):
 
     Analogous to DiscretePowerLaw but with exponentially truncated tail.
     """
-    def __init__(self, alpha, el,
-                 lower_bound=1,
-                 upper_bound=np.inf,
-                 rng=np.random):
-        """Lower and upper bounds are fixed once this distribution is determined.
 
+    def __init__(self,
+                 alpha=2.,
+                 el=.01,
+                 lower_bound=1,
+                 rng=None):
+        """
         Parameters
         ----------
-        alpha : float
+        alpha : float, 2.
             Power law exponent.
-        el : float
+        el : float, 1
             Inverse length scale.
         lower_bound : int, 1
-        upper_bound : int, np.inf
         rng : np.random.RandomState
         """
         
-        assert alpha>0
-        assert el>1e-8, "Precision errors occur when el is too small."
-        assert lower_bound<1e4, "For large numbers, just use continuous approximation."
-        self.alpha = alpha
-        self.el = el
-        self.lower_bound = lower_bound
-        self.upper_bound = upper_bound
-        self.rng = rng
+        self.update_params(alpha, el, lower_bound)
+        self.rng = rng or np.random
         
-        # use continuous distribution for large number approximation
-        if self.upper_bound>1e4:
-            self._exptruncpowlaw = ExpTruncPowerLaw(alpha, el, lower_bound=10_001)
-            self._exptruncWeight = 1-self.cdf()(10_000)
-
-    def pdf(self):
-        """Function for calculating probability distribution.
+    def update_params(self, alpha, el, lower_bound=None):
+        """
         """
 
-        lower_bound = self.lower_bound
-        upper_bound = self.upper_bound
-        assert upper_bound<np.inf, "(not suppported) Upper bound must be some finite value."
+        assert alpha > 0
+        assert el > 1e-8, "Precision errors occur when el is too small."
+        assert lower_bound < 1e4, "For large lower bounds, may be better to use continuous approximation."
 
-        p = ( np.arange(int(lower_bound), int(upper_bound)+1)**-float(self.alpha) *
-            np.exp(-self.el*np.arange(int(lower_bound), int(upper_bound)+1)) )
-        p /= p.sum()
+        self.alpha = float(alpha)
+        self.el = el
+        self.params = self.alpha, self.el  # parameters as list
+        self.lower_bound = lower_bound
+        self.upper_bound = np.inf  # this is fixed by default
+
+        # use continuous distribution to approximate distribution for large values
+        self.mx_discrete = max(10_001, int(np.ceil(1/el)))
+        self._exptruncpowlaw = ExpTruncPowerLaw(alpha, el, lower_bound=self.mx_discrete+1)
+        self._exptruncWeight = 1 - self.cdf()(self.mx_discrete)
+
+    def pdf(self, upper_bound=None):
+        """Probability distribution function.
+
+        Parameters
+        ----------
+        upper_bound : int, np.inf
+            Used to produce normalized distribution over partial domain when sampling.
+
+        Returns
+        -------
+        lambda function
+        """
         
-        def pdf(x, p=p):
-            if type(x) is int:
-                return p[x-int(lower_bound)]
-            if type(x) is list:
-                return p[np.array(x, dtype=int)-int(lower_bound)]
-            return p[x.astype(int)-int(lower_bound)]
+        lower_bound = self.lower_bound
+        upper_bound = upper_bound or self.upper_bound
 
-        return pdf
+        if upper_bound < np.inf:
+            p = (np.arange(int(lower_bound), int(upper_bound)+1)**-self.alpha *
+                 np.exp(-self.el * np.arange(int(lower_bound), int(upper_bound)+1)))
+            p /= p.sum()
+
+            def pdf(x, p=p):
+                if type(x) is int:
+                    return p[x-int(lower_bound)]
+                if type(x) is list:
+                    return p[np.array(x, dtype=int)-int(lower_bound)]
+                return p[x.astype(int)-int(lower_bound)]
+            return pdf
+        
+        el = self.el
+        Z = ( float(polylog(self.alpha, np.exp(-el))) - (np.arange(1, lower_bound)**-self.alpha *
+              np.exp(-el * np.arange(1,lower_bound))).sum() )
+        return np.vectorize(lambda x: x**-self.alpha * np.exp(-el * x) / Z)
 
     def cdf(self):
-        if upper_bound==np.inf:
-            Z=( float(polylog(alpha, np.exp(-el))) - (np.arange(1,lower_bound)**-float(alpha) *
-                np.exp(-el*np.arange(1,lower_bound))).sum() )
-            return np.vectorize(lambda x: ( np.arange(lower_bound, int(x)+1)**-float(alpha) *
-                                            np.exp(-el*np.arange(lower_bound, int(x)+1)) ).sum()/Z)
-        raise NotImplementedError
+        """Cumulative distribution function.
+        
+        Returns
+        -------
+        lambda function
+        """
+
+        el = self.el
+        alpha = self.alpha
+        lower_bound = self.lower_bound
+
+        Z = ( float(polylog(alpha, np.exp(-el))) - (np.arange(1, lower_bound)**-alpha *
+              np.exp(-el*np.arange(1,lower_bound))).sum() )
+        return np.vectorize(lambda x: ( np.arange(lower_bound, int(x)+1)**-alpha *
+                                        np.exp(-el * np.arange(lower_bound, int(x)+1)) ).sum()/Z)
 
     def rvs(self,
             size=(1,),
             alpha=None,
-            el=None):
+            el=None,
+            **kwargs):
         """
         Parameters
         ----------
@@ -1558,70 +1622,86 @@ class ExpTruncDiscretePowerLaw(DiscretePowerLaw):
         else:
             exptruncpowlaw = self._exptruncpowlaw
         lower_bound = self.lower_bound
-        upper_bound = self.upper_bound
-        nSample = sum(size)
-        assert nSample>1
-        
-        if not '_pdf' in self.__dict__:
-            self._pdf = self.pdf(alpha, el, lower_bound, upper_bound)(np.arange(lower_bound,
-                                                                                min(10_001,upper_bound+1)))
-        
-        if upper_bound<=1e4:
-            return self.rng.choice(np.arange(lower_bound, upper_bound+1), size=size, p=self._pdf)
-        
-        nContinuousSample = self.rng.binomial(1, self._exptruncWeight)
-        X = np.zeros(nSample)
-        if nContinuousSample:
-            X[:nContinuousSample] = exptruncpowlaw.rvs(size=nContinuousSample)
-            X[nContinuousSample:] = self.rng.choice(np.arange(lower_bound, upper_bound+1),
-                                                    size=nSample-nContinuousSample,
-                                                    p=self._pdf)
-            X = self.permutation(X)
+        if hasattr(size, '__len__'):
+            n_sample = sum(size)
         else:
-            X = self.rng.choice(np.arange(lower_bound, upper_bound+1),
-                                size=nSample,
-                                p=self._pdf)
+            n_sample = size
+        assert n_sample>=1
+        
+        # temp var to store discrete PDF
+        self._pdf = self.pdf(self.mx_discrete)(np.arange(lower_bound, self.mx_discrete+1))
+        
+        X = np.zeros(n_sample)
+        n_from_cont = self.rng.binomial(1, self._exptruncWeight)
+        X[:n_from_cont] = exptruncpowlaw.rvs(size=n_from_cont)
+        X[n_from_cont:] = self.rng.choice(np.arange(lower_bound, self.mx_discrete+1),
+                                          size=n_sample-n_from_cont,
+                                          p=self._pdf)
+        X = self.rng.permutation(X)
         return X.reshape(size)
+    
+    @classmethod
+    def default_minimize_kw(cls):
+        return {'bounds':[(1,5), (-np.inf,np.inf)]}
 
     def max_likelihood(self, X,
                        initial_guess=(2.,1.),
-                       minimize_kw={},
-                       full_output=False):
-        """
-        Find the best fit power law exponent for a discrete power law distribution with
-        exponential tail. 
+                       minimize_kw=None,
+                       full_output=False,
+                       run_checks=True,
+                       **kwargs):
+        """Find the best fit power law exponent for a discrete power law
+        distribution with exponential tail. Set self parameters to solution.
+
+        Note that this solution has nothing to do with interpolation
+        approximation used in .cdf().
 
         Parameters
         ----------
         X : ndarray
         initial_guess : twople, (2.,1.)
             Guess for power law exponent alpha and cutoff el.
-        minimize_kw : dict, {}
+        minimize_kw : dict, None
+        full_output : bool, False
+        run_checks : bool, True
 
         Returns
         -------
-        dict
+        ndarray
+            Parameters (alpha, el).
+        dict (optional)
             scipy.optimize.minimize or list thereof.
         """
-
-        if type(X) is list:
-            X = np.array(X)
-        assert ((X>=self.lower_bound)&(X<=self.upper_bound)).all(),"All elements must be within bounds."
-
+        
+        if run_checks:
+            if type(X) is list:
+                X = np.array(X)
+            assert (X>=self.lower_bound).all(), "All elements must be within bounds."
+        if minimize_kw is None:
+            minimize_kw = self.default_minimize_kw()
+        
+        # define fcn to minimize
         def f(params):
             alpha, el = params
-            return -cls.log_likelihood(X, alpha, el, lower_bound, upper_bound, normalize=True)
+            el = np.exp(el)
+            return -self.log_likelihood(X, alpha, el, normalize=True, run_checks=run_checks).sum()
+        
+        # solve for answer
+        soln = minimize(f, [initial_guess[0], np.log(initial_guess[1])], **minimize_kw)
+        
+        # update self parameters
+        self.update_params(soln['x'][0], np.exp(soln['x'][1]), self.lower_bound)
 
-        soln = minimize(f, initial_guess, **minimize_kw, bounds=[(1.0001,7), (1e-6,np.inf)])
-        self.alpha, self.el = soln['x']
         if full_output:
-            return soln['x'], soln
-        return soln['x']
+            return np.array([soln['x'][0], np.exp(soln['x'][1])]), soln
+        return np.array([soln['x'][0], np.exp(soln['x'][1])])
        
-    def log_likelihood(X,
+    def log_likelihood(self,
+                       X,
                        alpha=None,
                        el=None,
-                       normalize=False):
+                       normalize=False,
+                       run_checks=True):
         """Log likelihood of given data.
 
         Parameters
@@ -1634,24 +1714,231 @@ class ExpTruncDiscretePowerLaw(DiscretePowerLaw):
 
         Returns
         -------
-        log_likelihood : ndarray
+        ndarray
+            Log likelihood.
         """
         
         alpha = alpha or self.alpha
         el = el or self.el
-        lower_bound = self.lower_bound
-        upper_bound = self.upper_bound
-        assert ((X>=lower_bound) & (X<=upper_bound)).all()
+        if run_checks:
+            assert (X>=self.lower_bound).all()
 
         if not normalize:
-            return -alpha*np.log(X).sum() -el*X.sum()
+            return -alpha * np.log(X) - el * X
 
         # simply calculate Z by summing up to infinity and then subtracting all terms up to the
         # lower_bound that should be ignored
-        Z = ( float(polylog(alpha, np.exp(-el))) - (np.arange(1,lower_bound)**-float(alpha) *
-              np.exp(-el*np.arange(1, lower_bound))).sum() )
-        return ( -alpha*np.log(X) - el*X - np.log(Z) ).sum()
+        lower_bound_range = np.arange(1, self.lower_bound)
+        Z = (float(polylog(alpha, np.exp(-el))) - (lower_bound_range**-alpha *
+             np.exp(-el * lower_bound_range)).sum())
+        return -alpha * np.log(X) - el * X - np.log(Z)
+
+    def clauset_test(self, X, ksstat,
+                     lower_bound_range=None,
+                     bootstrap_samples=1000,
+                     samples_below_cutoff=None,
+                     return_all=False,
+                     n_cpus=None):
+        """Run bootstrapped test for significance of the max deviation from a
+        power law fit to the sample distribution X. If there is a non-power law
+        region part of the distribution, you need to define the
+        sample_below_cutoff kwarg to draw samples from that part of the
+        distribution.
+
+        Parameters
+        ----------
+        X : ndarray
+            Samples from the distribution.
+        ksstat : float
+            The max deviation from the empirical cdf of X given the model
+            specified.
+        lower_bound_range : duple, None
+        bootstrap_samples : int, 1000
+            Number of times to bootstrap to calculate p-value.
+        samples_below_cutoff : ndarray, None
+            Pass integer number of samples n and return n samples.
+        return_all : bool, True
+        n_cpus : int, None
+            For multiprocessing.
+
+        Returns
+        -------
+        float
+            Fraction of random samples with deviations larger than the
+            distribution of X.
+        ndarray
+            Sample of KS statistics used to measure p-value.
+        tuple of (ndarray, ndarray), optional
+            (alpha, lb) : the found parameters for each random sample 
+        """
+        
+        if not n_cpus is None and n_cpus==1:
+            self.rng = np.random.RandomState()
+            ksdistribution = np.zeros(bootstrap_samples)
+            params = []
+            lb = np.zeros(bootstrap_samples)
+            for i in range(bootstrap_samples):
+                ksdistribution[i], params_ = self.ks_resample(len(X),
+                                                              lower_bound_range,
+                                                              samples_below_cutoff,
+                                                              return_all=True)
+                params.append(params_)
+        else:
+            if not samples_below_cutoff is None:
+                assert (samples_below_cutoff<X.min()).all()
+            def f(args):
+                # scramble rng for each process
+                self.rng = np.random.RandomState()
+                return self.ks_resample(*args, return_all=True)
+
+            with Pool(n_cpus) as pool:
+                output = pool.map(f, [(len(X),lower_bound_range,samples_below_cutoff)]*bootstrap_samples)
+                ksdistribution, params = list(zip(*output))
+
+            ksdistribution = np.array(ksdistribution)
+            params = np.array(params)
+        
+        # sanity chck
+        assert (ksdistribution<=1).all() and (ksdistribution>=0).all()
+
+        if return_all:
+            return (ksstat<=ksdistribution).mean(), ksdistribution, params
+        return (ksstat<=ksdistribution).mean(), ksdistribution
+
+    def ks_resample(self, K,
+                    lower_bound_range=None,
+                    samples_below_cutoff=None,
+                    return_all=False):
+        """Generate a random sample from and fit to random distribution given
+        by specified power law model. This is used to generate a KS statistic.
+        
+        Parameters
+        ----------
+        K : int
+            Sample size.
+        lower_bound_range : duple, None
+            (lb0, lb1)
+        samples_below_cutoff : ndarray, None
+            If provided, these are included as part of the random cdf (by
+            bootstrap sampling) and in the model as specified in Clauset 2007.
+        return_all : bool, False
+
+        Returns
+        -------
+        float
+            KS statistic
+        tuple, optional
+            (alpha, lb)
+        """
+
+        if samples_below_cutoff is None or len(samples_below_cutoff)==0:
+            # generate random samples from best fit power law
+            # we do not consider samples with less than two unique values
+            sampled = False
+            while not sampled:
+                X = self.rvs(size=int(K),
+                             rng=self.rng)
+                if has_multiple_unique_values(X):
+                    sampled = True
+
+            # fit each random sample to a power law
+            if lower_bound_range is None:
+                params = self.max_likelihood(X,
+                                             initial_guess=self.params,
+                                             run_checks=False)
+                lb = self.lower_bound
+            else:
+                params = []
+                logL = np.zeros(lower_bound_range.size)
+                olb = self.lower_bound
+                for i, lb in enumerate(lower_bound_range):
+                    self.lower_bound = lb
+                    output = self.max_likelihood(X,
+                                                 lower_bound=lb,
+                                                 initial_guess=self.params,
+                                                 full_output=True,
+                                                 run_checks=False)
+                    params.append(output[0])
+                    logL[i] = output[1]['fun']
+                    
+                params = params[np.argmin(logL)]
+                lb = lower_bound_range[np.argmin(lower_bound_range)]
+                self.lower_bound = olb
+            
+            # calculate ks stat from each fit
+            if return_all:
+                return self.ksval(X[X>=lb]), params
+            return self.ksval(X[X>=lb])
+            
+        fraction_below_cutoff = len(samples_below_cutoff) / (len(samples_below_cutoff)+K)
+        K1 = int(self.rng.binomial(K, fraction_below_cutoff))
+        K2 = int(K-K1)
+        
+        if K1==0:
+            return self.ks_resample(K, lower_bound_range, return_all=return_all)
+
+        # generate random samples from best fit power law and include samples below cutoff to repeat
+        # entire sampling process
+        # we do not consider samples with less than two unique values
+        sampled = False
+        while not sampled:
+            X = np.concatenate((self.rng.choice(samples_below_cutoff, size=K1),
+                                self.rvs(size=K2, rng=self.rng)))
+            if has_multiple_unique_values(X):
+                sampled = True
+
+        # fit random sample to a power law
+        # must set n_cpus=1 because cannot spawn processes within process
+        if lower_bound_range is None:
+            params = self.max_likelihood(X,
+                                         initial_guess=self.params,
+                                         run_checks=False)
+            lb = self.lower_bound
+        else:
+            params = []
+            logL = np.zeros(lower_bound_range.size)
+            olb = self.lower_bound
+
+            for i, lb in enumerate(lower_bound_range):
+                self.lower_bound = lb
+                output = self.max_likelihood(X,
+                                             initial_guess=self.params,
+                                             run_checks=False)
+                params.append(output[0])
+                logL[i] = output[1]['fun']
+
+            params = params[np.argmin(logL)]
+            lb = lower_bound_range[np.argmin(lower_bound_range)]
+            self.lower_bound = olb
+
+        # calculate ks stat from fit
+        this = self.__class__(*params, lower_bound=lb, upper_bound=self.upper_bound)
+        if return_all:
+            return this.ksval(X[X>=lb]), params
+        return this.ksval(X[X>=lb])
+
+    def ksval(self, X):
+        """Build CDF from given data and compare with model. Return largest distance
+        between the empirical and model CDFs (the Kolmogorov-Smirnov statistic for
+        discrete data).
+
+        Parameters
+        ----------
+        X : ndarray
+
+        Returns
+        -------
+        float
+            KS statistic for a discrete distribution.
+        """
+
+        Xuniq, ecdf = np.unique(X, return_counts=True)
+        ecdf = np.cumsum(ecdf) / len(X)
+
+        cdf = self.cdf()(Xuniq)
+        return np.abs(ecdf-cdf).max()
 #end ExpTruncDiscretePowerLaw
+
 
 
 def _bivariate_reg(x, y, initial_guess=None, iprint=False, full_output=False):
