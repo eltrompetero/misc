@@ -205,10 +205,21 @@ class DiscretePowerLaw():
     _default_alpha=2.
 
     def __init__(self, alpha=2., lower_bound=1, upper_bound=np.inf, rng=None):
-        self.alpha = alpha
-        self.lower_bound = lower_bound
-        self.upper_bound = upper_bound
+        self.update_params(alpha, lower_bound, upper_bound)
         self.rng = rng or np.random
+
+    def update_params(self, alpha, lower_bound=1, upper_bound=np.inf):
+        """
+        """
+        
+        assert alpha > 0
+        assert lower_bound < 1e4, "For large lower bounds, may be better to use continuous approximation."
+        assert lower_bound < upper_bound
+
+        self.alpha = float(alpha)
+        self.params = self.alpha,  # parameters as list
+        self.lower_bound = lower_bound
+        self.upper_bound = np.inf  # this is fixed by default
 
     @classmethod
     def pdf(cls, alpha=None, lower_bound=None, upper_bound=None, normalize=True):
@@ -638,7 +649,7 @@ class DiscretePowerLaw():
         
         n_cpus = n_cpus or (cpu_count()-1)
         
-        if n_cpus<=1:
+        if n_cpus <= 1:
             self.rng = np.random.RandomState()
             ksdistribution = np.zeros(bootstrap_samples)
             alpha = np.zeros(bootstrap_samples)
@@ -652,16 +663,15 @@ class DiscretePowerLaw():
                                                                        decimal_resolution=decimal_resolution)
         else:
             if not samples_below_cutoff is None:
-                assert (samples_below_cutoff<X.min()).all()
+                assert (samples_below_cutoff < X.min()).all()
             def f(args):
                 # scramble rng for each process
                 self.rng = np.random.RandomState()
                 return self.ks_resample(*args, return_all=True, correction=correction)
 
-            pool = Pool(n_cpus)
-            ksdistribution, alphalb = list(zip(*pool.map( f,
-                                      [(len(X),lower_bound_range,samples_below_cutoff)]*bootstrap_samples )))
-            pool.close()
+            with Pool(n_cpus) as pool:
+                ksdistribution, alphalb = list(zip(*pool.map( f,
+                                  [(len(X), lower_bound_range, samples_below_cutoff)] * bootstrap_samples )))
 
             ksdistribution = np.array(ksdistribution)
             alphalb = np.array(alphalb)
@@ -1527,7 +1537,7 @@ class ExpTruncDiscretePowerLaw(DiscretePowerLaw):
         self.update_params(alpha, el, lower_bound)
         self.rng = rng or np.random
         
-    def update_params(self, alpha, el, lower_bound=None):
+    def update_params(self, alpha, el, lower_bound=1):
         """
         """
 
