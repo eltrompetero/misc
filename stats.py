@@ -1,10 +1,10 @@
 # ====================================================================================== #
 # Module for helper functions with statistical analysis of data.
 # Author: Eddie Lee, edlee@csh.ac.at
+# 
 # NOTES:
 # 2018-12-05 : only DiscretePowerLaw and PowerLaw are updated most recently
 # ====================================================================================== #
-
 import numpy as np
 from numpy import fft
 from scipy.optimize import minimize
@@ -221,16 +221,17 @@ class DiscretePowerLaw():
         self.lower_bound = lower_bound
         self.upper_bound = np.inf  # this is fixed by default
 
-    @classmethod
-    def pdf(cls, alpha=None, lower_bound=None, upper_bound=None, normalize=True):
+    def pdf(self, alpha=None, lower_bound=None, upper_bound=None, normalize=True):
         """Return PDF function."""
-        upper_bound = upper_bound or cls._default_upper_bound
+        upper_bound = upper_bound or self.upper_bound
+        alpha = alpha or self.alpha
+        lower_bound = lower_bound or self.lower_bound
         
         if normalize:
-            Z = cls.Z(alpha, lower_bound, upper_bound)
-            return lambda x, alpha=alpha, Z=Z: x**(-alpha*1.)/Z
+            Z = self.Z(alpha, lower_bound, upper_bound)
+            return lambda x, alpha=alpha, Z=Z : x**-alpha / Z
 
-        return lambda x,alpha=alpha: x**(-alpha*1.)
+        return lambda x, alpha=alpha : x**-alpha
 
     @classmethod
     def Z(cls, alpha, lower_bound, upper_bound):
@@ -287,14 +288,14 @@ class DiscretePowerLaw():
             return (z0 - zeta(alpha, x+1)) / Z
         return cdf
 
-    @classmethod
-    def rvs(cls, alpha, size=(1,), lower_bound=None, upper_bound=None, rng=None):
-        """Sample from discrete power law distribution and use continuous approximation for tail.
+    def rvs(self, size=(1,), alpha=None, lower_bound=None, upper_bound=None):
+        """Sample from discrete power law distribution and use continuous
+        approximation for tail.
         
         Parameters
         ----------
-        alpha : float
         size : tuple, (1,)
+        alpha : float, None
         lower_bound : int, None
         upper_bound : int, None
         rng : numpy.random.RandomState, None
@@ -304,35 +305,33 @@ class DiscretePowerLaw():
         ndarray
             Of dimensions size.
         """
-
-        x0=lower_bound or cls._default_lower_bound
-        x1=upper_bound or cls._default_upper_bound
-        assert x0<=x1
+        
+        alpha = alpha or self.alpha
+        x0 = lower_bound or self.lower_bound
+        x1 = upper_bound or self.upper_bound
         assert type(size) is int or type(size) is tuple, "Size must be an int or tuple."
         if not type(size) is tuple:
             size = (size,)
-        if rng is None:
-            rng = np.random
 
-        if x1<10_001:
+        if x1 < 10_001:
             try:
-                return rng.choice(range(x0,int(x1)+1),
-                                  size=size,
-                                  p=cls.pdf(alpha,x0,x1)(np.arange(x0,x1+1)))
+                return self.rng.choice(range(x0,int(x1)+1),
+                                       size=size,
+                                       p=self.pdf(alpha,x0,x1)(np.arange(x0,x1+1)))
             except ValueError:
-                print(cls.pdf(alpha,x0,x1)(np.arange(x0,x1+1)).sum(), alpha, x0, x1)
+                print(self.pdf(alpha, x0, x1)(np.arange(x0,x1+1)).sum(), alpha, x0, x1)
                 raise Exception("Probabilities do not sum to 1.")
         
         # when upper bound is large, use continuum approximation for tail
         if x0<10_001:
             xRange = np.arange(x0, 10_001)
-            p = cls.pdf(alpha, x0, x1)(xRange)
-            ptail = 1-p.sum()
-            X = rng.choice(xRange, p=p/p.sum(), size=size).astype(int)  # random sample
-            tailix = rng.rand(*size)<ptail
+            p = self.pdf(alpha, x0, x1)(xRange)
+            ptail = 1 - p.sum()
+            X = self.rng.choice(xRange, p=p/p.sum(), size=size).astype(int)  # random sample
+            tailix = self.rng.rand(*size)<ptail
             if tailix.any():
                 pl = PowerLaw(alpha, lower_bound=xRange[-1], upper_bound=x1)
-                X[tailix] = np.around( pl.rvs(size=int(tailix.sum())) ).astype(int)
+                X[tailix] = np.around(pl.rvs(size=int(tailix.sum()))).astype(int)
         else:
             pl = PowerLaw(alpha, lower_bound=x0, upper_bound=x1)
             X = np.around( pl.rvs(size=size).astype(int) )
