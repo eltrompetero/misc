@@ -1,9 +1,9 @@
 # ===================================================================================== #
 # Useful plotting functions.
+# 
 # Author : Eddie Lee, edlee@alumni.princeton.edu
 # ===================================================================================== #
 import numpy as np
-import numpy
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import os
@@ -11,6 +11,18 @@ from matplotlib import patheffects
 import cartopy.crs as ccrs
 import cartopy.geodesic as cgeo
 
+
+def draw_one_to_one(ax):
+    """Draw black 1:1 line that fits within given current axis limits.
+
+    Parameters
+    ----------
+    ax : mpl.Axes
+    """
+
+    xlim, ylim = ax.get_xlim(), ax.get_ylim()
+    ax.plot(xlim, ylim, 'k-', zorder=0)
+    ax.set(xlim=xlim, ylim=ylim)
 
 def seismic_cmap_kw(X):
     """Return dict of kwargs that can be used to make a colormap symmetric around 0.

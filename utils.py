@@ -1045,35 +1045,6 @@ def stack_dict(list,name,axis=0):
     else:
         return np.vstack(_l)
 
-def unique_rows(mat, return_inverse=False):
-    """
-    Return unique rows indices of a numpy array.
-
-    Parameters
-    ----------
-    mat : ndarray
-    **kwargs
-    return_inverse : bool
-        If True, return inverse that returns back indices of unique array that
-        would return the original array 
-
-    Returns
-    -------
-    u : ndarray
-        Unique elements of matrix.
-    idx : ndarray
-        Row indices of given mat that will give unique array.
-    """
-    
-    warn("It is faster to call np.unique.")
-    b = np.ascontiguousarray(mat).view(np.dtype((np.void, mat.dtype.itemsize * mat.shape[1])))
-    if not return_inverse:
-        _, idx = np.unique(b, return_index=True)
-    else:
-        _, idx = np.unique(b, return_inverse=True)
-    
-    return idx
-
 def acf_breaks(x,y=None, length=20,iters=0):
     """
     2013-10-28
