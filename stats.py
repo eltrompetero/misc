@@ -9,7 +9,7 @@ import numpy as np
 from numpy import fft
 from scipy.optimize import minimize
 from scipy.special import zeta
-from multiprocess import Pool,cpu_count
+from multiprocess import Pool, cpu_count
 from numba import njit
 from warnings import warn
 from mpmath import polylog
@@ -282,10 +282,9 @@ class DiscretePowerLaw():
         x1 = upper_bound or cls._default_upper_bound
         
         Z = cls.Z(alpha, x0, x1) 
-        z0 = zeta(alpha, x0)
-        def cdf(x, x0=x0, x1=x1, alpha=alpha, z0=z0, Z=Z):
+        def cdf(x, x0=x0, x1=x1, alpha=alpha, Z=Z):
             assert all(x>=x0) and all(x<=x1)
-            return (z0 - zeta(alpha, x+1)) / Z
+            return 1 - zeta(alpha, x+1) / Z
         return cdf
 
     def rvs(self, size=(1,), alpha=None, lower_bound=None, upper_bound=None):
@@ -354,8 +353,9 @@ class DiscretePowerLaw():
                        decimal_resolution=None,
                        run_check=True):
         """
-        Find the best fit power law exponent and min threshold for a discrete power law distribution. Lower
-        bound is the one that gives the highest likelihood over the range specified.
+        Find the best fit power law exponent and min threshold for a discrete power
+        law distribution. Lower bound is the one that gives the lowest KS statistic
+        over the range specified.
 
         Parameters
         ----------
@@ -364,7 +364,8 @@ class DiscretePowerLaw():
         initial_guess : float, 2.
             Guess for power law exponent alpha
         lower_bound_range : duple, None
-            If not None, then select the lower bound with max likelihood over the given range (inclusive).
+            If not None, then select the lower bound with max likelihood over the
+            given range (inclusive).
         lower_bound : int, 1
             Lower cutoff inclusive.
         upper_bound : float, np.inf
@@ -375,6 +376,7 @@ class DiscretePowerLaw():
         max_alpha : float, 20.
             max value allowed for alpha.
         decimal_resolution : int, None
+            Put into np.around.
         run_check : bool, True
             If True, run checks. Disable for max speed.
 
@@ -424,17 +426,17 @@ class DiscretePowerLaw():
         # setup
         decimal_resolution = decimal_resolution or int(np.log10(X[0])+1)
 
-        # lower bound cannot exceed the values of the elements of X, here's a very generous range
-        lower_bound_range = max(lower_bound_range[0],X.min()), min(lower_bound_range[1],X.max())
-        assert lower_bound_range[0]>0
-        if lower_bound_range[0]>=lower_bound_range[1]:
+        # lower bound cannot exceed the values of the elements of X, here's a generous range
+        lower_bound_range = max(lower_bound_range[0], X.min()), min(lower_bound_range[1], X.max())
+        assert lower_bound_range[0] > 0
+        if lower_bound_range[0] >= lower_bound_range[1]:
             raise AssertionError("Impossible lower bound range.")
-        assert lower_bound_range[0]<(upper_bound-1)
-        assert X.min()<=lower_bound_range[1]
+        assert lower_bound_range[0] < (upper_bound-1)
+        assert X.min() <= lower_bound_range[1]
 
-        boundsIx = (X>=lower_bound_range[0])&(X<=lower_bound_range[1])
+        boundsIx = (X>=lower_bound_range[0]) & (X<=lower_bound_range[1])
         uniqLowerBounds = np.unique(np.around(X[boundsIx], decimal_resolution)).astype(int)
-        if uniqLowerBounds[-1]>=X.max():
+        if uniqLowerBounds[-1] >= X.max():
             uniqLowerBounds = uniqLowerBounds[:-1]
         if uniqLowerBounds[0]==0:
             uniqLowerBounds = uniqLowerBounds[1:]
@@ -442,7 +444,7 @@ class DiscretePowerLaw():
             if full_output:
                 return (np.nan, np.nan), {}
             return np.nan, np.nan
-
+        
         # set up pool to evaluate likelihood for entire range of lower bounds
         # calls cls.max_likelihood to find best alpha for the given lower bound
         def solve_one_lower_bound(lower_bound):
@@ -458,15 +460,14 @@ class DiscretePowerLaw():
         
         if n_cpus is None or n_cpus>1:
             # parallelized
-            pool = Pool(cpu_count()-1)
-            alpha, ksstat, soln = zip(*pool.map(solve_one_lower_bound, uniqLowerBounds))
-            pool.close()
+            with Pool() as pool:
+                alpha, ksstat, soln = zip(*pool.map(solve_one_lower_bound, uniqLowerBounds))
         else:
             # sequential
             alpha = np.zeros(uniqLowerBounds.size)
             ksstat = np.zeros(uniqLowerBounds.size)
             soln = []
-            for i,lb in enumerate(uniqLowerBounds):
+            for i, lb in enumerate(uniqLowerBounds):
                 alpha[i], ksstat[i], s = solve_one_lower_bound(lb)
                 soln.append(s)
         
@@ -530,8 +531,7 @@ class DiscretePowerLaw():
 
     @classmethod
     def alpha_range(cls, x, alpha, dL, lower_bound=None, upper_bound=np.inf):
-        """
-        Upper and lower values for alpha that correspond to a likelihood
+        """Upper and lower values for alpha that correspond to a likelihood
         increase/drop of dL. You must be at a peak of likelihood otherwise the
         results will be nonsensical.
 
@@ -1058,9 +1058,8 @@ class PowerLaw(DiscretePowerLaw):
         
         # run max likelihood procedure over all lower bounds
         if n_cpus>1 and uniqLowerBounds.size>1:
-            pool = Pool(n_cpus or cpu_count())
-            alpha, ksval, soln = list(zip(*pool.map(parallel_wrapper, uniqLowerBounds)))
-            pool.close()
+            with Pool(n_cpus or cpu_count()) as pool:
+                alpha, ksval, soln = list(zip(*pool.map(parallel_wrapper, uniqLowerBounds)))
         else:
             alpha = np.zeros(uniqLowerBounds.size)
             ksval = np.zeros(uniqLowerBounds.size)
