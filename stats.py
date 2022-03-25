@@ -314,7 +314,7 @@ class DiscretePowerLaw():
 
         if x1 < 10_001:
             try:
-                return self.rng.choice(range(x0,int(x1)+1),
+                return self.rng.choice(range(x0, int(x1)+1),
                                        size=size,
                                        p=self.pdf(alpha,x0,x1)(np.arange(x0,x1+1)))
             except ValueError:
@@ -721,8 +721,7 @@ class DiscretePowerLaw():
                 X = self.rvs(alpha=self.alpha,
                              size=int(K),
                              lower_bound=self.lower_bound,
-                             upper_bound=self.upper_bound,
-                             rng=self.rng)
+                             upper_bound=self.upper_bound)
                 if has_multiple_unique_values(X):
                     sampled = True
 
@@ -766,8 +765,7 @@ class DiscretePowerLaw():
                                 self.rvs(alpha=self.alpha,
                                          size=K2,
                                          lower_bound=self.lower_bound,
-                                         upper_bound=self.upper_bound,
-                                         rng=self.rng)))
+                                         upper_bound=self.upper_bound)))
             if has_multiple_unique_values(X):
                 sampled = True
 
