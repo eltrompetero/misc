@@ -1805,7 +1805,7 @@ class GreatCircle():
         if np.array_equal(v, w):
             raise Exception("Great circles are the same.")
         
-        # need a way of keeping track of whether or not the following calculate converges
+        # need a way of keeping track of whether or not the following calculation converges
         fancyD = (v[0]*w[2] - w[0]*v[2]) / (w[1]*v[2] - v[1]*w[2])
         xyz = np.zeros(3)
         xyz[0] = np.sqrt(w[2]**2 / ((1+fancyD**2)*w[2]**2 + (w[0]+w[1]*fancyD)**2))
@@ -1818,25 +1818,25 @@ class GreatCircle():
             xyz[2] = np.sqrt(z2)
         
         # meet condition for plane passing through origin
-        if np.isclose(w.dot(xyz), 0):  #+++
+        if np.isclose(w.dot(xyz), 0, atol=1e-7):  #+++
             signsAreCorrect = True
         else:
             signsAreCorrect = False
             
         if not signsAreCorrect:  #-++
             xyz[0] *= -1
-            if np.isclose(w.dot(xyz), 0):
+            if np.isclose(w.dot(xyz), 0, atol=1e-7):
                 signsAreCorrect = True
         if not signsAreCorrect:  #+-+
             xyz[0] *= -1
             xyz[1] *= -1
-            if np.isclose(w.dot(xyz), 0):
+            if np.isclose(w.dot(xyz), 0, atol=1e-7):
                 signsAreCorrect = True
         if not signsAreCorrect:  #--+
             xyz[0] *= -1
-            if np.isclose(w.dot(xyz), 0):
+            if np.isclose(w.dot(xyz), 0, atol=1e-7):
                 signsAreCorrect = True
-        assert signsAreCorrect
+        assert signsAreCorrect, w.dot(xyz)
 
         return np.vstack((xyz, -xyz))
 
