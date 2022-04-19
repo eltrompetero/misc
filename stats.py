@@ -1,7 +1,8 @@
 # ====================================================================================== #
 # Module for helper functions with statistical analysis of data.
 # Author: Eddie Lee, edlee@csh.ac.at
-# 
+# Also edited by: Niraj Kushwaha, kushwaha@csh.ac.at
+#
 # NOTES:
 # 2018-12-05 : only DiscretePowerLaw and PowerLaw are updated most recently
 # ====================================================================================== #
