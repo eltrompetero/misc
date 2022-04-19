@@ -19,7 +19,6 @@ from multiprocess import Pool
 
 from .angle import mod_angle, Quaternion
 from .utils import ind_to_sub
-PRECISION = 1e-7  # b/c of linearity, this is PRECISION * RADIUS distance
 
 
 
@@ -1959,7 +1958,7 @@ class VoronoiCell():
     Note that terminology "edges", "boundaries", "cuts", and "facets" are used
     interchangeably.
     """
-    def __init__(self, center, rng=None):
+    def __init__(self, center, rng=None, precision=1e-7):
         """
         Parameters
         ----------
@@ -1978,6 +1977,8 @@ class VoronoiCell():
         self.x = np.cross(self.rng.normal(size=3), center.vec)
         self.x /= np.linalg.norm(self.x)
         self.y = np.cross(self.x, -center.vec)
+
+        self. precision = precision  # b/c of linearity, this is PRECISION * RADIUS distance
 
     def lip(self, pts):
         """Find lip bounding the center with closest two points.
@@ -2281,10 +2282,11 @@ class VoronoiCell():
 
         return xyz
 
-    @staticmethod
-    def _combine_close_rows(X, tol=PRECISION):
+    def _combine_close_rows(self, X, tol=None):
         """Combine rows that are within tolerance.
         """
+
+        tol = tol or self.precision
         
         groups = []
         d = squareform(pdist(X))
