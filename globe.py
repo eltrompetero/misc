@@ -14,6 +14,9 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 from scipy.optimize import minimize
 from itertools import combinations
+from multiprocess import Pool
+
+
 from .angle import mod_angle, Quaternion
 from .utils import ind_to_sub
 PRECISION = 2e-7  # b/c of linearity, this is PRECISION * RADIUS distance
@@ -556,7 +559,7 @@ class PoissonDiscSphere():
             return []
 
         if len(self.samples):
-            if self.iprint: "No coarse grid available, all pairwise comparisons to find neighbors."
+            if self.iprint: "No coarse grid available, performing all pairwise comparisons."
 
             # find the closest point
             if fast:
@@ -661,17 +664,11 @@ class PoissonDiscSphere():
         neighborhood.
         """
         
-        if len(self.samples)>0:
-            neighborIx = self.neighbors(pt)
-
-            # handle lists of samples and array of samples differently
-            if type(self.samples) is list:
-                for ix in neighborIx:
-                    if (self.dist(pt, self.samples[ix]) < self.r):
-                        return False
-            else:
-                if (self.dist(pt, self.samples[neighborIx]) < self.r).any():
-                    return False
+        if len(self.samples):
+            neighbor_ix, dist = self.neighbors(pt, return_dist=True)
+            if (dist < self.r).any():
+                return False
+            return True
         return True
     
     def get_point(self, refpt, max_iter=10):
@@ -751,6 +748,7 @@ class PoissonDiscSphere():
         active = [0]
 
         # As long as there are points in the active list, keep looking for samples.
+        self.samples = np.vstack(self.samples)
         while active:
             # choose a random "reference" point from the active list.
             idx = self.rng.choice(active)
@@ -759,7 +757,7 @@ class PoissonDiscSphere():
             pt = self.get_point(refpt)
             if pt:
                 # Point pt is valid: add it to samples list and mark as active
-                self.samples.append(pt[0])
+                self.samples = np.append(self.samples, pt[0][None,:], axis=0)
                 nsamples = len(self.samples) - 1
                 active.append(nsamples)
                 if not self.coarseGrid is None:
@@ -769,7 +767,6 @@ class PoissonDiscSphere():
                 # the list of "active" points.
                 active.remove(idx)
         
-        self.samples = np.vstack(self.samples)
         # When doing a fast distance computation, we cannot take a sample smaller than the
         # size of the system so cap the number of comparisons to the total sample size.
         if len(self.samples)<self.fastSampleSize:
@@ -1121,6 +1118,27 @@ class PoissonDiscSphere():
         
         assert xy.ndim==1
         return np.argmin(self.dist(xy, self.samples))
+
+    def check_min_dist(self):
+        """Check that min distance between samples is >self.r.
+
+        Returns
+        -------
+        bool
+            True if min distance satisfies threshold.
+        """
+
+        def loop_wrapper(ix):
+            n, d = self.neighbors(self.samples[ix], return_dist=True)
+            d = d.tolist()
+            d.pop(n.index(ix))
+            n.pop(n.index(ix))
+            return n, d
+
+        with Pool() as pool:
+            neighbors, dist = list(zip(*pool.map(loop_wrapper, range(len(self.samples)))))
+
+        return all([min(d)>((1-1e-6)*self.r) for d in dist])
 #end PoissonDiscSphere
     
 def cartesian_com(phi, theta):
@@ -2030,6 +2048,7 @@ class VoronoiCell():
                       (v1, v2, lipEdges[1])]
         self.vertices = [v1, v2]
         self.add_cut(GreatCircle.bisector(pts[sortix[0]], self.center))
+        assert len(self.vertices)>=3, self.vertices
 
         return sorted(closeptsIx + [sortix[0]])
     
@@ -2143,7 +2162,7 @@ class VoronoiCell():
         ----------
         G : GreatCircle
 
-        REturns
+        Returns
         -------
         bool
             Returns False if unsuccessful cut.
