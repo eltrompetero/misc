@@ -19,7 +19,7 @@ from multiprocess import Pool
 
 from .angle import mod_angle, Quaternion
 from .utils import ind_to_sub
-PRECISION = 2e-7  # b/c of linearity, this is PRECISION * RADIUS distance
+PRECISION = 1e-7  # b/c of linearity, this is PRECISION * RADIUS distance
 
 
 
@@ -2030,7 +2030,7 @@ class VoronoiCell():
         lipEdges = [GreatCircle.bisector(p, self.center) for p in closepts]
         vertices = lipEdges[0].intersect(lipEdges[1])
         
-        # determine third edge to cut out one vertex (this is arbitrary)
+        # determine third edge to cut out one vertex of lip (this is arbitrary)
         try:
             thisV = vertices[0]
             thisVix = 0
@@ -2047,8 +2047,7 @@ class VoronoiCell():
         self.edges = [(v1, v2, lipEdges[0]),
                       (v1, v2, lipEdges[1])]
         self.vertices = [v1, v2]
-        self.add_cut(GreatCircle.bisector(pts[sortix[0]], self.center))
-        assert len(self.vertices)>=3, self.vertices
+        assert self.add_cut(GreatCircle.bisector(pts[sortix[0]], self.center))
 
         return sorted(closeptsIx + [sortix[0]])
     
