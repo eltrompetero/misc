@@ -2048,9 +2048,14 @@ class VoronoiCell():
         self.edges = [(v1, v2, lipEdges[0]),
                       (v1, v2, lipEdges[1])]
         self.vertices = [v1, v2]
-        assert self.add_cut(GreatCircle.bisector(pts[sortix[0]], self.center))
+        
+        # iterate thru potential neighboring points to add a third edge to the enveloping lip
+        i = 0
+        while not self.add_cut(GreatCircle.bisector(pts[sortix[i]], self.center)):
+            i += 1
+            assert len(sortix) > i
 
-        return sorted(closeptsIx + [sortix[0]])
+        return sorted(closeptsIx + [sortix[i]])
     
     def _third_edge(self, thisV, pts, closeptsIx):
         # check for any points that are on the same side as thisV and are close enough
@@ -2157,6 +2162,7 @@ class VoronoiCell():
             2. Intersection at one vertex, which doesn't add a new facet.
             3. Intersection at two vertices, which doesn't add a new facet. This could
                only be the case if the shape to be cut is a lip.
+            4. Not treated below: intersection at >2 vertices.
 
         Parameters
         ----------
@@ -2296,7 +2302,7 @@ class VoronoiCell():
             thisix = remainingix.pop(0)
             groups.append([thisix])
 
-            ix = np.where((0<d[thisix])&(d[thisix]<tol))[0].tolist()
+            ix = np.where((0<d[thisix]) & (d[thisix]<tol))[0].tolist()
             for ix_ in ix:
                 # we are going to assume that the groups are obviously identifiable,
                 # such that we don't need to make sure we haven't already counted this
