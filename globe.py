@@ -2010,6 +2010,11 @@ class VoronoiCell():
         """Initialize cell with a triangle generated from closest possible set of points,
         which may indeed be the three closest points but not necessarily.
 
+        Algorithm involves
+            1. Use closest two points to form a bounding cell w/ two edges (or a lip).
+            2. Use third closest point to add third edge unless third closest point
+               doesn't work, in which case continue iterating thru closest neighbors.
+
         Parameters
         ----------
         pts : list of SphereCoordinate
@@ -2031,7 +2036,8 @@ class VoronoiCell():
         lipEdges = [GreatCircle.bisector(p, self.center) for p in closepts]
         vertices = lipEdges[0].intersect(lipEdges[1])
         
-        # determine third edge to cut out one vertex of lip (this is arbitrary)
+        # determine third edge to cut out one vertex of lip (this is an arbitrary choice
+        # between one end of the lip vs. the other)
         try:
             thisV = vertices[0]
             thisVix = 0
@@ -2041,21 +2047,26 @@ class VoronoiCell():
             thisVix = 1
             sortix, checkResult = self._third_edge(thisV, pts, closeptsIx)
         
-        # build lip cell as a starting point
+        # build bounding "lip" as a starting point, i.e. two bounding edges looking like a
+        # "lip"
         # note that direction of rotation about lip is arbitrary, and you could check this
-        # be reversing the order of defn
+        # by reversing the order of definition
         v1, v2 = SphereCoordinate(vertices[0]), SphereCoordinate(vertices[1])
         self.edges = [(v1, v2, lipEdges[0]),
                       (v1, v2, lipEdges[1])]
         self.vertices = [v1, v2]
         
         # iterate thru potential neighboring points to add a third edge to the enveloping lip
-        # but don't consider the last two points, which are the closest two neighbors originally used to
-        # create bounding lip
+        # but don't consider the first two points already considered by the lip the number
+        # of candidates depends on the default radius checked in self._third_edge()
+        # variable "twice"
         i = 0
+        assert sortix[i]!=closeptsIx[0] and sortix[i]!=closeptsIx[1]
         while not self.add_cut(GreatCircle.bisector(pts[sortix[i]], self.center)):
             i += 1
-            assert (len(sortix)-2) > i
+            while sortix[i]==closeptsIx[0] or sortix[i]==closeptsIx[1]:
+                i += 1
+            assert len(sortix) > i
 
         return sorted(closeptsIx + [sortix[i]])
     
@@ -2080,7 +2091,7 @@ class VoronoiCell():
 
         # check for any points that are on the same side as thisV and are close enough
         posPlane = GreatCircle.ortho(SphereCoordinate(thisV), self.center)
-        twiced = self.center.geo_dist(thisV) * 2
+        twiced = self.center.geo_dist(thisV) * 4
         checkResult = [self._check_pt(pt, posPlane, twiced) for pt in pts]
         checkResult[closeptsIx[0]] = np.inf
         checkResult[closeptsIx[1]] = np.inf
@@ -2095,7 +2106,7 @@ class VoronoiCell():
         otherwise, return np.inf.
         """
         
-        if pt.dot(posPlane.w)<0:
+        if pt.dot(posPlane.w) < 0:
             return np.inf
         
         thisd = pt.geo_dist(self.center)
@@ -2142,7 +2153,7 @@ class VoronoiCell():
             newEdge = (p1, p2, G)
 
         # first check that new edge isn't extraneous
-        if len(self.edges)>2:
+        if len(self.edges) > 2:
             if not (self.inside(newEdge[0]) and self.inside(newEdge[1])):
                 return False
 
