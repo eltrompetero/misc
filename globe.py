@@ -1869,7 +1869,7 @@ class GreatCircle():
 
         Returns
         -------
-        function
+        GreatCircle
             Parameterized by angle theta where theta=0 is the point that is halfway
             between x and y on the sphere.
             Plane is oriented towards y from x.
@@ -1969,7 +1969,7 @@ class VoronoiCell():
 
         self.center = center
         self.vertices = []
-        self.edges = []
+        self.edges = []  # list of (vertex, vertex, list of bisector)
         self.rng = rng or np.random
 
         # Generate a plane passing thru center and tangential to sphere. This will be used
@@ -2050,14 +2050,34 @@ class VoronoiCell():
         self.vertices = [v1, v2]
         
         # iterate thru potential neighboring points to add a third edge to the enveloping lip
+        # but don't consider the last two points, which are the closest two neighbors originally used to
+        # create bounding lip
         i = 0
         while not self.add_cut(GreatCircle.bisector(pts[sortix[i]], self.center)):
             i += 1
-            assert len(sortix) > i
+            assert (len(sortix)-2) > i
 
         return sorted(closeptsIx + [sortix[i]])
     
     def _third_edge(self, thisV, pts, closeptsIx):
+        """
+        Parameters
+        ----------
+        thisV : ndarray
+            xyz coordinates 
+        pts : list of SphereCoordinate
+        closeptsIx
+            Indices of closest two points on spherical surface.
+
+        Returns
+        -------
+        ndarray
+            Argsort of distance (next output).
+        ndarray
+            Distance. Inf for pts that should be ignored hereon b/c they were already
+            considered (?).
+        """
+
         # check for any points that are on the same side as thisV and are close enough
         posPlane = GreatCircle.ortho(SphereCoordinate(thisV), self.center)
         twiced = self.center.geo_dist(thisV) * 2
@@ -2066,12 +2086,13 @@ class VoronoiCell():
         checkResult[closeptsIx[1]] = np.inf
         assert any(np.isfinite(checkResult))
 
-        # sort remaining points by distance
+        # sort viable points by distance (non-viable pts have already been set to inf)
         sortix = np.argsort(checkResult)
         return sortix, checkResult
 
     def _check_pt(self, pt, posPlane, d):
-        """Return distance to pt if it is on positive side of plane and within distance of center.
+        """Return distance to pt if it is on positive side of plane and within distance of center;
+        otherwise, return np.inf.
         """
         
         if pt.dot(posPlane.w)<0:
