@@ -799,12 +799,20 @@ class DiscretePowerLaw():
         between the empirical and model CDFs (the Kolmogorov-Smirnov statistic for
         discrete data).
 
+        Note that this does not account for any samples below the lower cutoff. If
+        they are present in X, an error will be thrown.
+
         Parameters
         ----------
         X : ndarray
+            Sample data above lower cutoff.
         alpha : float, None
+            Power law exponent.
         lower_bound : int, None
+            Lower cutoff (inclusive).
         upper_bound : int, None
+            Infinity by default.
+        iprint : bool, False
 
         Returns
         -------
