@@ -220,7 +220,7 @@ class DiscretePowerLaw():
         self.alpha = float(alpha)
         self.params = self.alpha,  # parameters as list
         self.lower_bound = lower_bound
-        self.upper_bound = np.inf  # this is fixed by default
+        self.upper_bound = upper_bound
 
     def pdf(self, alpha=None, lower_bound=None, upper_bound=None, normalize=True):
         """Return PDF function."""
@@ -323,7 +323,7 @@ class DiscretePowerLaw():
                 raise Exception("Probabilities do not sum to 1.")
         
         # when upper bound is large, use continuum approximation for tail
-        if x0<10_001:
+        if x0 < 10_001:
             xRange = np.arange(x0, 10_001)
             p = self.pdf(alpha, x0, x1)(xRange)
             ptail = 1 - p.sum()
@@ -390,7 +390,7 @@ class DiscretePowerLaw():
         tuple, optional
             (uniqLowerBounds, ksstat, list of soln)
         """
-
+        
         # if only a single data is given, fitting procedure is not well defined
         if not has_multiple_unique_values(X):
             if lower_bound_range:
