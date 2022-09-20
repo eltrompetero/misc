@@ -2067,7 +2067,7 @@ class VoronoiCell():
             while sortix[i]==closeptsIx[0] or sortix[i]==closeptsIx[1]:
                 i += 1
             assert len(sortix) > i
-
+        
         return sorted(closeptsIx + [sortix[i]])
     
     def _third_edge(self, thisV, pts, closeptsIx):
@@ -2244,15 +2244,29 @@ class VoronoiCell():
         return True
     
     def reconstruct_hull(self):
-        """Reconstruct hull by looping around outside."""
+        """Reconstruct hull by looping around outside. Combine any two vertices into
+        a single vertex if they are exactly the same. Overlap can happen by accident
+        when an intersection of two edges is sufficiently close to the location of a
+        third bisector.
+        """
 
         self.order_vertices()
         self.edges = []
+        vertices_to_remove = []
         for i in range(len(self.vertices)):
             p1 = self.vertices[i]
             p2 = self.vertices[(i+1)%len(self.vertices)]
-            G = GreatCircle(np.cross(p1.vec, p2.vec))
-            self.edges.append((p1, p2, G))
+            w = np.cross(p1.vec, p2.vec)
+            # when cross product is not zero, add to hull
+            if not (w==0).all():
+                G = GreatCircle(np.cross(p1.vec, p2.vec))
+                self.edges.append((p1, p2, G))
+            else:
+                vertices_to_remove.append(i)
+        counter = 0
+        for i in vertices_to_remove:
+            self.vertices.pop(i-counter)
+            counter += 1
 
     def inside(self, p, tol=1e-8, detailed=False):
         """Check if given point is inside or outside Voronoi cell.
